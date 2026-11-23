@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PSM AI Question Generator & Importer
  * Description: Generates structured MCQ/coding questions via AI APIs using Domain/Skill/Tag/QuestionType/Difficulty masters, AJAX modal CRUD, 3 independent AI provider cards, batch tracking, preview-before-import, and label export.
- * Version: 1.2.5
+ * Version: 1.2.6
  * Author: PSM
  * Text Domain: psm-ai-importer
  */
@@ -11,7 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PSM_AI_VERSION', '1.2.5' );
+define( 'PSM_AI_VERSION', '1.2.6' );
+define( 'PSM_AI_DB_VERSION', '1.3.0' );
 define( 'PSM_AI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PSM_AI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -25,17 +26,60 @@ class PSM_AI_Question_Importer {
 
 	public static function activate() {
 		self::create_and_upgrade_tables();
-		PSM_Seeder::init_default_masters();
-		PSM_Seeder::run_seed();
+		self::bootstrap_masters();
+		update_option( 'psm_ai_db_version', PSM_AI_DB_VERSION, false );
 	}
 
 	public static function maybe_upgrade() {
+		self::migrate_legacy_settings();
+
 		$installed_ver = get_option( 'psm_ai_db_version', '0.0.0' );
-		if ( version_compare( $installed_ver, PSM_AI_VERSION, '<' ) ) {
+		if ( version_compare( $installed_ver, PSM_AI_DB_VERSION, '<' ) ) {
 			self::create_and_upgrade_tables();
-			PSM_Seeder::init_default_masters();
+			self::bootstrap_masters();
+			update_option( 'psm_ai_db_version', PSM_AI_DB_VERSION, false );
+		}
+	}
+
+	/**
+	 * Older releases stored a single key at the top level. Move it into the
+	 * selected provider and stop autoloading the credential-bearing option.
+	 */
+	private static function migrate_legacy_settings() {
+		$settings = get_option( 'psm_ai_api_settings', array() );
+		if ( ! is_array( $settings ) || ! array_key_exists( 'api_key', $settings ) ) {
+			return;
+		}
+
+		$selected = ! empty( $settings['provider'] ) ? (string) $settings['provider'] : 'gemini';
+		$legacy   = (string) $settings['api_key'];
+
+		if ( ! isset( $settings['providers'] ) || ! is_array( $settings['providers'] ) ) {
+			$settings['providers'] = array();
+		}
+		if ( $legacy !== '' && empty( $settings['providers'][ $selected ]['api_key'] ) ) {
+			if ( ! isset( $settings['providers'][ $selected ] ) || ! is_array( $settings['providers'][ $selected ] ) ) {
+				$settings['providers'][ $selected ] = array();
+			}
+			$settings['providers'][ $selected ]['api_key'] = $legacy;
+		}
+
+		unset( $settings['api_key'] );
+		update_option( 'psm_ai_api_settings', $settings, false );
+	}
+
+	/**
+	 * Master rows are always ensured from defaults. The full taxonomy seed only
+	 * runs on a fresh install so existing skills and tags are never rewritten.
+	 */
+	private static function bootstrap_masters() {
+		global $wpdb;
+
+		PSM_Seeder::init_default_masters();
+
+		$skill_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}psm_skills" );
+		if ( 0 === $skill_count ) {
 			PSM_Seeder::run_seed();
-			update_option( 'psm_ai_db_version', PSM_AI_VERSION );
 		}
 	}
 
@@ -43,7 +87,7 @@ class PSM_AI_Question_Importer {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-		$charset_collate = 'DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci';
+		$charset_collate = $wpdb->get_charset_collate();
 
 		// 1. Domains Table
 		$sql_domains = "CREATE TABLE {$wpdb->prefix}psm_domains (
@@ -147,32 +191,32 @@ class PSM_AI_Question_Importer {
 			KEY status_sort (status,sort_order)
 		) ENGINE=InnoDB $charset_collate;";
 
-		// 7. Questions Table
+		// 7. Questions Table (must match programming-skills-master Schema exactly)
 		$sql_questions = "CREATE TABLE {$wpdb->prefix}psm_questions (
-			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-			skill_id bigint UNSIGNED NOT NULL DEFAULT '0',
-			difficulty int NOT NULL DEFAULT '1',
-			question_type varchar(60) NOT NULL DEFAULT 'four_option',
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			skill_id bigint(20) unsigned NOT NULL,
+			difficulty tinyint(3) unsigned NOT NULL DEFAULT 1,
+			question_type varchar(20) NOT NULL DEFAULT 'four_option',
 			question_text longtext NOT NULL,
-			code_snippet longtext,
-			code_language varchar(40) NOT NULL DEFAULT '',
-			image_id bigint UNSIGNED NOT NULL DEFAULT '0',
+			code_snippet longtext NULL,
+			code_language varchar(30) NOT NULL DEFAULT '',
+			image_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			options longtext NOT NULL,
-			correct_keys text NOT NULL,
-			is_multiple tinyint(1) NOT NULL DEFAULT '0',
-			explanation longtext,
+			correct_keys longtext NOT NULL,
+			is_multiple tinyint(1) unsigned NOT NULL DEFAULT 0,
+			explanation longtext NULL,
 			status varchar(20) NOT NULL DEFAULT 'draft',
-			created_by bigint UNSIGNED NOT NULL DEFAULT '0',
+			created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+			external_id varchar(100) NOT NULL DEFAULT '',
+			content_hash char(40) NOT NULL DEFAULT '',
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
-			external_id varchar(100) NOT NULL DEFAULT '',
-			content_hash varchar(64) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
-			KEY skill_id (skill_id),
+			KEY skill_status_difficulty (skill_id,status,difficulty),
+			KEY status_type (status,question_type),
 			KEY difficulty (difficulty),
-			KEY question_type (question_type),
-			KEY status (status),
-			KEY content_hash (content_hash)
+			KEY skill_external (skill_id,external_id),
+			KEY skill_hash (skill_id,content_hash)
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 8. Question Tags Pivot Table

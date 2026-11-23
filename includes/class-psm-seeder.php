@@ -35,7 +35,10 @@ class PSM_Seeder {
 	}
 
 	/**
-	 * Enforces fixed skill slugs and tag slug corrections across existing rows.
+	 * Repairs fixed slugs without ever deleting a skill or tag.
+	 *
+	 * If the preferred slug is already used by a different row, the legacy row is
+	 * left untouched instead of being removed (questions may still reference it).
 	 */
 	public static function enforce_fixed_slugs_and_tags() {
 		global $wpdb;
@@ -46,53 +49,79 @@ class PSM_Seeder {
 			'Entity Framework Core' => 'efcore',
 			'C#'                    => 'csharp',
 			'C# OOP'                => 'csharp-oop',
+			'Laravel'               => 'laravel',
 		);
 
 		foreach ( $fixed_skills as $skill_name => $target_slug ) {
 			$by_name = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE LOWER(name) = LOWER(%s) LIMIT 1", $skill_name ) );
-			$by_slug = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE slug = %s LIMIT 1", $target_slug ) );
-
-			if ( $by_name ) {
-				if ( $by_slug && (int) $by_slug->id !== (int) $by_name->id ) {
-					$wpdb->delete( $skills_table, array( 'id' => (int) $by_slug->id ), array( '%d' ) );
-				}
-				if ( $by_name->slug !== $target_slug ) {
-					$wpdb->update(
-						$skills_table,
-						array( 'slug' => $target_slug ),
-						array( 'id' => (int) $by_name->id ),
-						array( '%s' ),
-						array( '%d' )
-					);
-				}
+			if ( ! $by_name || $by_name->slug === $target_slug ) {
+				continue;
 			}
+
+			$conflict = $wpdb->get_var(
+				$wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s AND id != %d LIMIT 1", $target_slug, (int) $by_name->id )
+			);
+			if ( $conflict ) {
+				continue;
+			}
+
+			$wpdb->update(
+				$skills_table,
+				array( 'slug' => $target_slug ),
+				array( 'id' => (int) $by_name->id ),
+				array( '%s' ),
+				array( '%d' )
+			);
 		}
 
-		// Repair legacy C# or Laravel slugs if present
-		$wpdb->query( "UPDATE $skills_table SET slug = 'csharp' WHERE name = 'C#' AND slug != 'csharp'" );
-		$wpdb->query( "UPDATE $skills_table SET slug = 'laravel' WHERE LOWER(name) = 'laravel' AND slug IN ('laravel-php','larave-php','larvel')" );
-
-		// Fix tag slug c-sharp-oop -> csharp-oop
-		$bad_tag  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'c-sharp-oop' ) );
-		$good_tag = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'csharp-oop' ) );
-		if ( $bad_tag ) {
-			if ( $good_tag && (int) $good_tag->id !== (int) $bad_tag->id ) {
-				$wpdb->delete( $tags_table, array( 'id' => (int) $bad_tag->id ), array( '%d' ) );
-			} else {
+		// Legacy Laravel slugs ("laravel-php", "larvel") are repairable by name.
+		$legacy_laravel = $wpdb->get_row(
+			"SELECT * FROM $skills_table
+			 WHERE LOWER(name) = 'laravel' AND slug IN ('laravel-php','larave-php','larvel') LIMIT 1"
+		);
+		if ( $legacy_laravel ) {
+			$taken = $wpdb->get_var( "SELECT id FROM $skills_table WHERE slug = 'laravel' LIMIT 1" );
+			if ( ! $taken ) {
 				$wpdb->update(
-					$tags_table,
-					array( 'slug' => 'csharp-oop' ),
-					array( 'id' => (int) $bad_tag->id ),
+					$skills_table,
+					array( 'slug' => 'laravel' ),
+					array( 'id' => (int) $legacy_laravel->id ),
 					array( '%s' ),
 					array( '%d' )
 				);
 			}
 		}
+
+		$bad_tag  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'c-sharp-oop' ) );
+		$good_tag = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'csharp-oop' ) );
+		if ( ! $bad_tag ) {
+			return;
+		}
+
+		if ( $good_tag && (int) $good_tag->id !== (int) $bad_tag->id ) {
+			// Both slugs exist. Deactivate the legacy one instead of deleting data.
+			$wpdb->update(
+				$tags_table,
+				array( 'status' => 'inactive' ),
+				array( 'id' => (int) $bad_tag->id ),
+				array( '%s' ),
+				array( '%d' )
+			);
+			return;
+		}
+
+		$wpdb->update(
+			$tags_table,
+			array( 'slug' => 'csharp-oop' ),
+			array( 'id' => (int) $bad_tag->id ),
+			array( '%s' ),
+			array( '%d' )
+		);
 	}
 
 	public static function init_default_masters() {
 		global $wpdb;
-		$now = current_time( 'mysql' );
+		$now = current_time( 'mysql', true );
 
 		// A. Skill Types Table
 		$types_table = $wpdb->prefix . 'psm_skill_types';
@@ -113,8 +142,8 @@ class PSM_Seeder {
 
 		$order = 10;
 		foreach ( $default_types as $dt ) {
-			$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $types_table WHERE slug = %s", $dt['slug'] ) );
-			if ( ! $exists ) {
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $types_table WHERE slug = %s", $dt['slug'] ) );
+			if ( ! $existing ) {
 				$wpdb->insert(
 					$types_table,
 					array(
@@ -128,11 +157,11 @@ class PSM_Seeder {
 					),
 					array( '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
-			} else {
+			} elseif ( '' === trim( (string) $existing->description ) ) {
 				$wpdb->update(
 					$types_table,
 					array( 'description' => $dt['desc'], 'updated_at' => $now ),
-					array( 'id' => (int) $exists ),
+					array( 'id' => (int) $existing->id ),
 					array( '%s', '%s' ),
 					array( '%d' )
 				);
@@ -151,8 +180,8 @@ class PSM_Seeder {
 			array( 'slug' => 'true_false',      'name' => 'True / False',                      'sort' => 40, 'desc' => 'Boolean statement with A = True and B = False; answer_mode: single.' ),
 		);
 		foreach ( $default_qtypes as $qt ) {
-			$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $qt_table WHERE slug = %s", $qt['slug'] ) );
-			if ( ! $exists ) {
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $qt_table WHERE slug = %s", $qt['slug'] ) );
+			if ( ! $existing ) {
 				$wpdb->insert(
 					$qt_table,
 					array(
@@ -166,11 +195,11 @@ class PSM_Seeder {
 					),
 					array( '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
-			} else {
+			} elseif ( '' === trim( (string) $existing->description ) ) {
 				$wpdb->update(
 					$qt_table,
 					array( 'description' => $qt['desc'], 'updated_at' => $now ),
-					array( 'id' => (int) $exists ),
+					array( 'id' => (int) $existing->id ),
 					array( '%s', '%s' ),
 					array( '%d' )
 				);
@@ -185,8 +214,8 @@ class PSM_Seeder {
 			array( 'id' => 3, 'name' => 'Advanced',     'slug' => 'advanced',     'sort' => 30, 'desc' => 'Architecture, performance tuning, edge cases, and internals.' ),
 		);
 		foreach ( $default_diffs as $df ) {
-			$exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $diff_table WHERE id = %d OR slug = %s", $df['id'], $df['slug'] ) );
-			if ( ! $exists ) {
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $diff_table WHERE id = %d OR slug = %s", $df['id'], $df['slug'] ) );
+			if ( ! $existing ) {
 				$wpdb->insert(
 					$diff_table,
 					array(
@@ -201,11 +230,11 @@ class PSM_Seeder {
 					),
 					array( '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
-			} else {
+			} elseif ( '' === trim( (string) $existing->description ) ) {
 				$wpdb->update(
 					$diff_table,
 					array( 'description' => $df['desc'], 'updated_at' => $now ),
-					array( 'id' => (int) $exists ),
+					array( 'id' => (int) $existing->id ),
 					array( '%s', '%s' ),
 					array( '%d' )
 				);
@@ -243,8 +272,9 @@ class PSM_Seeder {
 	}
 
 	/**
-	 * Idempotent Seeder: inserts missing domains, skill types, skills, and tags matched by unique slug,
-	 * and populates descriptions for each seeded skill and tag.
+	 * Idempotent seeder: inserts missing domains, skills and tags matched by slug.
+	 * Existing rows keep their name, owner, status and descriptions; only empty
+	 * descriptions and untouched default skill types are filled in.
 	 */
 	public static function run_seed() {
 		global $wpdb;
@@ -266,11 +296,13 @@ class PSM_Seeder {
 		$summary  = array( 'domains' => 0, 'skills' => 0, 'tags' => 0 );
 
 		$domain_order = 10;
+		$seed_skills  = array();
+
 		foreach ( $taxonomy as $domain_data ) {
 			$domain_slug = self::make_slug( $domain_data['slug'], $domain_data['name'] );
-			$domain_id   = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $domains_table WHERE slug = %s", $domain_slug ) );
+			$domain      = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $domains_table WHERE slug = %s", $domain_slug ) );
 
-			if ( ! $domain_id ) {
+			if ( ! $domain ) {
 				$wpdb->insert(
 					$domains_table,
 					array(
@@ -285,43 +317,47 @@ class PSM_Seeder {
 					),
 					array( '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
-				$domain_id = $wpdb->insert_id;
+				$domain_id = (int) $wpdb->insert_id;
 				$summary['domains']++;
 			} else {
-				$wpdb->update(
-					$domains_table,
-					array( 'description' => $domain_data['description'], 'updated_at' => $now ),
-					array( 'id' => (int) $domain_id ),
-					array( '%s', '%s' ),
-					array( '%d' )
-				);
+				$domain_id = (int) $domain->id;
+				if ( '' === trim( (string) $domain->description ) ) {
+					$wpdb->update(
+						$domains_table,
+						array( 'description' => $domain_data['description'], 'updated_at' => $now ),
+						array( 'id' => $domain_id ),
+						array( '%s', '%s' ),
+						array( '%d' )
+					);
+				}
 			}
 			$domain_order += 10;
 
 			$skill_order = 10;
 			foreach ( $domain_data['skills'] as $skill_data ) {
 				$skill_slug = self::make_slug( $skill_data['slug'], $skill_data['name'] );
-				$skill_desc = $skill_data['description'] ?? ( 'Core concepts, best practices, and interview topics for ' . $skill_data['name'] . '.' );
-				$parent_id  = null;
-
-				if ( ! empty( $skill_data['parent_slug'] ) ) {
-					$parent_id = $wpdb->get_var(
-						$wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s", self::make_slug( $skill_data['parent_slug'] ) )
-					);
+				if ( '' === $skill_slug ) {
+					continue;
 				}
 
-				$type_key      = strtolower( $skill_data['skill_type'] );
+				$skill_desc = $skill_data['description'] ?? ( 'Core concepts, best practices, and interview topics for ' . $skill_data['name'] . '.' );
+				$type_key   = strtolower( $skill_data['skill_type'] );
+
 				$skill_type_id = isset( $type_map[ $type_key ] ) ? $type_map[ $type_key ] : 0;
+				$existing      = $wpdb->get_row(
+					$wpdb->prepare(
+						"SELECT id, description, skill_type, skill_type_id FROM $skills_table WHERE slug = %s",
+						$skill_slug
+					)
+				);
 
-				$skill_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s", $skill_slug ) );
-
-				if ( ! $skill_id ) {
+				if ( ! $existing ) {
 					$wpdb->insert(
 						$skills_table,
 						array(
-							'domain_id'       => (int) $domain_id,
-							'parent_id'       => $parent_id ? (int) $parent_id : 0,
-							'parent_skill_id' => $parent_id ? (int) $parent_id : null,
+							'domain_id'       => $domain_id,
+							'parent_id'       => 0,
+							'parent_skill_id' => null,
 							'name'            => $skill_data['name'],
 							'slug'            => $skill_slug,
 							'skill_type'      => $skill_data['skill_type'],
@@ -333,25 +369,41 @@ class PSM_Seeder {
 							'created_at'      => $now,
 							'updated_at'      => $now,
 						),
-						array( '%d', '%d', $parent_id ? '%d' : '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
+						array( '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
 					);
-					$skill_id = $wpdb->insert_id;
+					$skill_id = (int) $wpdb->insert_id;
 					$summary['skills']++;
 				} else {
-					$wpdb->update(
-						$skills_table,
-						array(
-							'description'   => $skill_desc,
-							'skill_type'    => $skill_data['skill_type'],
-							'skill_type_id' => $skill_type_id,
-							'updated_at'    => $now,
-						),
-						array( 'id' => (int) $skill_id ),
-						array( '%s', '%s', '%d', '%s' ),
-						array( '%d' )
-					);
+					$skill_id = (int) $existing->id;
+					$update   = array();
+
+					if ( '' === trim( (string) $existing->description ) ) {
+						$update['description'] = $skill_desc;
+					}
+
+					$current_type = trim( (string) $existing->skill_type );
+					if ( '' === $current_type || 'Subject' === $current_type ) {
+						$update['skill_type']    = $skill_data['skill_type'];
+						$update['skill_type_id'] = $skill_type_id;
+					} elseif ( ! (int) $existing->skill_type_id && $skill_type_id ) {
+						$update['skill_type_id'] = $skill_type_id;
+					}
+
+					if ( ! empty( $update ) ) {
+						$update['updated_at'] = $now;
+						$formats              = array();
+						foreach ( array_keys( $update ) as $field ) {
+							$formats[] = ( 'skill_type_id' === $field ) ? '%d' : '%s';
+						}
+						$wpdb->update( $skills_table, $update, array( 'id' => $skill_id ), $formats, array( '%d' ) );
+					}
 				}
 				$skill_order += 10;
+
+				$seed_skills[ $skill_slug ] = array(
+					'id'          => $skill_id,
+					'parent_slug' => (string) ( $skill_data['parent_slug'] ?? '' ),
+				);
 
 				$tag_order = 10;
 				$tags_list = $skill_data['tags'] ?? array();
@@ -374,15 +426,15 @@ class PSM_Seeder {
 						continue;
 					}
 
-					$tag_name   = $custom_name !== '' ? $custom_name : self::humanize_tag_slug( $tag_slug, $skill_slug );
-					$tag_desc   = $custom_desc !== '' ? $custom_desc : ( 'Topic tag "' . $tag_name . '" (' . $tag_slug . ') under ' . $skill_data['name'] . '.' );
-					$tag_exists = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $tags_table WHERE slug = %s", $tag_slug ) );
+					$tag_name    = $custom_name !== '' ? $custom_name : self::humanize_tag_slug( $tag_slug, $skill_slug );
+					$tag_desc    = $custom_desc !== '' ? $custom_desc : ( 'Topic tag "' . $tag_name . '" (' . $tag_slug . ') under ' . $skill_data['name'] . '.' );
+					$existing_tag = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $tags_table WHERE slug = %s", $tag_slug ) );
 
-					if ( ! $tag_exists ) {
+					if ( ! $existing_tag ) {
 						$wpdb->insert(
 							$tags_table,
 							array(
-								'skill_id'    => (int) $skill_id,
+								'skill_id'    => $skill_id,
 								'name'        => $tag_name,
 								'slug'        => $tag_slug,
 								'description' => $tag_desc,
@@ -394,21 +446,55 @@ class PSM_Seeder {
 							array( '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 						);
 						$summary['tags']++;
-					} else {
+					} elseif ( '' === trim( (string) $existing_tag->description ) ) {
 						$wpdb->update(
 							$tags_table,
-							array(
-								'skill_id'    => (int) $skill_id,
-								'description' => $tag_desc,
-								'updated_at'  => $now,
-							),
-							array( 'id' => (int) $tag_exists ),
-							array( '%d', '%s', '%s' ),
+							array( 'description' => $tag_desc, 'updated_at' => $now ),
+							array( 'id' => (int) $existing_tag->id ),
+							array( '%s', '%s' ),
 							array( '%d' )
 						);
 					}
 					$tag_order += 10;
 				}
+			}
+		}
+
+		// Second pass: every skill now exists, so parents declared later in the
+		// taxonomy (for example Object-Oriented PHP -> PHP) resolve correctly.
+		foreach ( $seed_skills as $skill_slug => $info ) {
+			$parent_slug = $info['parent_slug'] !== '' ? self::make_slug( $info['parent_slug'] ) : '';
+			$parent_id   = 0;
+
+			if ( $parent_slug !== '' && isset( $seed_skills[ $parent_slug ] ) ) {
+				$parent_id = (int) $seed_skills[ $parent_slug ]['id'];
+			} elseif ( $parent_slug !== '' ) {
+				$parent_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s", $parent_slug ) );
+			}
+			if ( $parent_id === (int) $info['id'] ) {
+				$parent_id = 0;
+			}
+
+			$current = $wpdb->get_row( $wpdb->prepare( "SELECT parent_id, parent_skill_id FROM $skills_table WHERE id = %d", (int) $info['id'] ) );
+			if ( ! $current ) {
+				continue;
+			}
+
+			$current_parent = (int) $current->parent_id;
+			$current_mirror = null !== $current->parent_skill_id ? (int) $current->parent_skill_id : 0;
+
+			if ( $current_parent !== $parent_id || $current_mirror !== $parent_id ) {
+				$wpdb->update(
+					$skills_table,
+					array(
+						'parent_id'       => $parent_id,
+						'parent_skill_id' => $parent_id ? $parent_id : null,
+						'updated_at'      => $now,
+					),
+					array( 'id' => (int) $info['id'] ),
+					array( '%d', $parent_id ? '%d' : '%s', '%s' ),
+					array( '%d' )
+				);
 			}
 		}
 

@@ -15,7 +15,7 @@ class PSM_API_Client {
 
 	public static function get_default_models() {
 		return array(
-			'gemini' => 'gemini-3.8-flash',
+			'gemini' => 'gemini-2.5-flash',
 			'openai' => 'gpt-4o-mini',
 			'custom' => 'custom-model',
 		);
@@ -28,7 +28,7 @@ class PSM_API_Client {
 
 		return array(
 			'api_key'      => $prov_cfg['api_key'] ?? ( ( $settings['provider'] ?? '' ) === $provider ? ( $settings['api_key'] ?? '' ) : '' ),
-			'model'        => $prov_cfg['model'] ?? ( self::get_default_models()[ $provider ] ?? 'gemini-3.8-flash' ),
+			'model'        => $prov_cfg['model'] ?? ( self::get_default_models()[ $provider ] ?? 'gemini-2.5-flash' ),
 			'endpoint_url' => $prov_cfg['endpoint_url'] ?? '',
 			'daily_limit'  => isset( $limits['daily_limit'] ) ? max( 1, absint( $limits['daily_limit'] ) ) : 200,
 			'weekly_limit' => isset( $limits['weekly_limit'] ) ? max( 1, absint( $limits['weekly_limit'] ) ) : 1000,
@@ -127,6 +127,7 @@ class PSM_API_Client {
 			: ( ! empty( $params['question_type'] ) ? array( (string) $params['question_type'] ) : array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' ) );
 		$rules_text     = trim( (string) ( $params['rules'] ?? '' ) );
 		$user_prompt    = trim( (string) ( $params['user_prompt'] ?? '' ) );
+		$code_language  = strtolower( trim( (string) ( $params['code_language'] ?? '' ) ) );
 		$allowed_tags   = is_array( $params['allowed_tag_slugs'] ?? null ) ? $params['allowed_tag_slugs'] : array();
 		$selected_tags  = is_array( $params['tag_slugs'] ?? null ) ? $params['tag_slugs'] : array();
 
@@ -140,15 +141,26 @@ class PSM_API_Client {
 		$lines[] = 'CONTEXT';
 		$lines[] = '- Skill: ' . $skill_name . ( $skill_slug ? ' (slug: ' . $skill_slug . ')' : '' );
 
-		$d_str = strtolower( (string) $difficulty_raw );
-		if ( $d_str === '1' || $d_str === 'beginner' ) {
+		$d_str = strtolower( trim( (string) $difficulty_raw ) );
+		if ( ctype_digit( $d_str ) ) {
+			$d_num = (int) $d_str;
+			$d_str = ( $d_num <= 1 ) ? 'beginner' : ( ( $d_num >= 3 ) ? 'advanced' : 'intermediate' );
+		}
+		if ( $d_str === 'beg' || $d_str === 'easy' ) {
+			$d_str = 'beginner';
+		} elseif ( $d_str === 'medium' || $d_str === 'mid' ) {
+			$d_str = 'intermediate';
+		} elseif ( $d_str === 'hard' || $d_str === 'expert' ) {
+			$d_str = 'advanced';
+		}
+		if ( $d_str === 'beginner' ) {
 			$lines[] = '- Difficulty: beginner (fundamental concepts, basic syntax and common beginner mistakes). Every question must have "difficulty": "beginner".';
-		} elseif ( $d_str === '2' || $d_str === 'intermediate' ) {
+		} elseif ( $d_str === 'intermediate' ) {
 			$lines[] = '- Difficulty: intermediate (practical application, edge cases, idiomatic patterns and debugging). Every question must have "difficulty": "intermediate".';
-		} elseif ( $d_str === '3' || $d_str === 'advanced' ) {
+		} elseif ( $d_str === 'advanced' ) {
 			$lines[] = '- Difficulty: advanced (internals, performance trade-offs, concurrency/architecture and subtle pitfalls). Every question must have "difficulty": "advanced".';
 		} else {
-			$lines[] = '- Difficulty: all levels. Spread the questions evenly across "beginner", "intermediate" and "advanced" and set each questions "difficulty" to the level it belongs to.';
+			$lines[] = '- Difficulty: all levels. Spread the questions evenly across "beginner", "intermediate" and "advanced" and set each question\'s "difficulty" to the level it belongs to.';
 		}
 
 		if ( $diff_label !== '' ) {
@@ -163,11 +175,17 @@ class PSM_API_Client {
 		if ( $user_prompt !== '' ) {
 			$lines[] = '- Focus / Topic Instructions: ' . $user_prompt;
 		}
+		if ( $code_language !== '' ) {
+			$lines[] = '- Code Language Preference: whenever a question includes code, write "code_snippet" in ' . $code_language . ' and set "code_language": "' . $code_language . '".';
+		}
 
 		$lines[] = '';
 		$lines[] = 'QUESTION TYPES AND DISTRIBUTION';
 		$dist = self::calculate_distribution( $count, $types );
 		foreach ( $dist as $t_slug => $t_cnt ) {
+			if ( (int) $t_cnt <= 0 ) {
+				continue;
+			}
 			if ( $t_slug === 'single_choice' || $t_slug === 'four_option' ) {
 				$lines[] = sprintf( '- %s: %d questions, exactly four options (keys A, B, C, D) and exactly one correct answer; "answer_mode": "single".', $t_slug, $t_cnt );
 			} elseif ( $t_slug === 'multiple_choice' || $t_slug === 'multiple_select' ) {
@@ -194,16 +212,16 @@ class PSM_API_Client {
 
 		$lines[] = '';
 		$lines[] = 'RULES';
-		$lines[] = '3. "question_type" must be one of: single_choice, multiple_choice, two_option, true_false, and each question must follow the option and answer rules listed above.';
-		$lines[] = '4. "options" is a list of objects with "key" and "text". "correct_answers" is a list of option keys, and every key must exist in "options".';
-		$lines[] = '5. "difficulty" must be exactly one of: beginner, intermediate, advanced (lowercase).';
-		$lines[] = '6. Every question needs a clear "explanation" (1 to 5 sentences) that says why the correct answer is right and, where useful, why the others are wrong. or make bulleted and with example.';
-		$lines[] = '7. Write "question" and every option "text" as plain text. Do not use Markdown or HTML formatting. Angle brackets such as List<int> are fine as plain text.';
-		$lines[] = '8. To include code, put it in "code_snippet" as one string with line breaks written as \n, and set "code_language" to one of: php, csharp, java, python, javascript, typescript, sql, html, css, json, bash. Use null for "code_snippet" when there is no code.';
-		$lines[] = '9. Do not create duplicate or nearly identical questions. Cover different concepts, and vary the position of the correct answer.';
-		$lines[] = '10. Make wrong options plausible but clearly wrong. Do not use "All of the above" or "None of the above".';
-		$lines[] = '11. Be technically accurate. Do not invent APIs, behaviour or facts. If you are unsure about a detail, ask a different question.';
-		$lines[] = '12. The JSON must be valid: escape double quotes inside strings, do not add comments, and do not leave trailing commas.';
+		$lines[] = '1. "question_type" must be one of: single_choice, multiple_choice, two_option, true_false, and each question must follow the option and answer rules listed above.';
+		$lines[] = '2. "options" is a list of objects with "key" and "text". "correct_answers" is a list of option keys, and every key must exist in "options".';
+		$lines[] = '3. "difficulty" must be exactly one of: beginner, intermediate, advanced (lowercase).';
+		$lines[] = '4. Every question needs a clear "explanation" (1 to 5 sentences) that says why the correct answer is right and, where useful, why the others are wrong. Bulleted points and an example are welcome.';
+		$lines[] = '5. Write "question" and every option "text" as plain text. Do not use Markdown or HTML formatting. Angle brackets such as List<int> are fine as plain text.';
+		$lines[] = '6. To include code, put it in "code_snippet" as one string with line breaks written as \n, and set "code_language" to one of: php, csharp, java, python, javascript, typescript, sql, html, css, json, bash. Use null for "code_snippet" when there is no code.';
+		$lines[] = '7. Do not create duplicate or nearly identical questions. Cover different concepts, and vary the position of the correct answer.';
+		$lines[] = '8. Make wrong options plausible but clearly wrong. Do not use "All of the above" or "None of the above".';
+		$lines[] = '9. Be technically accurate. Do not invent APIs, behaviour or facts. If you are unsure about a detail, ask a different question.';
+		$lines[] = '10. The JSON must be valid: escape double quotes inside strings, do not add comments, and do not leave trailing commas.';
 
 		return implode( "\n", $lines );
 	}
@@ -240,9 +258,8 @@ class PSM_API_Client {
 		if ( $provider === 'gemini' ) {
 			if ( empty( $endpoint ) ) {
 				$endpoint = sprintf(
-					'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s',
-					rawurlencode( $model ),
-					rawurlencode( $api_key )
+					'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
+					rawurlencode( $model )
 				);
 			}
 			$body = array(
@@ -259,6 +276,9 @@ class PSM_API_Client {
 				),
 			);
 			$headers = array( 'Content-Type' => 'application/json' );
+			if ( $api_key !== '' ) {
+				$headers['x-goog-api-key'] = $api_key;
+			}
 		} elseif ( $provider === 'openai' ) {
 			if ( empty( $endpoint ) ) {
 				$endpoint = 'https://api.openai.com/v1/chat/completions';
@@ -281,11 +301,12 @@ class PSM_API_Client {
 			}
 			$body = array(
 				'prompt'        => $full_prompt,
-				'skill_slug'    => $params['skill_slug'],
-				'tag_slugs'     => $params['tag_slugs'],
-				'difficulty'    => $params['difficulty'],
+				'skill_slug'    => $params['skill_slug'] ?? '',
+				'tag_slugs'     => $params['tag_slugs'] ?? array(),
+				'difficulty'    => $params['difficulty_slug'] ?? ( $params['difficulty'] ?? '' ),
 				'question_type' => $params['question_type'] ?? '',
-				'count'         => $params['count'],
+				'code_language' => $params['code_language'] ?? '',
+				'count'         => $params['count'] ?? 0,
 			);
 			$headers = array( 'Content-Type' => 'application/json' );
 			if ( ! empty( $api_key ) ) {
@@ -336,13 +357,13 @@ class PSM_API_Client {
 			return new WP_Error( 'api_http_error', "{$usage['provider_label']} returned HTTP {$code}: " . substr( $raw_body, 0, 400 ) );
 		}
 
-		$units = max( 1, absint( $params['count'] ?? 1 ) );
-		self::record_usage( $provider, $units );
-
 		$questions = self::extract_json_questions( $raw_body, $provider );
 		if ( is_wp_error( $questions ) ) {
 			return $questions;
 		}
+
+		$units = max( 1, absint( $params['count'] ?? 1 ) );
+		self::record_usage( $provider, $units );
 
 		return array(
 			'provider'  => $provider,
@@ -362,29 +383,51 @@ OUTPUT FORMAT (STRICT JSON):
 	}
 
 	private static function extract_json_questions( $raw_body, $provider ) {
-		$decoded = json_decode( $raw_body, true );
-		if ( json_last_error() !== JSON_ERROR_NONE ) {
-			return new WP_Error( 'invalid_api_json', 'API response was not valid JSON.' );
+		$raw_body = (string) $raw_body;
+		$envelope = json_decode( $raw_body, true );
+
+		// Gemini and OpenAI wrap the model output inside their own envelope; gather every text part.
+		$content = '';
+		if ( $provider === 'gemini' ) {
+			$parts = $envelope['candidates'][0]['content']['parts'] ?? array();
+			if ( is_array( $parts ) ) {
+				$chunks = array();
+				foreach ( $parts as $part ) {
+					if ( isset( $part['text'] ) && is_string( $part['text'] ) ) {
+						$chunks[] = $part['text'];
+					}
+				}
+				$content = trim( implode( '', $chunks ) );
+			}
+		} elseif ( $provider === 'openai' ) {
+			$message = $envelope['choices'][0]['message']['content'] ?? '';
+			if ( is_array( $message ) ) {
+				$chunks = array();
+				foreach ( $message as $piece ) {
+					if ( isset( $piece['text'] ) ) {
+						$chunks[] = (string) $piece['text'];
+					}
+				}
+				$content = trim( implode( '', $chunks ) );
+			} else {
+				$content = trim( (string) $message );
+			}
 		}
 
-		$content_json = $raw_body;
-		if ( $provider === 'gemini' && isset( $decoded['candidates'][0]['content']['parts'][0]['text'] ) ) {
-			$content_json = $decoded['candidates'][0]['content']['parts'][0]['text'];
-		} elseif ( $provider === 'openai' && isset( $decoded['choices'][0]['message']['content'] ) ) {
-			$content_json = $decoded['choices'][0]['message']['content'];
+		if ( $content === '' ) {
+			$content = trim( $raw_body );
 		}
 
-		$content_json = preg_replace( '/^```(?:json)?\s*|\s*```$/m', '', trim( $content_json ) );
-		$parsed       = json_decode( $content_json, true );
-
-		if ( json_last_error() !== JSON_ERROR_NONE ) {
-			return new WP_Error( 'invalid_payload_json', 'Could not parse generated JSON payload: ' . json_last_error_msg() );
+		$parsed = self::decode_json_payload( $content );
+		if ( is_wp_error( $parsed ) ) {
+			return $parsed;
 		}
 
 		if ( isset( $parsed['questions'] ) && is_array( $parsed['questions'] ) ) {
 			return $parsed['questions'];
 		}
-		if ( is_array( $parsed ) && ( isset( $parsed[0]['question_text'] ) || isset( $parsed[0]['question'] ) ) ) {
+		if ( is_array( $parsed ) && isset( $parsed[0] ) && is_array( $parsed[0] )
+			&& ( isset( $parsed[0]['question_text'] ) || isset( $parsed[0]['question'] ) ) ) {
 			return $parsed;
 		}
 		if ( is_array( $parsed ) && ( isset( $parsed['question_text'] ) || isset( $parsed['question'] ) ) ) {
@@ -392,5 +435,34 @@ OUTPUT FORMAT (STRICT JSON):
 		}
 
 		return new WP_Error( 'missing_questions_array', 'JSON payload did not contain a valid "questions" array.' );
+	}
+
+	/**
+	 * Decodes a JSON payload, tolerating Markdown fences or prose wrapped around the JSON.
+	 *
+	 * @return array|WP_Error
+	 */
+	private static function decode_json_payload( $content ) {
+		$content = trim( (string) $content );
+		$content = trim( (string) preg_replace( '/^```(?:json)?\s*|\s*```$/mi', '', $content ) );
+
+		$parsed = json_decode( $content, true );
+		if ( json_last_error() === JSON_ERROR_NONE ) {
+			return $parsed;
+		}
+
+		foreach ( array( '{' => '}', '[' => ']' ) as $open => $close ) {
+			$start = strpos( $content, $open );
+			$end   = strrpos( $content, $close );
+			if ( $start === false || $end === false || $end <= $start ) {
+				continue;
+			}
+			$parsed = json_decode( substr( $content, $start, $end - $start + 1 ), true );
+			if ( json_last_error() === JSON_ERROR_NONE ) {
+				return $parsed;
+			}
+		}
+
+		return new WP_Error( 'invalid_payload_json', 'Could not parse generated JSON payload: ' . json_last_error_msg() );
 	}
 }

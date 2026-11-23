@@ -48,14 +48,25 @@ class PSM_Admin_UI {
 			wp_send_json_error( array( 'message' => 'Invalid AI provider.' ) );
 		}
 
-		$api_key      = sanitize_text_field( $_POST['api_key'] ?? '' );
 		$model        = sanitize_text_field( $_POST['model'] ?? '' );
 		$endpoint     = esc_url_raw( $_POST['endpoint_url'] ?? '' );
 		$daily_limit  = max( 1, absint( $_POST['daily_limit'] ?? 200 ) );
 		$weekly_limit = max( 1, absint( $_POST['weekly_limit'] ?? 1000 ) );
 		$set_default  = ! empty( $_POST['set_as_default'] );
 
-		$settings = get_option( 'psm_ai_api_settings', array() );
+		$settings     = get_option( 'psm_ai_api_settings', array() );
+		$existing_key = (string) ( $settings['providers'][ $provider ]['api_key'] ?? '' );
+		$posted_key   = sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) );
+
+		if ( ! empty( $_POST['clear_api_key'] ) ) {
+			$api_key = '';
+		} elseif ( '' !== $posted_key ) {
+			$api_key = $posted_key;
+		} else {
+			// A blank field means "keep the stored key"; it is never echoed back.
+			$api_key = $existing_key;
+		}
+
 		$settings['providers'][ $provider ] = array(
 			'api_key'      => $api_key,
 			'model'        => $model ?: ( PSM_API_Client::get_default_models()[ $provider ] ?? '' ),
@@ -70,13 +81,17 @@ class PSM_Admin_UI {
 			$settings['provider'] = $provider;
 		}
 
-		update_option( 'psm_ai_api_settings', $settings );
+		// The legacy single-key format is no longer read; drop it when present.
+		unset( $settings['api_key'] );
+
+		update_option( 'psm_ai_api_settings', $settings, false );
 		$usage = PSM_API_Client::get_usage_status( $provider );
 
 		wp_send_json_success( array(
 			'message' => $valid_provs[ $provider ] . ' settings saved successfully.',
 			'usage'   => $usage,
 			'default' => $settings['provider'],
+			'has_key' => '' !== $api_key,
 		) );
 	}
 
@@ -92,7 +107,7 @@ class PSM_Admin_UI {
 		global $wpdb;
 		$entity    = sanitize_key( $_POST['entity'] ?? '' );
 		$record_id = absint( $_POST['record_id'] ?? 0 );
-		$now       = current_time( 'mysql' );
+		$now       = current_time( 'mysql', true );
 
 		$name        = sanitize_text_field( $_POST['name'] ?? '' );
 		$raw_slug    = sanitize_text_field( $_POST['slug'] ?? '' );
@@ -103,6 +118,7 @@ class PSM_Admin_UI {
 		if ( $entity === 'batch' ) {
 			$label_name = sanitize_text_field( $_POST['label_name'] ?? '' );
 			$b_status   = sanitize_key( $_POST['status'] ?? 'completed' );
+			$b_status   = in_array( $b_status, array( 'completed', 'processing', 'failed' ), true ) ? $b_status : 'completed';
 			if ( ! $record_id || empty( $label_name ) ) {
 				wp_send_json_error( array( 'message' => 'Batch ID and Label Name are required.' ) );
 			}
@@ -331,44 +347,63 @@ class PSM_Admin_UI {
 		exit;
 	}
 
-	public function handle_fetch_preview() {
-		check_admin_referer( 'psm_generate_import_nonce' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( 'Unauthorized' );
+	/**
+	 * Shared preview builder used by both the POST and AJAX entry points.
+	 *
+	 * Returns the preview payload or a WP_Error that the caller can surface.
+	 *
+	 * @param array $source Usually $_POST.
+	 * @return array|WP_Error
+	 */
+	private function collect_preview( $source ) {
+		global $wpdb;
+
+		$skill_id       = absint( $source['skill_id'] ?? 0 );
+		$tag_ids        = array_map( 'absint', (array) ( $source['tag_ids'] ?? array() ) );
+		$difficulty_raw = sanitize_text_field( wp_unslash( $source['difficulty'] ?? 'all' ) );
+		$difficulty_id  = is_numeric( $difficulty_raw ) ? min( 3, max( 1, absint( $difficulty_raw ) ) ) : 1;
+		if ( is_numeric( $difficulty_raw ) ) {
+			$difficulty_raw = (string) $difficulty_id;
 		}
 
-		global $wpdb;
-		$skill_id        = absint( $_POST['skill_id'] ?? 0 );
-		$tag_ids         = array_map( 'absint', (array) ( $_POST['tag_ids'] ?? array() ) );
-		$difficulty_raw  = sanitize_text_field( $_POST['difficulty'] ?? 'all' );
-		$difficulty_id   = is_numeric( $difficulty_raw ) ? max( 1, absint( $difficulty_raw ) ) : 1;
-		$q_types_sel     = array_map( 'sanitize_key', (array) ( $_POST['question_types'] ?? array() ) );
-		if ( empty( $q_types_sel ) && ! empty( $_POST['question_type'] ) ) {
-			$q_types_sel = array( sanitize_key( $_POST['question_type'] ) );
+		$supported_types = array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' );
+		$q_types_sel     = array_map( 'sanitize_key', (array) ( $source['question_types'] ?? array() ) );
+		if ( empty( $q_types_sel ) && ! empty( $source['question_type'] ) ) {
+			$q_types_sel = array( sanitize_key( $source['question_type'] ) );
 		}
+		$q_types_sel = array_values( array_intersect( $q_types_sel, $supported_types ) );
 		if ( empty( $q_types_sel ) ) {
 			$q_types_sel = array( 'single_choice' );
 		}
-		$question_type   = $q_types_sel[0];
-		$count           = max( 1, min( 100, absint( $_POST['question_count'] ?? 50 ) ) );
-		$default_status  = sanitize_key( $_POST['default_status'] ?? 'draft' );
-		$mode            = sanitize_key( $_POST['import_mode'] ?? 'api' );
-		$ai_provider_sel = sanitize_key( $_POST['ai_provider_select'] ?? '' );
-		$label_name      = sanitize_text_field( $_POST['label_name'] ?? '' );
-		$user_prompt     = sanitize_textarea_field( $_POST['user_prompt'] ?? '' );
-		$rules           = sanitize_textarea_field( $_POST['generation_rules'] ?? '' );
+		$question_type = $q_types_sel[0];
+
+		$count          = max( 1, min( 100, absint( $source['question_count'] ?? 50 ) ) );
+		$default_status = sanitize_key( $source['default_status'] ?? 'draft' );
+		$default_status = in_array( $default_status, array( 'draft', 'published' ), true ) ? $default_status : 'draft';
+		$mode           = sanitize_key( $source['import_mode'] ?? 'api' );
+		$ai_provider    = sanitize_key( $source['ai_provider_select'] ?? '' );
+		$label_name     = sanitize_text_field( wp_unslash( $source['label_name'] ?? '' ) );
+		$user_prompt    = sanitize_textarea_field( wp_unslash( $source['user_prompt'] ?? '' ) );
+		$rules          = sanitize_textarea_field( wp_unslash( $source['generation_rules'] ?? '' ) );
+		$code_language  = sanitize_key( $source['code_language_master'] ?? '' );
+		if ( ! array_key_exists( $code_language, PSM_Languages::languages() ) ) {
+			$code_language = '';
+		}
 
 		$skill = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_skills WHERE id = %d", $skill_id ) );
 		if ( ! $skill ) {
-			set_transient( 'psm_admin_notice_' . get_current_user_id(), array( 'type' => 'error', 'text' => 'Please select a valid Skill.' ), 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
-			exit;
+			return new WP_Error( 'invalid_skill', 'Please select a valid Skill.' );
 		}
 
-		if ( $difficulty_raw === 'all' ) {
+		if ( 'all' === $difficulty_raw ) {
 			$diff_label = 'All Levels (beginner, intermediate, advanced)';
 		} else {
-			$diff_row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_difficulties WHERE id = %d OR slug = %s", $difficulty_id, $difficulty_raw ) );
+			$diff_row = is_numeric( $difficulty_raw )
+				? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_difficulties WHERE id = %d", $difficulty_id ) )
+				: $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_difficulties WHERE slug = %s", $difficulty_raw ) );
+			if ( $diff_row && ! is_numeric( $difficulty_raw ) ) {
+				$difficulty_id = (int) $diff_row->id;
+			}
 			$diff_label = $diff_row ? "{$diff_row->id} ({$diff_row->name} / {$diff_row->slug})" : (string) $difficulty_raw;
 		}
 
@@ -385,40 +420,46 @@ class PSM_Admin_UI {
 			}
 		}
 
-		$used_provider = $ai_provider_sel;
+		$used_provider = $ai_provider;
 		$used_model    = '';
 
-		if ( $mode === 'manual_json' ) {
-			$raw_json = wp_unslash( $_POST['manual_json_payload'] ?? '' );
+		if ( 'manual_json' === $mode ) {
+			$raw_json = wp_unslash( $source['manual_json_payload'] ?? '' );
 			$decoded  = json_decode( $raw_json, true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				set_transient( 'psm_admin_notice_' . get_current_user_id(), array( 'type' => 'error', 'text' => 'Invalid JSON pasted: ' . json_last_error_msg() ), 60 );
-				wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
-				exit;
+
+			if ( JSON_ERROR_NONE !== json_last_error() ) {
+				return new WP_Error( 'invalid_json', 'Invalid JSON pasted: ' . json_last_error_msg() );
 			}
-			$questions     = isset( $decoded['questions'] ) ? $decoded['questions'] : $decoded;
+
+			$questions = ( is_array( $decoded ) && isset( $decoded['questions'] ) ) ? $decoded['questions'] : $decoded;
+			if ( ! is_array( $questions ) || empty( $questions ) ) {
+				return new WP_Error( 'invalid_json', 'JSON payload must contain a non-empty "questions" array.' );
+			}
+
 			$used_provider = 'manual_json';
 		} else {
-			$api_res = PSM_API_Client::generate_questions( array(
-				'skill_id'          => $skill_id,
-				'skill_name'        => $skill->name,
-				'skill_slug'        => $skill->slug,
-				'tag_slugs'         => $selected_tag_slugs,
-				'allowed_tag_slugs' => $allowed_tag_slugs,
-				'difficulty'        => $difficulty_id,
-				'difficulty_slug'   => $difficulty_raw,
-				'difficulty_label'  => $diff_label,
-				'question_type'     => $question_type,
-				'question_types'    => $q_types_sel,
-				'count'             => $count,
-				'user_prompt'       => $user_prompt,
-				'rules'             => $rules,
-			), $ai_provider_sel );
+			$api_res = PSM_API_Client::generate_questions(
+				array(
+					'skill_id'          => $skill_id,
+					'skill_name'        => $skill->name,
+					'skill_slug'        => $skill->slug,
+					'tag_slugs'         => $selected_tag_slugs,
+					'allowed_tag_slugs' => $allowed_tag_slugs,
+					'difficulty'        => $difficulty_id,
+					'difficulty_slug'   => $difficulty_raw,
+					'difficulty_label'  => $diff_label,
+					'question_type'     => $question_type,
+					'question_types'    => $q_types_sel,
+					'count'             => $count,
+					'user_prompt'       => $user_prompt,
+					'rules'             => $rules,
+					'code_language'     => $code_language,
+				),
+				$ai_provider
+			);
 
 			if ( is_wp_error( $api_res ) ) {
-				set_transient( 'psm_admin_notice_' . get_current_user_id(), array( 'type' => 'error', 'text' => $api_res->get_error_message() ), 60 );
-				wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
-				exit;
+				return $api_res;
 			}
 
 			$questions     = $api_res['questions'];
@@ -426,7 +467,7 @@ class PSM_Admin_UI {
 			$used_model    = $api_res['model'];
 		}
 
-		set_transient( 'psm_preview_data_' . get_current_user_id(), array(
+		return array(
 			'skill_id'           => $skill_id,
 			'skill_name'         => $skill->name,
 			'tag_ids'            => $tag_ids,
@@ -437,8 +478,25 @@ class PSM_Admin_UI {
 			'model'              => $used_model,
 			'prompt_text'        => $user_prompt,
 			'rules_text'         => $rules,
+			'code_language'      => $code_language,
 			'questions'          => $questions,
-		), 1800 );
+		);
+	}
+
+	public function handle_fetch_preview() {
+		check_admin_referer( 'psm_generate_import_nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Unauthorized' );
+		}
+
+		$preview = $this->collect_preview( $_POST );
+		if ( is_wp_error( $preview ) ) {
+			set_transient( 'psm_admin_notice_' . get_current_user_id(), array( 'type' => 'error', 'text' => $preview->get_error_message() ), 60 );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+
+		set_transient( 'psm_preview_data_' . get_current_user_id(), $preview, 1800 );
 
 		wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate', 'preview' => '1' ), admin_url( 'admin.php' ) ) );
 		exit;
@@ -450,110 +508,20 @@ class PSM_Admin_UI {
 			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
 		}
 
-		global $wpdb;
-		$skill_id        = absint( $_POST['skill_id'] ?? 0 );
-		$tag_ids         = array_map( 'absint', (array) ( $_POST['tag_ids'] ?? array() ) );
-		$difficulty_raw  = sanitize_text_field( $_POST['difficulty'] ?? 'all' );
-		$difficulty_id   = is_numeric( $difficulty_raw ) ? max( 1, absint( $difficulty_raw ) ) : 1;
-		$q_types_sel     = array_map( 'sanitize_key', (array) ( $_POST['question_types'] ?? array() ) );
-		if ( empty( $q_types_sel ) && ! empty( $_POST['question_type'] ) ) {
-			$q_types_sel = array( sanitize_key( $_POST['question_type'] ) );
-		}
-		if ( empty( $q_types_sel ) ) {
-			$q_types_sel = array( 'single_choice' );
-		}
-		$question_type   = $q_types_sel[0];
-		$count           = max( 1, min( 100, absint( $_POST['question_count'] ?? 50 ) ) );
-		$default_status  = sanitize_key( $_POST['default_status'] ?? 'draft' );
-		$mode            = sanitize_key( $_POST['import_mode'] ?? 'api' );
-		$ai_provider_sel = sanitize_key( $_POST['ai_provider_select'] ?? '' );
-		$label_name      = sanitize_text_field( $_POST['label_name'] ?? '' );
-		$user_prompt     = sanitize_textarea_field( $_POST['user_prompt'] ?? '' );
-		$rules           = sanitize_textarea_field( $_POST['generation_rules'] ?? '' );
-
 		try {
-		$skill = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_skills WHERE id = %d", $skill_id ) );
-		if ( ! $skill ) {
-			wp_send_json_error( array( 'message' => 'Please select a valid Skill.' ) );
-		}
-
-		if ( $difficulty_raw === 'all' ) {
-			$diff_label = 'All Levels (beginner, intermediate, advanced)';
-		} else {
-			$diff_row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_difficulties WHERE id = %d OR slug = %s", $difficulty_id, $difficulty_raw ) );
-			$diff_label = $diff_row ? "{$diff_row->id} ({$diff_row->name} / {$diff_row->slug})" : (string) $difficulty_raw;
-		}
-
-		$skill_tags = $wpdb->get_results(
-			$wpdb->prepare( "SELECT id, slug FROM {$wpdb->prefix}psm_tags WHERE skill_id = %d AND status = 'active'", $skill_id )
-		);
-
-		$allowed_tag_slugs  = array();
-		$selected_tag_slugs = array();
-		foreach ( $skill_tags as $st ) {
-			$allowed_tag_slugs[] = $st->slug;
-			if ( in_array( (int) $st->id, $tag_ids, true ) ) {
-				$selected_tag_slugs[] = $st->slug;
-			}
-		}
-
-		$used_provider = $ai_provider_sel;
-		$used_model    = '';
-
-		if ( $mode === 'manual_json' ) {
-			$raw_json = wp_unslash( $_POST['manual_json_payload'] ?? '' );
-			$decoded  = json_decode( $raw_json, true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				wp_send_json_error( array( 'message' => 'Invalid JSON pasted: ' . json_last_error_msg() ) );
-			}
-			$questions     = isset( $decoded['questions'] ) ? $decoded['questions'] : $decoded;
-			$used_provider = 'manual_json';
-		} else {
-			$api_res = PSM_API_Client::generate_questions( array(
-				'skill_id'          => $skill_id,
-				'skill_name'        => $skill->name,
-				'skill_slug'        => $skill->slug,
-				'tag_slugs'         => $selected_tag_slugs,
-				'allowed_tag_slugs' => $allowed_tag_slugs,
-				'difficulty'        => $difficulty_id,
-				'difficulty_slug'   => $difficulty_raw,
-				'difficulty_label'  => $diff_label,
-				'question_type'     => $question_type,
-				'question_types'    => $q_types_sel,
-				'count'             => $count,
-				'user_prompt'       => $user_prompt,
-				'rules'             => $rules,
-			), $ai_provider_sel );
-
-			if ( is_wp_error( $api_res ) ) {
-				wp_send_json_error( array( 'message' => $api_res->get_error_message() ) );
+			$preview = $this->collect_preview( $_POST );
+			if ( is_wp_error( $preview ) ) {
+				wp_send_json_error( array( 'message' => $preview->get_error_message() ) );
 			}
 
-			$questions     = $api_res['questions'];
-			$used_provider = $api_res['provider'];
-			$used_model    = $api_res['model'];
-		}
+			set_transient( 'psm_preview_data_' . get_current_user_id(), $preview, 1800 );
 
-		set_transient( 'psm_preview_data_' . get_current_user_id(), array(
-			'skill_id'           => $skill_id,
-			'skill_name'         => $skill->name,
-			'tag_ids'            => $tag_ids,
-			'default_status'     => $default_status,
-			'default_difficulty' => $difficulty_id,
-			'label_name'         => $label_name ?: ( $skill->name . ' - ' . wp_date( 'Y-m-d H:i' ) ),
-			'provider'           => $used_provider,
-			'model'              => $used_model,
-			'prompt_text'        => $user_prompt,
-			'rules_text'         => $rules,
-			'questions'          => $questions,
-		), 1800 );
-
-		wp_send_json_success( array(
-			'redirect_url' => add_query_arg(
-				array( 'page' => 'psm-ai-importer', 'tab' => 'generate', 'preview' => '1' ),
-				admin_url( 'admin.php' )
-			),
-		) );
+			wp_send_json_success( array(
+				'redirect_url' => add_query_arg(
+					array( 'page' => 'psm-ai-importer', 'tab' => 'generate', 'preview' => '1' ),
+					admin_url( 'admin.php' )
+				),
+			) );
 		} catch ( \Throwable $e ) {
 			error_log( '[PSM AI Importer] ajax_fetch_preview fatal error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
 			wp_send_json_error( array(
@@ -619,14 +587,30 @@ class PSM_Admin_UI {
 			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => 'error', 'text' => $import_res->get_error_message() ), 60 );
 		} else {
 			$msg = sprintf(
-				'Batch [%s] Imported for %s: %d inserted, %d duplicates skipped, %d invalid skipped.',
-				esc_html( $import_res['batch_code'] ),
-				esc_html( $preview['skill_name'] ),
+				'Batch [%s] imported for %s: %d inserted, %d duplicates skipped, %d invalid skipped.',
+				$import_res['batch_code'],
+				$preview['skill_name'],
 				$import_res['inserted'],
 				$import_res['skipped_duplicate'],
 				$import_res['skipped_invalid']
 			);
-			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => 'success', 'text' => $msg ), 60 );
+
+			$messages = is_array( $import_res['messages'] ) ? $import_res['messages'] : array();
+			if ( ! empty( $messages ) ) {
+				$shown  = array_slice( $messages, 0, 5 );
+				$msg   .= ' Details: ' . implode( ' | ', $shown );
+				if ( count( $messages ) > count( $shown ) ) {
+					$msg .= ' | ...';
+				}
+			}
+
+			$rejected = is_array( $import_res['rejected_tags'] ) ? $import_res['rejected_tags'] : array();
+			if ( ! empty( $rejected ) ) {
+				$msg .= ' Rejected tag slugs: ' . implode( ', ', array_slice( $rejected, 0, 10 ) ) . '.';
+			}
+
+			$notice_type = ( 0 === (int) $import_res['inserted'] ) ? 'warning' : 'success';
+			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => $notice_type, 'text' => $msg ), 60 );
 		}
 
 		wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
@@ -673,12 +657,12 @@ class PSM_Admin_UI {
 		} else {
 			$rows = $wpdb->get_results(
 				"SELECT q.id AS question_id, q.difficulty, df.name AS difficulty_name, q.question_type, q.question_text, q.status,
-				        s.name AS skill_name, COALESCE(b.batch_code, '') AS batch_code, COALESCE(b.label_name, '') AS label_name
+				        s.name AS skill_name,
+				        COALESCE((SELECT b.batch_code FROM $bq_table bq INNER JOIN $b_table b ON bq.batch_id = b.id WHERE bq.question_id = q.id ORDER BY bq.batch_id DESC LIMIT 1), '') AS batch_code,
+				        COALESCE((SELECT b.label_name FROM $bq_table bq INNER JOIN $b_table b ON bq.batch_id = b.id WHERE bq.question_id = q.id ORDER BY bq.batch_id DESC LIMIT 1), '') AS label_name
 				 FROM $q_table q
 				 LEFT JOIN $s_table s ON q.skill_id = s.id
 				 LEFT JOIN $d_table df ON q.difficulty = df.id
-				 LEFT JOIN $bq_table bq ON q.id = bq.question_id
-				 LEFT JOIN $b_table b ON bq.batch_id = b.id
 				 ORDER BY q.id DESC LIMIT 500"
 			);
 			$filename = 'psm-question-labels.csv';
@@ -700,21 +684,43 @@ class PSM_Admin_UI {
 				)
 			);
 			fputcsv( $out, array(
-				$r->label_name ?: ( $r->skill_name . ' #' . $r->question_id ),
-				$r->batch_code,
-				$r->question_id,
-				$r->skill_name,
-				$r->difficulty,
-				$r->difficulty_name ?: $r->difficulty,
-				$r->question_type,
-				implode( '|', $tag_slugs ),
-				$r->status,
-				wp_strip_all_tags( $r->question_text ),
+				$this->csv_cell( $r->label_name ?: ( $r->skill_name . ' #' . $r->question_id ) ),
+				$this->csv_cell( $r->batch_code ),
+				$this->csv_cell( $r->question_id ),
+				$this->csv_cell( $r->skill_name ),
+				$this->csv_cell( $r->difficulty ),
+				$this->csv_cell( $r->difficulty_name ?: $r->difficulty ),
+				$this->csv_cell( $r->question_type ),
+				$this->csv_cell( implode( '|', $tag_slugs ) ),
+				$this->csv_cell( $r->status ),
+				$this->csv_cell( wp_strip_all_tags( $r->question_text ) ),
 			) );
 		}
 
 		fclose( $out );
 		exit;
+	}
+
+	/**
+	 * Prevent spreadsheet formula injection in exported cells.
+	 */
+	private function csv_cell( $value ) {
+		$value = (string) $value;
+		if ( '' !== $value && preg_match( '/^(?:[\s]*[=+\-@]|[\t\r])/', $value ) ) {
+			return "'" . $value;
+		}
+		return $value;
+	}
+
+	/**
+	 * Convert a stored UTC datetime to the site's local time for display.
+	 */
+	private function local_time( $gmt_mysql ) {
+		if ( empty( $gmt_mysql ) ) {
+			return '';
+		}
+		$timestamp = strtotime( $gmt_mysql . ' UTC' );
+		return $timestamp ? wp_date( 'Y-m-d H:i', $timestamp ) : (string) $gmt_mysql;
 	}
 
 	public function render_page() {
@@ -740,7 +746,7 @@ class PSM_Admin_UI {
 			 FROM {$wpdb->prefix}psm_skills s
 			 LEFT JOIN {$wpdb->prefix}psm_domains d ON s.domain_id = d.id
 			 LEFT JOIN {$wpdb->prefix}psm_skill_types st ON s.skill_type_id = st.id
-			 LEFT JOIN {$wpdb->prefix}psm_skills p ON s.parent_skill_id = p.id
+			 LEFT JOIN {$wpdb->prefix}psm_skills p ON s.parent_id = p.id
 			 ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC"
 		);
 
@@ -775,7 +781,30 @@ class PSM_Admin_UI {
 			}
 		}
 
-		$default_qtypes_selected = array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' );
+		$master_qtype_labels = array();
+		foreach ( $question_types as $qt_row ) {
+			if ( 'active' === $qt_row->status ) {
+				$master_qtype_labels[ $qt_row->slug ] = $qt_row->name;
+			}
+		}
+
+		$supported_generation_types = array(
+			'single_choice'   => 'Single Choice',
+			'multiple_choice' => 'Multiple Choice',
+			'two_option'      => 'Two Options',
+			'true_false'      => 'True / False',
+		);
+		$generation_qtypes = array();
+		foreach ( $supported_generation_types as $qt_slug => $qt_fallback ) {
+			if ( isset( $master_qtype_labels[ $qt_slug ] ) ) {
+				$generation_qtypes[ $qt_slug ] = $master_qtype_labels[ $qt_slug ];
+			}
+		}
+		if ( empty( $generation_qtypes ) ) {
+			$generation_qtypes = $supported_generation_types;
+		}
+
+		$default_qtypes_selected = array_keys( $generation_qtypes );
 		$initial_skill_name      = 'Git';
 		$initial_skill_slug      = 'git';
 		foreach ( $skills as $sk_item ) {
@@ -978,7 +1007,14 @@ class PSM_Admin_UI {
 									<input type="hidden" name="provider" value="<?php echo esc_attr( $pkey ); ?>">
 									<p>
 										<label>API Key / Bearer Token</label>
-										<input type="password" name="api_key" value="<?php echo esc_attr( $pcfg['api_key'] ); ?>" placeholder="Enter <?php echo esc_attr( $plabel ); ?> key">
+										<?php $has_key = '' !== (string) $pcfg['api_key']; ?>
+										<input type="password" name="api_key" value="" autocomplete="new-password" placeholder="<?php echo esc_attr( $has_key ? 'A key is saved - leave blank to keep it' : 'Enter ' . $plabel . ' key' ); ?>">
+										<?php if ( $has_key ) : ?>
+											<label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-weight:500;">
+												<input type="checkbox" name="clear_api_key" value="1" style="width:auto;"> Remove the saved key
+											</label>
+										<?php endif; ?>
+										<span style="display:block;font-size:11px;color:#64748b;margin-top:3px;">The saved key is never sent back to the browser.</span>
 									</p>
 									<p>
 										<label>Model Name</label>
@@ -1045,7 +1081,7 @@ class PSM_Admin_UI {
 									<td><?php echo esc_html( $b->provider . ( $b->model ? ' (' . $b->model . ')' : '' ) ); ?></td>
 									<td><?php echo esc_html( $b->total_imported . ' / ' . $b->linked_questions_count ); ?></td>
 									<td><?php echo esc_html( $b->total_skipped ); ?></td>
-									<td><?php echo esc_html( $b->created_at ); ?></td>
+									<td><?php echo esc_html( $this->local_time( $b->created_at ) ); ?></td>
 									<td>
 										<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=psm_download_labels&batch_id=' . $b->id ), 'psm_download_labels_nonce' ) ); ?>" class="psm-icon-btn" style="background:#dcfce7;color:#15803d;" title="Download Label File">
 											<span class="dashicons dashicons-download"></span>
@@ -1178,13 +1214,30 @@ class PSM_Admin_UI {
 				<?php
 				$preview_data = $is_prev ? get_transient( 'psm_preview_data_' . $user_id ) : false;
 				if ( $is_prev && ! empty( $preview_data ) && ! empty( $preview_data['questions'] ) ) :
+    $inspected_rows = array();
+    $valid_count    = 0;
+    foreach ( $preview_data['questions'] as $p_idx => $p_q ) {
+        $inspected_rows[ $p_idx ] = PSM_Importer::inspect_question(
+            $p_q,
+            $preview_data['default_status'] ?? 'draft',
+            $preview_data['default_difficulty'] ?? 1
+        );
+        if ( empty( $inspected_rows[ $p_idx ]['errors'] ) ) {
+            $valid_count++;
+        }
+    }
+    $total_rows = count( $preview_data['questions'] );
 					?>
 					<div class="psm-table-card" style="margin-top: 20px;">
 						<h2>Review &amp; Check Generated Data Before Database Import</h2>
 						<p>
 							<strong>Skill:</strong> <?php echo esc_html( $preview_data['skill_name'] ); ?> |
 							<strong>Label:</strong> <?php echo esc_html( $preview_data['label_name'] ); ?> |
-							<strong>Source:</strong> <?php echo esc_html( $preview_data['provider'] ); ?>
+							<strong>Source:</strong> <?php echo esc_html( $preview_data['provider'] ); ?> |
+								<strong>Validated:</strong>
+								<span style="color:<?php echo $valid_count === $total_rows ? '#166534' : '#b45309'; ?>;font-weight:700;">
+									<?php echo esc_html( $valid_count . ' / ' . $total_rows . ' rows importable' ); ?>
+								</span>
 						</p>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<?php wp_nonce_field( 'psm_confirm_import_nonce' ); ?>
@@ -1203,16 +1256,27 @@ class PSM_Admin_UI {
 								</thead>
 								<tbody>
 									<?php foreach ( $preview_data['questions'] as $idx => $q ) :
-										$q_stem    = $q['question_text'] ?? ( $q['question'] ?? '' );
-										$q_opts    = $q['options'] ?? array();
-										$q_correct = $q['correct_keys'] ?? ( $q['correct_answers'] ?? array() );
-										$q_lang    = $q['code_language'] ?? '';
+    $inspect    = $inspected_rows[ $idx ] ?? array( 'data' => null, 'errors' => array( 'Row was not validated.' ) );
+    $row_errors = $inspect['errors'];
+    $row_valid  = empty( $row_errors );
+    $norm       = $row_valid ? $inspect['data'] : null;
+    $q_type     = $row_valid ? $norm['question_type'] : ( $q['question_type'] ?? 'four_option' );
+    $q_diff     = $row_valid ? $norm['difficulty'] : ( $q['difficulty'] ?? 1 );
+										$q_stem    = $row_valid ? $norm['question_text'] : ( $q['question_text'] ?? ( $q['question'] ?? '' ) );
+										$q_opts    = $row_valid ? $norm['options'] : ( $q['options'] ?? array() );
+										$q_correct = $row_valid ? $norm['correct_keys'] : ( $q['correct_keys'] ?? ( $q['correct_answers'] ?? array() ) );
+										$q_lang    = $row_valid ? $norm['code_language'] : ( $q['code_language'] ?? '' );
 										?>
 										<tr>
-											<td><input type="checkbox" class="psm-row-cb" name="selected_rows[]" value="<?php echo esc_attr( $idx ); ?>" checked></td>
+											<td><input type="checkbox" class="psm-row-cb" name="selected_rows[]" value="<?php echo esc_attr( $idx ); ?>" <?php echo $row_valid ? 'checked' : 'disabled title="This row has validation errors and will be skipped."'; ?>></td>
 											<td><?php echo esc_html( $idx + 1 ); ?></td>
 											<td>
-												<strong><?php echo esc_html( $q_stem ); ?></strong>
+												<?php if ( ! $row_valid ) : ?>
+<div style="background:#fee2e2;border-left:4px solid #dc2626;padding:6px 8px;margin-bottom:6px;border-radius:4px;">
+<strong>Will be skipped:</strong> <?php echo esc_html( implode( ' ', $row_errors ) ); ?>
+</div>
+<?php endif; ?>
+<strong><?php echo esc_html( $q_stem ); ?></strong>
 												<?php if ( ! empty( $q['code_snippet'] ) ) : ?>
 													<div style="font-size:11px; color:#334155; margin-top:4px;">
 														<strong>Language:</strong> <code><?php echo esc_html( $q_lang ?: 'plain' ); ?></code>
@@ -1220,7 +1284,7 @@ class PSM_Admin_UI {
 													<pre style="background:#f6f7f7; padding:6px; margin:4px 0 6px; overflow:auto;"><?php echo esc_html( $q['code_snippet'] ); ?></pre>
 												<?php endif; ?>
 												<?php if ( ! empty( $q['explanation'] ) ) : ?>
-													<div style="color:#50575e; font-size:12px;"><em>Explanation: <?php echo esc_html( $q['explanation'] ); ?></em></div>
+													<div style="color:#50575e; font-size:12px;"><em>Explanation: <?php echo $row_valid ? wp_kses_post( $norm['explanation'] ) : esc_html( $q['explanation'] ?? '' ); ?></em></div>
 												<?php endif; ?>
 											</td>
 											<td>
@@ -1237,7 +1301,7 @@ class PSM_Admin_UI {
 												<?php endforeach; ?>
 												<div style="margin-top:4px;"><strong>Correct:</strong> <code><?php echo esc_html( implode( ', ', (array) $q_correct ) ); ?></code></div>
 											</td>
-											<td>Diff: <?php echo esc_html( $q['difficulty'] ?? 1 ); ?><br><code><?php echo esc_html( $q['question_type'] ?? 'single_choice' ); ?></code></td>
+											<td>Diff: <?php echo esc_html( $q_diff ); ?><br><code><?php echo esc_html( $q_type ); ?></code></td>
 											<td>
 												<?php foreach ( (array) ( $q['tags'] ?? array() ) as $tslug ) : ?>
 													<div><code><?php echo esc_html( $tslug ); ?></code></div>
@@ -1330,11 +1394,13 @@ class PSM_Admin_UI {
 												<select name="difficulty" id="difficulty" class="psm-full-width-control">
 													<option value="all">All Levels (beginner, intermediate, advanced)</option>
 													<?php foreach ( $difficulties as $df ) : ?>
+														<?php if ( (int) $df->id > 3 ) { continue; } ?>
 														<option value="<?php echo esc_attr( $df->id ); ?>" data-slug="<?php echo esc_attr( $df->slug ); ?>">
 															<?php echo esc_html( $df->id . ' - ' . $df->name . ' (' . $df->slug . ')' ); ?>
 														</option>
 													<?php endforeach; ?>
 												</select>
+												<p class="description" style="margin:4px 0 0;">The practice app only supports difficulties 1-3.</p>
 											</div>
 
 											<div class="psm-break-item">
@@ -1343,21 +1409,14 @@ class PSM_Admin_UI {
 													<button type="button" class="button button-small" id="psm_select_all_qtypes">Select All</button>
 												</div>
 												<div class="psm-qtype-checks" id="psm_qtype_checks">
-													<?php
-													$checkbox_types = array(
-														'single_choice'   => 'single_choice',
-														'multiple_choice' => 'multiple_choice',
-														'two_option'      => 'two_option',
-														'true_false'      => 'true_false',
-													);
-													foreach ( $checkbox_types as $qt_slug => $qt_label ) :
-														?>
-														<label>
+													<?php foreach ( $generation_qtypes as $qt_slug => $qt_label ) : ?>
+														<label title="<?php echo esc_attr( $qt_slug ); ?>">
 															<input type="checkbox" name="question_types[]" class="psm-qtype-cb" value="<?php echo esc_attr( $qt_slug ); ?>" checked>
-															<code><?php echo esc_html( $qt_label ); ?></code>
+															<code><?php echo esc_html( $qt_slug ); ?></code>
 														</label>
 													<?php endforeach; ?>
 												</div>
+												<p class="description" style="margin:4px 0 0;">single/multiple choice are both stored as <code>four_option</code>, with <code>is_multiple</code> recording two or more correct answers.</p>
 											</div>
 
 											<div class="psm-break-item">
@@ -1384,7 +1443,7 @@ class PSM_Admin_UI {
 												<option value="<?php echo esc_attr( $lang_slug ); ?>"><?php echo esc_html( $lang_name ); ?></option>
 											<?php endforeach; ?>
 										</select>
-										<p class="description">Master language list (<code>PSM_Languages::languages()</code>) for optional code snippets.</p>
+										<p class="description">Preferred language for code snippets. The AI still chooses the best language per question; this is passed to the prompt.</p>
 									</td>
 								</tr>
 
@@ -1399,9 +1458,14 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label for="user_prompt">6. Prompt &amp; Rules Preview / Custom Instructions</label></th>
+									<th><label for="user_prompt">6. Custom Focus Instructions (Optional)</label></th>
 									<td>
-										<textarea name="user_prompt" id="user_prompt" rows="10" class="large-text code" placeholder="Leave blank for default prompt &amp; rules, or enter custom instructions..."></textarea>
+										<textarea name="user_prompt" id="user_prompt" rows="6" class="large-text code" placeholder="Optional: narrow the topics, e.g. &quot;focus on async/await and exception filters&quot;. Leave blank to use the full default prompt."></textarea>
+										<details style="margin-top:8px;">
+											<summary style="cursor:pointer;font-weight:600;">Show the default prompt template</summary>
+											<pre style="background:#f6f7f7;padding:10px;max-height:320px;overflow:auto;white-space:pre-wrap;font-size:12px;"><?php echo esc_html( $initial_prompt_text ); ?></pre>
+											<p class="description">Preview for the "<?php echo esc_html( $initial_skill_name ); ?>" skill with 50 questions across all levels and types. The real skill, tags, difficulty, count and types are substituted when you fetch.</p>
+										</details>
 									</td>
 								</tr>
 
@@ -1610,7 +1674,7 @@ class PSM_Admin_UI {
 			// Select all rows on Preview
 			document.getElementById('psm_select_all_rows')?.addEventListener('change', function() {
 				const checked = this.checked;
-				document.querySelectorAll('.psm-row-cb').forEach(cb => cb.checked = checked);
+				document.querySelectorAll('.psm-row-cb').forEach(cb => { if (!cb.disabled) cb.checked = checked; });
 			});
 
 			// Modal Popup Logic + ESC to Close
@@ -1661,7 +1725,7 @@ class PSM_Admin_UI {
 						if (entity === 'skill' && rec) {
 							document.getElementById('psm_m_domain_id').value       = rec.domain_id || 0;
 							document.getElementById('psm_m_skill_type_id').value   = rec.skill_type_id || 0;
-							document.getElementById('psm_m_parent_skill_id').value = rec.parent_skill_id || 0;
+							document.getElementById('psm_m_parent_skill_id').value = rec.parent_id || rec.parent_skill_id || 0;
 						}
 						if (entity === 'tag' && rec) {
 							document.getElementById('psm_m_skill_id').value = rec.skill_id || 0;
@@ -1750,6 +1814,11 @@ class PSM_Admin_UI {
 						.then(res => {
 							if (res.success) {
 								showToast(res.data.message, true);
+								const keyInput = this.querySelector('[name="api_key"]');
+								if (keyInput) {
+									keyInput.value = '';
+									keyInput.placeholder = res.data.has_key ? 'A key is saved - leave blank to keep it' : 'Enter API key';
+								}
 								const u = res.data.usage;
 								const box = document.getElementById('psm_quota_box_' + u.provider);
 								if (box) {
