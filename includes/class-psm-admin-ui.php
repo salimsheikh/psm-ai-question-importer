@@ -11,6 +11,7 @@ class PSM_Admin_UI {
 		add_action( 'admin_post_psm_confirm_import', array( $this, 'handle_confirm_import' ) );
 		add_action( 'admin_post_psm_run_seeder', array( $this, 'handle_run_seeder' ) );
 		add_action( 'admin_post_psm_download_labels', array( $this, 'handle_download_labels' ) );
+		add_action( 'admin_post_psm_import_json_file', array( $this, 'handle_import_json_file' ) );
 
 		// AJAX endpoints for Master CRUD (Domains, Skill Types, Question Types, Difficulties, Skills, Tags, Batches)
 		add_action( 'wp_ajax_psm_ajax_save_master', array( $this, 'ajax_save_master' ) );
@@ -19,6 +20,7 @@ class PSM_Admin_UI {
 		// AJAX endpoint for saving individual AI provider forms (Gemini / OpenAI / Custom)
 		add_action( 'wp_ajax_psm_ajax_save_ai_provider', array( $this, 'ajax_save_ai_provider' ) );
 		add_action( 'wp_ajax_psm_ajax_fetch_preview', array( $this, 'ajax_fetch_preview' ) );
+		add_action( 'wp_ajax_psm_ajax_build_prompt', array( $this, 'ajax_build_prompt' ) );
 	}
 
 	public function register_menu() {
@@ -389,13 +391,14 @@ class PSM_Admin_UI {
 		if ( ! array_key_exists( $code_language, PSM_Languages::languages() ) ) {
 			$code_language = '';
 		}
+		$focus_tag_slug = sanitize_title( (string) ( $source['focus_tag_slug'] ?? '' ) );
 
 		$skill = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}psm_skills WHERE id = %d", $skill_id ) );
 		if ( ! $skill ) {
 			return new WP_Error( 'invalid_skill', 'Please select a valid Skill.' );
 		}
 
-		if ( 'all' === $difficulty_raw ) {
+		if ( 'all' === $difficulty_raw || 'mixed' === $difficulty_raw ) {
 			$diff_label = 'All Levels (beginner, intermediate, advanced)';
 		} else {
 			$diff_row = is_numeric( $difficulty_raw )
@@ -408,15 +411,17 @@ class PSM_Admin_UI {
 		}
 
 		$skill_tags = $wpdb->get_results(
-			$wpdb->prepare( "SELECT id, slug FROM {$wpdb->prefix}psm_tags WHERE skill_id = %d AND status = 'active'", $skill_id )
+			$wpdb->prepare( "SELECT id, name, slug FROM {$wpdb->prefix}psm_tags WHERE skill_id = %d AND status = 'active'", $skill_id )
 		);
 
-		$allowed_tag_slugs  = array();
-		$selected_tag_slugs = array();
+		$allowed_tag_slugs   = array();
+		$selected_tag_slugs  = array();
+		$selected_tag_labels = array();
 		foreach ( $skill_tags as $st ) {
 			$allowed_tag_slugs[] = $st->slug;
 			if ( in_array( (int) $st->id, $tag_ids, true ) ) {
-				$selected_tag_slugs[] = $st->slug;
+				$selected_tag_slugs[]  = $st->slug;
+				$selected_tag_labels[] = '' !== trim( (string) $st->name ) ? $st->name : $st->slug;
 			}
 		}
 
@@ -444,6 +449,7 @@ class PSM_Admin_UI {
 					'skill_name'        => $skill->name,
 					'skill_slug'        => $skill->slug,
 					'tag_slugs'         => $selected_tag_slugs,
+					'tag_labels'        => $selected_tag_labels,
 					'allowed_tag_slugs' => $allowed_tag_slugs,
 					'difficulty'        => $difficulty_id,
 					'difficulty_slug'   => $difficulty_raw,
@@ -467,6 +473,28 @@ class PSM_Admin_UI {
 			$used_model    = $api_res['model'];
 		}
 
+		$questions = PSM_Importer::normalize_question_tags( $questions, $skill->slug, $skill->name );
+
+		if ( ! empty( $selected_tag_slugs ) ) {
+			$unfocused = array();
+			foreach ( $questions as $idx => $q ) {
+				$q_tags = array_map( 'strval', (array) ( $q['tags'] ?? array() ) );
+				if ( empty( array_intersect( $selected_tag_slugs, $q_tags ) ) ) {
+					$unfocused[] = $idx + 1;
+				}
+			}
+			if ( ! empty( $unfocused ) ) {
+				return new WP_Error(
+					'focus_tags_missing',
+					sprintf(
+						'%d question(s) do not carry any selected focus tag (%s). Regenerate the output or adjust the tag selection.',
+						count( $unfocused ),
+						implode( ', ', $selected_tag_slugs )
+					)
+				);
+			}
+		}
+
 		return array(
 			'skill_id'           => $skill_id,
 			'skill_name'         => $skill->name,
@@ -479,6 +507,7 @@ class PSM_Admin_UI {
 			'prompt_text'        => $user_prompt,
 			'rules_text'         => $rules,
 			'code_language'      => $code_language,
+			'focus_tag_slug'     => $focus_tag_slug,
 			'questions'          => $questions,
 		);
 	}
@@ -528,6 +557,395 @@ class PSM_Admin_UI {
 				'message' => 'Server Error (' . get_class( $e ) . '): ' . $e->getMessage() . ' in ' . basename( $e->getFile() ) . ':' . $e->getLine(),
 			) );
 		}
+	}
+
+	/**
+	 * AJAX: Build the copy/download-ready AI prompt for the current form values.
+	 */
+	public function ajax_build_prompt() {
+		check_ajax_referer( 'psm_ajax_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+		}
+
+		global $wpdb;
+		$skill_id = absint( $_POST['skill_id'] ?? 0 );
+		$skill    = $wpdb->get_row( $wpdb->prepare( "SELECT id, name, slug FROM {$wpdb->prefix}psm_skills WHERE id = %d", $skill_id ) );
+		if ( ! $skill ) {
+			wp_send_json_error( array( 'message' => 'Please select a valid Skill first.' ) );
+		}
+
+		$tag_rows   = $wpdb->get_results( $wpdb->prepare( "SELECT id, name, slug FROM {$wpdb->prefix}psm_tags WHERE skill_id = %d AND status = 'active'", $skill_id ) );
+		$tags_all   = array();
+		$slug_by_id = array();
+		$label_by_id = array();
+		foreach ( $tag_rows as $row ) {
+			$tags_all[]                    = $row->slug;
+			$slug_by_id[ (int) $row->id ]  = $row->slug;
+			$label_by_id[ (int) $row->id ] = '' !== trim( (string) $row->name ) ? $row->name : $row->slug;
+		}
+
+		$tags_selected = array();
+		$tag_labels    = array();
+		foreach ( array_map( 'absint', (array) ( $_POST['tag_ids'] ?? array() ) ) as $tid ) {
+			if ( isset( $slug_by_id[ $tid ] ) ) {
+				$tags_selected[]             = $slug_by_id[ $tid ];
+				$tag_labels[ $slug_by_id[ $tid ] ] = $label_by_id[ $tid ];
+			}
+		}
+
+		$difficulty_raw = strtolower( sanitize_text_field( wp_unslash( $_POST['difficulty'] ?? 'all' ) ) );
+		if ( '' === $difficulty_raw || 'all' === $difficulty_raw || 'mixed' === $difficulty_raw ) {
+			$difficulty = 'all';
+		} else {
+			$diff_id    = PSM_Importer::normalize_difficulty_id( $difficulty_raw );
+			$difficulty = array( 1 => 'beginner', 2 => 'intermediate', 3 => 'advanced' )[ $diff_id ];
+		}
+
+		$types = array_map( 'sanitize_key', (array) ( $_POST['question_types'] ?? array() ) );
+		$types = array_values( array_intersect( $types, array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' ) ) );
+
+		$label = sanitize_text_field( wp_unslash( $_POST['label_name'] ?? '' ) );
+		$base  = '' !== $label ? sanitize_title( $label ) : $skill->slug;
+		if ( '' === $base ) {
+			$base = $skill->slug;
+		}
+		$prefix = strtoupper( $base ) . '-' . wp_date( 'YmdHis' );
+
+		$prompt = PSM_API_Client::build_export_prompt(
+			array(
+				'skill_name'     => $skill->name,
+				'skill_slug'     => $skill->slug,
+				'count'          => absint( $_POST['question_count'] ?? 50 ),
+				'difficulty'     => $difficulty,
+				'question_types' => $types,
+				'status'         => sanitize_key( $_POST['default_status'] ?? 'draft' ),
+				'tags_all'       => $tags_all,
+				'tags_selected'  => $tags_selected,
+				'tag_labels'     => $tag_labels,
+				'user_prompt'    => sanitize_textarea_field( wp_unslash( $_POST['user_prompt'] ?? '' ) ),
+				'rules'          => sanitize_textarea_field( wp_unslash( $_POST['generation_rules'] ?? '' ) ),
+				'code_language'  => sanitize_key( $_POST['code_language_master'] ?? '' ),
+				'prefix'         => $prefix,
+			)
+		);
+
+		wp_send_json_success(
+			array(
+				'prompt'     => $prompt,
+				'filename'   => 'prompt-' . sanitize_title( $skill->slug ) . '-' . wp_date( 'Ymd' ) . '.txt',
+				'skill_name' => $skill->name,
+			)
+		);
+	}
+
+	/**
+	 * Import questions from an uploaded .json file, then show the normal preview.
+	 */
+	public function handle_import_json_file() {
+		check_admin_referer( 'psm_import_json_file_nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( 'Unauthorized' );
+		}
+
+		global $wpdb;
+		$skill_id = absint( $_POST['skill_id'] ?? 0 );
+		$skill    = $wpdb->get_row( $wpdb->prepare( "SELECT id, name, slug FROM {$wpdb->prefix}psm_skills WHERE id = %d", $skill_id ) );
+		if ( ! $skill ) {
+			$this->redirect_with_notice( 'Please select a valid Skill for the JSON import.' );
+		}
+
+		$focus_tag_id = absint( $_POST['focus_tag_id'] ?? 0 );
+		$focus_tag    = null;
+		if ( $focus_tag_id ) {
+			$focus_tag = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT id, name, slug FROM {$wpdb->prefix}psm_tags WHERE id = %d AND skill_id = %d AND status = 'active'",
+					$focus_tag_id,
+					$skill_id
+				)
+			);
+			if ( ! $focus_tag ) {
+				$this->redirect_with_notice( 'The selected Tag Focus does not belong to this skill.' );
+			}
+		}
+
+		$file       = isset( $_FILES['json_file'] ) ? $_FILES['json_file'] : array();
+		$error_code = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+		if ( UPLOAD_ERR_OK !== $error_code ) {
+			$this->redirect_with_notice( $this->upload_error_message( $error_code ) );
+		}
+
+		$tmp_name = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
+		if ( '' === $tmp_name || ! is_uploaded_file( $tmp_name ) ) {
+			$this->redirect_with_notice( 'The JSON upload could not be verified. Please try again.' );
+		}
+
+		$size = (int) ( $file['size'] ?? 0 );
+		if ( $size <= 0 || $size > 5 * 1024 * 1024 ) {
+			$this->redirect_with_notice( 'The JSON file must be between 1 byte and 5 MB.' );
+		}
+
+		$ext = strtolower( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_EXTENSION ) );
+		if ( 'json' !== $ext ) {
+			$this->redirect_with_notice( 'Only .json files are supported.' );
+		}
+
+		$raw = file_get_contents( $tmp_name );
+		if ( false === $raw || '' === trim( $raw ) ) {
+			$this->redirect_with_notice( 'The uploaded JSON file is empty or unreadable.' );
+		}
+
+		$validated = $this->validate_json_import_payload( $raw, $skill );
+		if ( is_wp_error( $validated ) ) {
+			$this->redirect_with_notice( $validated->get_error_message() );
+		}
+
+		if ( $focus_tag ) {
+			$normalized_questions = PSM_Importer::normalize_question_tags( $validated, $skill->slug, $skill->name );
+			$missing_rows         = array();
+			foreach ( $normalized_questions as $idx => $q ) {
+				$q_tags = array_map( 'strval', (array) ( $q['tags'] ?? array() ) );
+				if ( ! in_array( $focus_tag->slug, $q_tags, true ) ) {
+					$missing_rows[] = $idx + 1;
+				}
+			}
+			if ( ! empty( $missing_rows ) ) {
+				$this->redirect_with_notice(
+					sprintf(
+						'%1$d of %2$d questions do not include the required Tag Focus "%3$s" (row(s): %4$s). Regenerate the file with the Create Prompt tool or remove the Tag Focus.',
+						count( $missing_rows ),
+						count( $normalized_questions ),
+						$focus_tag->slug,
+						implode( ', ', array_slice( $missing_rows, 0, 10 ) ) . ( count( $missing_rows ) > 10 ? ', ...' : '' )
+					)
+				);
+			}
+		}
+
+		$label = sanitize_text_field( wp_unslash( $_POST['label_name'] ?? '' ) );
+		if ( '' === $label ) {
+			$label = sanitize_text_field( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_FILENAME ) );
+		}
+		$label = mb_substr( $label, 0, 190 );
+
+		$envelope      = json_decode( $raw, true );
+		$file_diff     = ( is_array( $envelope ) && isset( $envelope['generation']['difficulty'] ) )
+			? sanitize_text_field( (string) $envelope['generation']['difficulty'] )
+			: 'all';
+
+		$preview = $this->collect_preview(
+			array(
+				'skill_id'            => $skill_id,
+				'tag_ids'             => array(),
+				'difficulty'          => '' !== $file_diff ? $file_diff : 'all',
+				'default_status'      => sanitize_key( $_POST['default_status'] ?? 'draft' ),
+				'label_name'          => $label,
+				'import_mode'         => 'manual_json',
+				'manual_json_payload' => $raw,
+				'focus_tag_slug'      => $focus_tag ? $focus_tag->slug : '',
+			)
+		);
+		if ( is_wp_error( $preview ) ) {
+			$this->redirect_with_notice( $preview->get_error_message() );
+		}
+
+		set_transient( 'psm_preview_data_' . get_current_user_id(), $preview, 1800 );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'psm-ai-importer',
+					'tab'     => 'generate',
+					'preview' => '1',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Validate an uploaded JSON envelope against the import schema.
+	 *
+	 * @return array|WP_Error Questions array on success.
+	 */
+	private function validate_json_import_payload( $raw, $skill ) {
+		$decoded = json_decode( (string) $raw, true );
+		if ( JSON_ERROR_NONE !== json_last_error() ) {
+			return new WP_Error( 'invalid_json', 'Invalid JSON: ' . json_last_error_msg() );
+		}
+		if ( ! is_array( $decoded ) ) {
+			return new WP_Error( 'invalid_json', 'The JSON root must be an object or an array.' );
+		}
+
+		if ( isset( $decoded['schema_version'] ) && '1.0' !== (string) $decoded['schema_version'] ) {
+			return new WP_Error( 'unsupported_schema', 'Unsupported schema_version. Expected "1.0".' );
+		}
+
+		if ( isset( $decoded['skill'] ) && is_array( $decoded['skill'] ) ) {
+			$envelope_slug = sanitize_title( (string) ( $decoded['skill']['slug'] ?? '' ) );
+			if ( '' !== $envelope_slug && $envelope_slug !== $skill->slug ) {
+				return new WP_Error(
+					'skill_mismatch',
+					'This JSON file is for skill "' . $envelope_slug . '" but the selected skill is "' . $skill->slug . '". Select the matching skill and try again.'
+				);
+			}
+		}
+
+		$questions = array_key_exists( 'questions', $decoded ) ? $decoded['questions'] : $decoded;
+		if ( ! is_array( $questions ) || empty( $questions ) ) {
+			return new WP_Error( 'missing_questions', 'The JSON file must contain a non-empty "questions" array.' );
+		}
+
+		if ( isset( $decoded['generation']['total_questions'] ) ) {
+			$declared = $decoded['generation']['total_questions'];
+			if ( ! is_numeric( $declared ) || (int) $declared !== count( $questions ) ) {
+				return new WP_Error(
+					'count_mismatch',
+					'generation.total_questions must equal the number of questions in the file (' . count( $questions ) . ').'
+				);
+			}
+		}
+
+		$difficulty_mode = 'all';
+		if ( isset( $decoded['generation']['difficulty'] ) ) {
+			$difficulty_mode = strtolower( sanitize_text_field( (string) $decoded['generation']['difficulty'] ) );
+			if ( 'mixed' === $difficulty_mode ) {
+				$difficulty_mode = 'all';
+			}
+			if ( ! in_array( $difficulty_mode, array( 'all', 'beginner', 'intermediate', 'advanced' ), true ) ) {
+				return new WP_Error( 'invalid_difficulty', 'generation.difficulty must be one of: "all", "beginner", "intermediate", "advanced".' );
+			}
+		}
+
+		$allowed_types = array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' );
+		$external_ids  = array();
+		$parsed_ids    = array();
+
+		foreach ( $questions as $idx => $q ) {
+			$row = $idx + 1;
+			if ( ! is_array( $q ) ) {
+				return new WP_Error( 'invalid_question', 'Question #' . $row . ' is not a JSON object.' );
+			}
+
+			$q_type = sanitize_key( (string) ( $q['question_type'] ?? '' ) );
+			if ( ! in_array( $q_type, $allowed_types, true ) ) {
+				return new WP_Error(
+					'invalid_question_type',
+					'Question #' . $row . ' has an invalid "question_type". Allowed values: ' . implode( ', ', $allowed_types ) . '.'
+				);
+			}
+
+			$q_diff = strtolower( trim( (string) ( $q['difficulty'] ?? '' ) ) );
+			if ( ! in_array( $q_diff, array( 'beginner', 'intermediate', 'advanced' ), true ) ) {
+				return new WP_Error(
+					'invalid_question_difficulty',
+					'Question #' . $row . ' must have "difficulty" set to beginner, intermediate, or advanced.'
+				);
+			}
+			if ( 'all' !== $difficulty_mode && $q_diff !== $difficulty_mode ) {
+				return new WP_Error(
+					'difficulty_mismatch',
+					'Question #' . $row . ' uses difficulty "' . $q_diff . '" but generation.difficulty is "' . $difficulty_mode . '". All questions must match the file difficulty.'
+				);
+			}
+
+			$answer_mode = strtolower( trim( (string) ( $q['answer_mode'] ?? '' ) ) );
+			$expected_mode = ( 'multiple_choice' === $q_type ) ? 'multiple' : 'single';
+			if ( $answer_mode !== $expected_mode ) {
+				return new WP_Error(
+					'answer_mode_mismatch',
+					'Question #' . $row . ' must use "answer_mode": "' . $expected_mode . '" for ' . $q_type . '.'
+				);
+			}
+
+			$options   = $q['options'] ?? array();
+			$opt_count = is_array( $options ) ? count( $options ) : 0;
+			$expected_options = ( 'two_option' === $q_type || 'true_false' === $q_type ) ? 2 : 4;
+			if ( $opt_count !== $expected_options ) {
+				return new WP_Error(
+					'option_count_mismatch',
+					'Question #' . $row . ' must have exactly ' . $expected_options . ' options for ' . $q_type . ' (found ' . $opt_count . ').'
+				);
+			}
+
+			$correct_raw = $q['correct_answers'] ?? ( $q['correct_keys'] ?? array() );
+			if ( is_string( $correct_raw ) ) {
+				$correct_raw = preg_split( '/[,;|]/', $correct_raw, -1, PREG_SPLIT_NO_EMPTY );
+			}
+			$correct = is_array( $correct_raw )
+				? array_values( array_filter( array_map( 'trim', array_map( 'strval', $correct_raw ) ), 'strlen' ) )
+				: array();
+			$correct_count = count( $correct );
+			if ( 'multiple_choice' === $q_type ) {
+				if ( $correct_count < 2 ) {
+					return new WP_Error( 'too_few_correct', 'Question #' . $row . ' (multiple_choice) needs at least two correct answers.' );
+				}
+			} elseif ( 1 !== $correct_count ) {
+				return new WP_Error( 'invalid_correct_count', 'Question #' . $row . ' (' . $q_type . ') needs exactly one correct answer.' );
+			}
+
+			$eid = trim( (string) ( $q['external_id'] ?? '' ) );
+			if ( '' === $eid ) {
+				return new WP_Error( 'missing_external_id', 'Question #' . $row . ' is missing "external_id".' );
+			}
+			if ( isset( $external_ids[ $eid ] ) ) {
+				return new WP_Error( 'duplicate_external_id', 'Duplicate "external_id" found: "' . $eid . '". Every external_id must be unique.' );
+			}
+			$external_ids[ $eid ] = true;
+
+			if ( preg_match( '/^(.*)-(\d+)$/', $eid, $m ) ) {
+				$parsed_ids[ $eid ] = array( $m[1], (int) $m[2] );
+			}
+		}
+
+		if ( count( $parsed_ids ) === count( $questions ) ) {
+			$prefixes = array_unique( array_map( static function ( $pair ) { return $pair[0]; }, $parsed_ids ) );
+			if ( 1 === count( $prefixes ) ) {
+				$sequence = array_map( static function ( $pair ) { return $pair[1]; }, array_values( $parsed_ids ) );
+				sort( $sequence );
+				if ( range( 1, count( $questions ) ) !== $sequence ) {
+					return new WP_Error( 'external_id_sequence', 'external_id values must increment sequentially from 001 to ' . str_pad( (string) count( $questions ), 3, '0', STR_PAD_LEFT ) . ' within the same prefix.' );
+				}
+			}
+		}
+
+		return $questions;
+	}
+
+	private function upload_error_message( $code ) {
+		$messages = array(
+			UPLOAD_ERR_INI_SIZE   => 'The file exceeds the server upload_max_filesize limit.',
+			UPLOAD_ERR_FORM_SIZE  => 'The file exceeds the form MAX_FILE_SIZE limit.',
+			UPLOAD_ERR_PARTIAL    => 'The file was only partially uploaded. Please try again.',
+			UPLOAD_ERR_NO_FILE    => 'Please choose a .json file to import.',
+			UPLOAD_ERR_NO_TMP_DIR => 'The server has no temporary folder for uploads.',
+			UPLOAD_ERR_CANT_WRITE => 'The server could not write the uploaded file.',
+			UPLOAD_ERR_EXTENSION  => 'A PHP extension stopped the upload.',
+		);
+		return $messages[ $code ] ?? 'The JSON upload failed (error code ' . (int) $code . ').';
+	}
+
+	private function redirect_with_notice( $message, $type = 'error' ) {
+		set_transient(
+			'psm_admin_notice_' . get_current_user_id(),
+			array(
+				'type' => $type,
+				'text' => $message,
+			),
+			60
+		);
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page' => 'psm-ai-importer',
+					'tab'  => 'generate',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	public function handle_confirm_import() {
@@ -904,30 +1322,40 @@ class PSM_Admin_UI {
 				box-shadow: 0 2px 8px rgba(16,185,129,0.28);
 			}
 			.psm-btn-add:hover { opacity: 0.94; color: #fff; }
-			/* Modal Popup: Centered Horizontally & Vertically */
-			.psm-modal-backdrop {
-				display: none; position: fixed; inset: 0; width: 100vw; height: 100vh;
-				background: rgba(15,23,42,0.55); z-index: 100050;
-				align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;
+			/* Centered modal: pinned header, scrollable body, pinned footer.
+			   Scoped to .psm-wrap because programming-skills-master ships a global .psm-modal rule. */
+			.psm-wrap .psm-modal-backdrop {
+				display: none; position: fixed; inset: 0; z-index: 100050; padding: 16px;
+				align-items: center; justify-content: center; background: rgba(0,0,0,0.55); box-sizing: border-box;
 			}
-			.psm-modal-backdrop.open { display: flex; }
-			.psm-modal {
-				background: #fff; width: 540px; max-width: 94vw; margin: auto; border-radius: 12px; overflow: hidden;
-				box-shadow: 0 20px 45px rgba(15,23,42,0.28); animation: psmPop .16s ease-out;
+			.psm-wrap .psm-modal-backdrop.open { display: flex; }
+			.psm-wrap .psm-modal {
+				position: relative; inset: auto; top: auto; right: auto; bottom: auto; left: auto; z-index: auto;
+				align-items: stretch; justify-content: flex-start; padding: 0; margin: 0;
+				display: flex; flex-direction: column; width: 100%; max-width: 640px; max-height: 88vh;
+				background: #fff; border-radius: 10px; overflow: hidden;
+				box-shadow: 0 12px 32px rgba(0,0,0,0.25); animation: psmPop .16s ease-out;
 			}
-			@keyframes psmPop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-			.psm-modal-header {
-				background: linear-gradient(135deg, #4f46e5, #0ea5e9); color: #fff; padding: 14px 20px;
-				display: flex; justify-content: space-between; align-items: center;
+			.psm-wrap .psm-modal > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+			@keyframes psmPop { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+			.psm-wrap .psm-modal-header {
+				flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+				padding: 14px 18px; border-bottom: 1px solid #dcdcde; background: #fff;
 			}
-			.psm-modal-header h3 { margin: 0; color: #fff; font-size: 16px; }
-			.psm-modal-close { background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1; }
-			.psm-modal-body { padding: 18px 20px; max-height: 75vh; overflow-y: auto; }
-			.psm-modal-body label { display: block; font-weight: 600; margin-bottom: 10px; color: #1e293b; }
-			.psm-modal-body input[type="text"], .psm-modal-body input[type="number"], .psm-modal-body select, .psm-modal-body textarea {
+			.psm-wrap .psm-modal-header h3 { margin: 0; color: #1d2327; font-size: 16px; font-weight: 600; }
+			.psm-wrap .psm-modal-close { background: none; border: none; color: #646970; font-size: 22px; cursor: pointer; line-height: 1; }
+			.psm-wrap .psm-modal-close:hover, .psm-wrap .psm-modal-close:focus { color: #d63638; }
+			.psm-wrap .psm-modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px; }
+			.psm-wrap .psm-modal-body label { display: block; font-weight: 600; margin-bottom: 10px; color: #1e293b; }
+			.psm-wrap .psm-modal-body input[type="text"], .psm-wrap .psm-modal-body input[type="number"], .psm-wrap .psm-modal-body select, .psm-wrap .psm-modal-body textarea {
 				width: 100%; margin-top: 4px; border-radius: 6px; border: 1px solid #cbd5e1; padding: 6px 10px; box-sizing: border-box;
 			}
-			.psm-modal-footer { padding: 12px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: right; }
+			.psm-wrap .psm-modal-footer {
+				flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+				padding: 12px 18px; border-top: 1px solid #dcdcde; background: #f6f7f7;
+			}
+			.psm-save-status { min-height: 18px; margin-top: 8px; font-size: 12px; font-weight: 600; color: #059669; }
+			.psm-save-status.err { color: #dc2626; }
 			/* 3 AI Cards Grid */
 			.psm-ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-top: 20px; }
 			.psm-ai-card {
@@ -955,6 +1383,14 @@ class PSM_Admin_UI {
 			}
 			.psm-toast.ok { background: #059669; }
 			.psm-toast.err { background: #dc2626; }
+			#psm_import_json_card { scroll-margin-top: 48px; }
+			.psm-table-card.psm-flash { animation: psmCardFlash 1.6s ease; }
+			@keyframes psmCardFlash {
+				0%   { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+				25%  { box-shadow: 0 0 0 5px rgba(245,158,11,0.55); }
+				100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+			}
+			.psm-field-error { outline: 2px solid #dc2626 !important; box-shadow: 0 0 0 3px rgba(220,38,38,0.18) !important; }
 		</style>
 
 		<div class="wrap psm-wrap">
@@ -1014,7 +1450,7 @@ class PSM_Admin_UI {
 												<input type="checkbox" name="clear_api_key" value="1" style="width:auto;"> Remove the saved key
 											</label>
 										<?php endif; ?>
-										<span style="display:block;font-size:11px;color:#64748b;margin-top:3px;">The saved key is never sent back to the browser.</span>
+										<span style="display:block;font-size:11px;color:#64748b;margin-top:3px;">For security the saved key is never sent back to the browser, so this field clears after saving. Leave it blank to keep the saved key.</span>
 									</p>
 									<p>
 										<label>Model Name</label>
@@ -1040,6 +1476,7 @@ class PSM_Admin_UI {
 										</label>
 									</p>
 									<button type="submit" class="button button-primary" style="width:100%;">Save <?php echo esc_html( $plabel ); ?> Settings (AJAX)</button>
+									<div class="psm-save-status" id="psm_save_status_<?php echo esc_attr( $pkey ); ?>" aria-live="polite"></div>
 								</form>
 							</div>
 						</div>
@@ -1227,6 +1664,17 @@ class PSM_Admin_UI {
         }
     }
     $total_rows = count( $preview_data['questions'] );
+
+    $preview_tag_slugs = array();
+    if ( ! empty( $preview_data['skill_id'] ) ) {
+        $preview_tag_slugs = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT slug FROM {$wpdb->prefix}psm_tags WHERE skill_id = %d AND status = 'active'",
+                (int) $preview_data['skill_id']
+            )
+        );
+        $preview_tag_slugs = array_flip( array_map( 'strval', (array) $preview_tag_slugs ) );
+    }
 					?>
 					<div class="psm-table-card" style="margin-top: 20px;">
 						<h2>Review &amp; Check Generated Data Before Database Import</h2>
@@ -1234,6 +1682,9 @@ class PSM_Admin_UI {
 							<strong>Skill:</strong> <?php echo esc_html( $preview_data['skill_name'] ); ?> |
 							<strong>Label:</strong> <?php echo esc_html( $preview_data['label_name'] ); ?> |
 							<strong>Source:</strong> <?php echo esc_html( $preview_data['provider'] ); ?> |
+								<?php if ( ! empty( $preview_data['focus_tag_slug'] ) ) : ?>
+									<strong>Focus Tag:</strong> <code><?php echo esc_html( $preview_data['focus_tag_slug'] ); ?></code> |
+								<?php endif; ?>
 								<strong>Validated:</strong>
 								<span style="color:<?php echo $valid_count === $total_rows ? '#166534' : '#b45309'; ?>;font-weight:700;">
 									<?php echo esc_html( $valid_count . ' / ' . $total_rows . ' rows importable' ); ?>
@@ -1304,7 +1755,7 @@ class PSM_Admin_UI {
 											<td>Diff: <?php echo esc_html( $q_diff ); ?><br><code><?php echo esc_html( $q_type ); ?></code></td>
 											<td>
 												<?php foreach ( (array) ( $q['tags'] ?? array() ) as $tslug ) : ?>
-													<div><code><?php echo esc_html( $tslug ); ?></code></div>
+													<div><code><?php echo esc_html( $tslug ); ?></code><?php if ( ! isset( $preview_tag_slugs[ (string) $tslug ] ) ) : ?> <span style="color:#dc2626;font-weight:600;">(not found for this skill)</span><?php endif; ?></div>
 												<?php endforeach; ?>
 											</td>
 										</tr>
@@ -1481,6 +1932,8 @@ class PSM_Admin_UI {
 
 							<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
 								<?php submit_button( 'Fetch & Show Data for Check Before Import', 'primary', 'submit', false ); ?>
+								<button type="button" class="button button-secondary" id="psm_create_prompt_btn">Create Prompt (Copy / Download)</button>
+								<a href="#psm_import_json_card" class="button" id="psm_import_json_jump">Import JSON File</a>
 								<div id="psm_ai_loader" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;color:#1e3a8a;font-weight:600;">
 									<span class="spinner is-active" style="float:none;margin:0;"></span>
 									<span>Generating questions via AI...</span>
@@ -1491,6 +1944,98 @@ class PSM_Admin_UI {
 					</div>
 				<?php endif; ?>
 			<?php endif; ?>
+
+			<?php if ( $tab === 'generate' && ! $is_prev ) : ?>
+			<div class="psm-table-card" id="psm_import_json_card" style="max-width: 1040px; margin-top: 24px;">
+				<h2>Import JSON File (Saved AI Output)</h2>
+				<p class="description" style="margin-top:0;">
+					Upload a <code>.json</code> file produced by the Create Prompt output. The file is validated against the plugin schema,
+					tags are normalized to this skill's slugs, and everything is shown in the preview below before anything is written to the database.
+				</p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
+					<?php wp_nonce_field( 'psm_import_json_file_nonce' ); ?>
+					<input type="hidden" name="action" value="psm_import_json_file">
+					<table class="form-table">
+						<tr>
+							<th><label for="psm_json_skill_select">Target Skill *</label></th>
+							<td>
+								<select name="skill_id" id="psm_json_skill_select" class="regular-text" required>
+									<option value="">&mdash; Select Skill &mdash;</option>
+									<?php
+									$json_grouped = array();
+									foreach ( $skills as $s ) {
+										$json_grouped[ $s->domain_name ?: 'Other' ][] = $s;
+									}
+									foreach ( $json_grouped as $dom_name => $dom_skills ) :
+										?>
+										<optgroup label="<?php echo esc_attr( $dom_name ); ?>">
+											<?php foreach ( $dom_skills as $s ) : ?>
+												<option value="<?php echo esc_attr( $s->id ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
+													<?php echo esc_html( $s->name . ' [' . $s->slug . ']' ); ?>
+												</option>
+											<?php endforeach; ?>
+										</optgroup>
+									<?php endforeach; ?>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="psm_json_focus_tag">Tag Focus (Optional)</label></th>
+							<td>
+								<select name="focus_tag_id" id="psm_json_focus_tag" class="regular-text">
+									<option value="">&mdash; No tag focus &mdash;</option>
+								</select>
+								<p class="description">When set, import is strict: every question in the file must include this tag slug, or the whole file is rejected.</p>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="psm_json_label">Batch Label (Optional)</label></th>
+							<td><input type="text" name="label_name" id="psm_json_label" class="regular-text" placeholder="Defaults to the file name"></td>
+						</tr>
+						<tr>
+							<th><label for="psm_json_status">Import Status</label></th>
+							<td>
+								<select name="default_status" id="psm_json_status">
+									<option value="draft">Draft</option>
+									<option value="published">Published</option>
+								</select>
+							</td>
+						</tr>
+						<tr>
+							<th><label for="psm_json_file">JSON File *</label></th>
+							<td>
+								<input type="file" name="json_file" id="psm_json_file" accept=".json,application/json" required>
+								<p class="description">Max 5 MB. Root must contain a <code>questions</code> array (schema_version 1.0) or be a bare question array.</p>
+							</td>
+						</tr>
+					</table>
+					<?php submit_button( 'Upload JSON & Show Preview', 'primary', 'psm_upload_json', false ); ?>
+				</form>
+			</div>
+		<?php endif; ?>
+
+			<!-- PROMPT BUILDER MODAL (Copy / Download) -->
+			<div class="psm-modal-backdrop" id="psm_prompt_modal" role="dialog" aria-modal="true">
+				<div class="psm-modal" style="max-width: 900px;">
+					<div class="psm-modal-header">
+						<h3>AI Prompt (Copy or Download)</h3>
+						<button type="button" class="psm-modal-close" id="psm_prompt_close" aria-label="Close">&times;</button>
+					</div>
+					<div class="psm-modal-body">
+						<p class="description" style="margin-top:0;">
+							Paste this into ChatGPT, Gemini, or Qoder. The model must return only raw JSON that matches the plugin schema,
+							so you can save it as a <code>.json</code> file and import it with the Import JSON card.
+						</p>
+						<div id="psm_prompt_status" style="margin:8px 0;color:#64748b;font-size:12px;"></div>
+						<textarea id="psm_prompt_textarea" rows="18" readonly style="width:100%;font-family:Consolas,Monaco,monospace;font-size:12px;white-space:pre;overflow:auto;"></textarea>
+					</div>
+					<div class="psm-modal-footer">
+						<button type="button" class="button button-secondary" id="psm_prompt_close_footer">Close (ESC)</button>
+						<button type="button" class="button" id="psm_prompt_download" style="margin-left:8px;">Download .txt</button>
+						<button type="button" class="button button-primary" id="psm_prompt_copy" style="margin-left:8px;">Copy Prompt</button>
+					</div>
+				</div>
+			</div>
 
 			<!-- AJAX MODAL POPUP FOR ADD / EDIT MASTER RECORDS (Centered H+V, ESC to Close) -->
 			<div class="psm-modal-backdrop" id="psm_master_modal" role="dialog" aria-modal="true">
@@ -1592,6 +2137,20 @@ class PSM_Admin_UI {
 				setTimeout(() => { t.style.display = 'none'; }, 4000);
 			}
 
+			function escapeHtml(str) {
+				const div = document.createElement('div');
+				div.textContent = String(str ?? '');
+				return div.innerHTML;
+			}
+
+			function setActionNotice(message, isError) {
+				const box = document.getElementById('psm_ai_ajax_notice');
+				if (!box) return;
+				box.innerHTML = message
+					? '<div class="notice notice-' + (isError ? 'error' : 'info') + ' inline"><p>' + escapeHtml(message) + '</p></div>'
+					: '';
+			}
+
 			// Select All Question Types
 			document.getElementById('psm_select_all_qtypes')?.addEventListener('click', function() {
 				document.querySelectorAll('.psm-qtype-cb').forEach(cb => cb.checked = true);
@@ -1669,6 +2228,177 @@ class PSM_Admin_UI {
 					html += '</div>';
 					tagBox.innerHTML = html;
 				}
+			});
+
+			// Create Prompt modal (Copy / Download)
+			const promptModal    = document.getElementById('psm_prompt_modal');
+			const promptTextarea = document.getElementById('psm_prompt_textarea');
+			const promptStatus   = document.getElementById('psm_prompt_status');
+			let promptFilename   = 'ai-prompt.txt';
+
+			const openPromptModal = () => promptModal?.classList.add('open');
+			const closePromptModal = () => promptModal?.classList.remove('open');
+
+			function buildPromptFromForm(btn) {
+				const form = document.getElementById('psm_generate_form');
+				if (!form) return;
+				const skillSel = document.getElementById('psm_skill_select');
+				setActionNotice('');
+
+				if (!skillSel || !skillSel.value) {
+					const msg = 'Select a Skill in step 1 first, then click Create Prompt again.';
+					setActionNotice(msg, true);
+					showToast(msg, false);
+					skillSel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					skillSel?.classList.add('psm-field-error');
+					setTimeout(() => skillSel?.classList.remove('psm-field-error'), 2600);
+					skillSel?.focus();
+					return;
+				}
+
+				if (!btn) btn = document.getElementById('psm_create_prompt_btn');
+				if (btn) {
+					btn.disabled = true;
+					btn.textContent = 'Building...';
+				}
+
+				const fd = new FormData(form);
+				fd.set('action', 'psm_ajax_build_prompt');
+				fd.set('nonce', ajaxNonce);
+
+				fetch(ajaxUrl, { method: 'POST', body: fd })
+					.then(r => r.json())
+					.then(res => {
+						if (res.success && res.data && res.data.prompt) {
+							setActionNotice('');
+							promptTextarea.value = res.data.prompt;
+							promptFilename = res.data.filename || 'ai-prompt.txt';
+							if (promptStatus) {
+								promptStatus.textContent = 'Skill: ' + (res.data.skill_name || skillSel.value) + ' \u2022 ' + promptFilename;
+							}
+							openPromptModal();
+						} else {
+							const msg = res.data?.message || 'Could not build the prompt. Please try again.';
+							setActionNotice(msg, true);
+							showToast(msg, false);
+						}
+					})
+					.catch(err => {
+						const msg = 'Network error while building the prompt: ' + (err && err.message ? err.message : 'request failed');
+						setActionNotice(msg, true);
+						showToast(msg, false);
+					})
+					.finally(() => {
+						if (btn) {
+							btn.disabled = false;
+							btn.textContent = 'Create Prompt (Copy / Download)';
+						}
+					});
+			}
+
+			document.getElementById('psm_prompt_close')?.addEventListener('click', closePromptModal);
+			document.getElementById('psm_prompt_close_footer')?.addEventListener('click', closePromptModal);
+			promptModal?.addEventListener('click', function(e) {
+				if (e.target === promptModal) closePromptModal();
+			});
+			document.addEventListener('keydown', function(e) {
+				if ((e.key === 'Escape' || e.keyCode === 27) && promptModal?.classList.contains('open')) {
+					closePromptModal();
+				}
+			});
+
+			document.getElementById('psm_prompt_copy')?.addEventListener('click', function() {
+				const text = promptTextarea.value || '';
+				if (!text) return;
+				const done = () => showToast('Prompt copied to clipboard.', true);
+				if (navigator.clipboard && navigator.clipboard.writeText) {
+					navigator.clipboard.writeText(text).then(done).catch(() => {
+						promptTextarea.select();
+						document.execCommand('copy');
+						done();
+					});
+				} else {
+					promptTextarea.select();
+					document.execCommand('copy');
+					done();
+				}
+			});
+
+			document.getElementById('psm_prompt_download')?.addEventListener('click', function() {
+				const text = promptTextarea.value || '';
+				if (!text) return;
+				const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+				const url  = URL.createObjectURL(blob);
+				const a    = document.createElement('a');
+				a.href = url;
+				a.download = promptFilename || 'ai-prompt.txt';
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+				URL.revokeObjectURL(url);
+			});
+
+			// Import JSON card: jump link, skill sync, label from filename
+			function jumpToImportCard(e) {
+				const card = document.getElementById('psm_import_json_card');
+				if (!card) return true;
+				if (e && e.preventDefault) e.preventDefault();
+				card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				card.classList.remove('psm-flash');
+				void card.offsetWidth;
+				card.classList.add('psm-flash');
+				setTimeout(() => card.classList.remove('psm-flash'), 1800);
+
+				const srcSkill = document.getElementById('psm_skill_select');
+				const dstSkill = document.getElementById('psm_json_skill_select');
+				if (srcSkill && dstSkill && srcSkill.value && !dstSkill.value) {
+					dstSkill.value = srcSkill.value;
+				}
+				if (dstSkill) loadJsonFocusTags();
+				const srcTags = document.querySelectorAll('#psm_tag_box input[name="tag_ids[]"]:checked');
+				if (jsonFocusTag && srcTags.length === 1) {
+					jsonFocusTag.value = srcTags[0].value;
+				}
+				dstSkill?.focus();
+				return false;
+			}
+
+			// Delegated in capture phase so plugin/theme stopPropagation cannot swallow these clicks.
+			document.addEventListener('click', function(e) {
+				if (!e.target || !e.target.closest) return;
+				const createBtn = e.target.closest('#psm_create_prompt_btn');
+				if (createBtn) {
+					e.preventDefault();
+					buildPromptFromForm(createBtn);
+					return;
+				}
+				if (e.target.closest('#psm_import_json_jump')) {
+					jumpToImportCard(e);
+				}
+			}, true);
+
+			// Import card: populate Tag Focus from the selected skill, then sync from the main form.
+			const jsonSkillSelect = document.getElementById('psm_json_skill_select');
+			const jsonFocusTag    = document.getElementById('psm_json_focus_tag');
+
+			function loadJsonFocusTags() {
+				if (!jsonFocusTag) return;
+				const skillId = parseInt(jsonSkillSelect ? jsonSkillSelect.value : '0', 10);
+				const list    = tagsBySkill[skillId] || [];
+				let html = '<option value="">&mdash; No tag focus &mdash;</option>';
+				list.forEach(function(t) {
+					html += '<option value="' + t.id + '">' + escapeHtml(t.name) + ' [' + escapeHtml(t.slug) + ']</option>';
+				});
+				jsonFocusTag.innerHTML = html;
+			}
+
+			jsonSkillSelect?.addEventListener('change', loadJsonFocusTags);
+			loadJsonFocusTags();
+
+			document.getElementById('psm_json_file')?.addEventListener('change', function() {
+				const label = document.getElementById('psm_json_label');
+				if (!label || label.value.trim() || !this.files || !this.files.length) return;
+				label.value = this.files[0].name.replace(/\.json$/i, '');
 			});
 
 			// Select all rows on Preview
@@ -1814,10 +2544,30 @@ class PSM_Admin_UI {
 						.then(res => {
 							if (res.success) {
 								showToast(res.data.message, true);
-								const keyInput = this.querySelector('[name="api_key"]');
+								const keyInput   = this.querySelector('[name="api_key"]');
+								const clearBox   = this.querySelector('[name="clear_api_key"]');
+								const wasCleared = clearBox ? clearBox.checked : false;
+								const typed      = keyInput ? keyInput.value.trim() : '';
 								if (keyInput) {
+									// Intended behavior: the saved key is never echoed back, so clear the field after saving.
 									keyInput.value = '';
 									keyInput.placeholder = res.data.has_key ? 'A key is saved - leave blank to keep it' : 'Enter API key';
+								}
+								if (clearBox) clearBox.checked = false;
+								const statusEl = document.getElementById('psm_save_status_' + this.dataset.provider);
+								if (statusEl) {
+									statusEl.classList.remove('err');
+									let suffix;
+									if (wasCleared) {
+										suffix = 'key removed';
+									} else if (!res.data.has_key) {
+										suffix = 'no key stored';
+									} else if (typed === '') {
+										suffix = 'saved key kept (field left blank)';
+									} else {
+										suffix = 'key stored (field cleared)';
+									}
+									statusEl.textContent = 'Saved at ' + new Date().toLocaleTimeString() + ' \u2014 ' + suffix;
 								}
 								const u = res.data.usage;
 								const box = document.getElementById('psm_quota_box_' + u.provider);
@@ -1829,10 +2579,23 @@ class PSM_Admin_UI {
 										'<strong>Next Weekly Reset:</strong> ' + u.next_weekly_reset;
 								}
 							} else {
-								showToast(res.data?.message || 'Save failed', false);
+								const msg = res.data?.message || 'Save failed';
+								showToast(msg, false);
+								const statusEl = document.getElementById('psm_save_status_' + this.dataset.provider);
+								if (statusEl) {
+									statusEl.classList.add('err');
+									statusEl.textContent = msg;
+								}
 							}
 						})
-						.catch(() => showToast('Network error', false));
+						.catch(() => {
+							showToast('Network error', false);
+							const statusEl = document.getElementById('psm_save_status_' + this.dataset.provider);
+							if (statusEl) {
+								statusEl.classList.add('err');
+								statusEl.textContent = 'Network error while saving.';
+							}
+						});
 				});
 			});
 		})();

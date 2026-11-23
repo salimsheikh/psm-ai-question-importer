@@ -71,6 +71,89 @@ class PSM_Importer {
 	}
 
 	/**
+	 * Canonical tag slug in the PSM_Seeder convention: "<skill-slug>-<topic>".
+	 *
+	 * Accepts a topic ("String"), a fully prefixed slug ("csharp-string"), or the
+	 * skill name prefixed text ("C# String"); repeated skill prefixes are collapsed.
+	 */
+	public static function normalize_tag_slug( $raw_tag, $skill_slug, $skill_name = '' ) {
+		$raw = trim( (string) $raw_tag );
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		$skill_slug = sanitize_title( (string) $skill_slug );
+		$skill_name = trim( (string) $skill_name );
+
+		if ( '' !== $skill_name ) {
+			$stripped = preg_replace(
+				'/^\s*' . preg_quote( $skill_name, '/' ) . '\s*[-\/|:]*\s*/iu',
+				'',
+				$raw
+			);
+			if ( is_string( $stripped ) ) {
+				$raw = $stripped;
+			}
+		}
+
+		$slug = sanitize_title( $raw );
+		if ( '' === $slug ) {
+			return '';
+		}
+
+		$slug = str_replace( 'c-sharp', 'csharp', $slug );
+
+		if ( '' === $skill_slug ) {
+			return $slug;
+		}
+
+		$prefix = $skill_slug . '-';
+		while ( 0 === strpos( $slug, $prefix ) && strlen( $slug ) > strlen( $prefix ) ) {
+			$slug = substr( $slug, strlen( $prefix ) );
+		}
+		if ( '' === $slug || $slug === $skill_slug ) {
+			return '';
+		}
+
+		return $prefix . $slug;
+	}
+
+	/**
+	 * Apply normalize_tag_slug() to every question in a list.
+	 *
+	 * @param mixed  $questions  Raw question list.
+	 * @param string $skill_slug Skill slug.
+	 * @param string $skill_name Optional skill display name.
+	 * @return mixed
+	 */
+	public static function normalize_question_tags( $questions, $skill_slug, $skill_name = '' ) {
+		if ( ! is_array( $questions ) ) {
+			return $questions;
+		}
+
+		foreach ( $questions as $idx => $item ) {
+			if ( ! is_array( $item ) || empty( $item['tags'] ) ) {
+				continue;
+			}
+			if ( ! is_array( $item['tags'] ) ) {
+				$questions[ $idx ]['tags'] = array();
+				continue;
+			}
+
+			$tags = array();
+			foreach ( $item['tags'] as $raw_tag ) {
+				$tag_slug = self::normalize_tag_slug( $raw_tag, $skill_slug, $skill_name );
+				if ( '' !== $tag_slug ) {
+					$tags[] = $tag_slug;
+				}
+			}
+			$questions[ $idx ]['tags'] = array_values( array_unique( $tags ) );
+		}
+
+		return $questions;
+	}
+
+	/**
 	 * Plain text sanitizer that keeps angle brackets (List<int>, a<b).
 	 *
 	 * Stored text is always escaped on output, so HTML must not be stripped here.
@@ -541,9 +624,9 @@ class PSM_Importer {
 			$resolved_tag_ids = $sanitized_forced_tags;
 			if ( ! empty( $item['tags'] ) && is_array( $item['tags'] ) ) {
 				foreach ( $item['tags'] as $raw_tag ) {
-					$tag_slug = sanitize_title( (string) $raw_tag );
-					if ( $tag_slug === 'c-sharp-oop' ) {
-						$tag_slug = 'csharp-oop';
+					$tag_slug = self::normalize_tag_slug( $raw_tag, $skill->slug, $skill->name );
+					if ( '' === $tag_slug ) {
+						continue;
 					}
 					if ( isset( $slug_to_tag_id[ $tag_slug ] ) ) {
 						$resolved_tag_ids[] = $slug_to_tag_id[ $tag_slug ];

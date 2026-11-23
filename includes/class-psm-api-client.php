@@ -130,6 +130,7 @@ class PSM_API_Client {
 		$code_language  = strtolower( trim( (string) ( $params['code_language'] ?? '' ) ) );
 		$allowed_tags   = is_array( $params['allowed_tag_slugs'] ?? null ) ? $params['allowed_tag_slugs'] : array();
 		$selected_tags  = is_array( $params['tag_slugs'] ?? null ) ? $params['tag_slugs'] : array();
+		$tag_labels     = is_array( $params['tag_labels'] ?? null ) ? $params['tag_labels'] : array();
 
 		$lines   = array();
 		$lines[] = sprintf(
@@ -168,6 +169,23 @@ class PSM_API_Client {
 		}
 		if ( ! empty( $selected_tags ) ) {
 			$lines[] = '- Selected Tags: ' . implode( ', ', $selected_tags );
+
+			$selected_labels = array();
+			foreach ( $selected_tags as $selected_slug ) {
+				$label = trim( (string) ( $tag_labels[ $selected_slug ] ?? '' ) );
+				if ( '' === $label ) {
+					$derived         = preg_replace( '/^' . preg_quote( $skill_slug . '-', '/' ) . '/', '', (string) $selected_slug );
+					$label           = ucwords( str_replace( '-', ' ', (string) $derived ) );
+				}
+				$selected_labels[] = $label;
+			}
+
+			$lines[] = '- STRICT TAG FOCUS: Every question must be specifically about ' . implode( ' or ', $selected_labels ) . ' - not generic ' . $skill_name . ' topics such as other unrelated features or syntax.';
+			if ( count( $selected_tags ) === 1 ) {
+				$lines[] = '- Every question\'s "tags" array MUST include "' . $selected_tags[0] . '".';
+			} else {
+				$lines[] = '- Every question must focus on one of the selected topics and include that topic\'s selected tag slug in "tags".';
+			}
 		}
 		if ( ! empty( $allowed_tags ) ) {
 			$lines[] = '- Allowed Tag Slugs (STRICT - only use valid tag slugs belonging strictly to the chosen skill): ' . implode( ', ', $allowed_tags );
@@ -222,6 +240,239 @@ class PSM_API_Client {
 		$lines[] = '8. Make wrong options plausible but clearly wrong. Do not use "All of the above" or "None of the above".';
 		$lines[] = '9. Be technically accurate. Do not invent APIs, behaviour or facts. If you are unsure about a detail, ask a different question.';
 		$lines[] = '10. The JSON must be valid: escape double quotes inside strings, do not add comments, and do not leave trailing commas.';
+
+		$lines[] = '';
+		$lines[] = 'OUTPUT FILE';
+		$lines[] = 'Return your entire answer as one valid, raw JSON document that the user can download directly as a .json file (for example questions-export.json). Do not wrap it in Markdown fences and do not add any text before or after the JSON, so the saved file imports without edits.';
+
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Build a copy/paste-ready AI prompt that requests the exact import schema.
+	 *
+	 * @param array $params skill_name, skill_slug, count, difficulty, question_types,
+	 *                      status, tags_all, tags_selected, user_prompt, rules,
+	 *                      code_language, prefix.
+	 */
+	public static function build_export_prompt( $params ) {
+		$skill_name = trim( (string) ( $params['skill_name'] ?? '' ) );
+		$skill_slug = sanitize_title( (string) ( $params['skill_slug'] ?? '' ) );
+		$count      = max( 1, min( 100, (int) ( $params['count'] ?? 50 ) ) );
+
+		$supported_types = array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' );
+		$types           = array_values(
+			array_intersect(
+				array_map( 'sanitize_key', (array) ( $params['question_types'] ?? array() ) ),
+				$supported_types
+			)
+		);
+		if ( empty( $types ) ) {
+			$types = $supported_types;
+		}
+		$types = array_values( array_unique( $types ) );
+
+		$difficulty_raw = strtolower( trim( (string) ( $params['difficulty'] ?? 'all' ) ) );
+		if ( ctype_digit( $difficulty_raw ) ) {
+			$difficulty_raw = array( 1 => 'beginner', 2 => 'intermediate', 3 => 'advanced' )[ min( 3, max( 1, (int) $difficulty_raw ) ) ];
+		}
+		$difficulty = in_array( $difficulty_raw, array( 'beginner', 'intermediate', 'advanced' ), true ) ? $difficulty_raw : 'all';
+
+		$status = strtolower( trim( (string) ( $params['status'] ?? 'draft' ) ) );
+		$status = in_array( $status, array( 'draft', 'published' ), true ) ? $status : 'draft';
+
+		$code_language = sanitize_key( (string) ( $params['code_language'] ?? '' ) );
+		if ( ! array_key_exists( $code_language, PSM_Languages::languages() ) ) {
+			$code_language = '';
+		}
+
+		$user_prompt = trim( (string) ( $params['user_prompt'] ?? '' ) );
+		$rules       = trim( (string) ( $params['rules'] ?? '' ) );
+
+		$tags_all = array();
+		foreach ( (array) ( $params['tags_all'] ?? array() ) as $tag ) {
+			$tag = sanitize_title( (string) $tag );
+			if ( '' !== $tag ) {
+				$tags_all[] = $tag;
+			}
+		}
+		$tags_all = array_values( array_unique( $tags_all ) );
+
+		$tags_selected = array();
+		foreach ( (array) ( $params['tags_selected'] ?? array() ) as $tag ) {
+			$tag = sanitize_title( (string) $tag );
+			if ( '' !== $tag && in_array( $tag, $tags_all, true ) ) {
+				$tags_selected[] = $tag;
+			}
+		}
+		$tags_selected = array_values( array_unique( $tags_selected ) );
+
+		$prefix = strtoupper( preg_replace( '/[^A-Z0-9]+/i', '-', (string) ( $params['prefix'] ?? $skill_slug ) ) );
+		$prefix = trim( $prefix, '-' );
+		if ( '' === $prefix ) {
+			$prefix = strtoupper( $skill_slug );
+		}
+
+		$language  = '' !== $code_language ? $code_language : 'plain text';
+		$framework = $skill_name;
+
+		$tag_labels = array();
+		foreach ( (array) ( $params['tag_labels'] ?? array() ) as $label_slug => $label_text ) {
+			$label_slug = sanitize_title( (string) $label_slug );
+			if ( '' !== $label_slug ) {
+				$tag_labels[ $label_slug ] = sanitize_text_field( (string) $label_text );
+			}
+		}
+
+		$focus_labels = array();
+		foreach ( $tags_selected as $selected_slug ) {
+			$derived = preg_replace( '/^' . preg_quote( $skill_slug . '-', '/' ) . '/', '', $selected_slug );
+			$focus_labels[] = '' !== ( $tag_labels[ $selected_slug ] ?? '' )
+				? $tag_labels[ $selected_slug ]
+				: ucwords( str_replace( '-', ' ', (string) $derived ) );
+		}
+		$primary_topic = ! empty( $focus_labels ) ? $focus_labels[0] : $skill_name;
+
+		$sample_tags = ! empty( $tags_selected ) ? $tags_selected : ( ! empty( $tags_all ) ? array( $tags_all[0] ) : array() );
+
+		$tag_list = implode( ', ', array_slice( $tags_all, 0, 150 ) );
+		if ( '' === $tag_list ) {
+			$tag_list = '(no tag slugs are defined for this skill; leave "tags" empty if no topic applies)';
+		} elseif ( count( $tags_all ) > 150 ) {
+			$tag_list .= ', ... (truncated; use only slugs from this list)';
+		}
+
+		$qtypes_str  = implode( ', ', $types );
+		$sample_type = $types[0];
+		$sample_mode = ( 'multiple_choice' === $sample_type ) ? 'multiple' : 'single';
+
+		if ( 'true_false' === $sample_type ) {
+			$sample_options = array(
+				array( 'key' => 'A', 'text' => 'True' ),
+				array( 'key' => 'B', 'text' => 'False' ),
+			);
+			$sample_correct = array( 'A' );
+		} elseif ( 'two_option' === $sample_type ) {
+			$sample_options = array(
+				array( 'key' => 'A', 'text' => 'First plausible statement' ),
+				array( 'key' => 'B', 'text' => 'Second plausible statement' ),
+			);
+			$sample_correct = array( 'B' );
+		} else {
+			$sample_options = array(
+				array( 'key' => 'A', 'text' => 'First plausible option' ),
+				array( 'key' => 'B', 'text' => 'Second plausible option' ),
+				array( 'key' => 'C', 'text' => 'Third plausible option' ),
+				array( 'key' => 'D', 'text' => 'Fourth plausible option' ),
+			);
+			$sample_correct = ( 'multiple' === $sample_mode ) ? array( 'A', 'C' ) : array( 'B' );
+		}
+
+		$padded_count = str_pad( (string) $count, max( 3, strlen( (string) $count ) ), '0', STR_PAD_LEFT );
+		$last_id      = $prefix . '-' . $padded_count;
+
+		$sample = array(
+			'schema_version' => '1.0',
+			'skill'          => array(
+				'name' => $skill_name,
+				'slug' => $skill_slug,
+			),
+			'generation'     => array(
+				'difficulty'      => $difficulty,
+				'language'        => $language,
+				'framework'       => $framework,
+				'topic'           => $primary_topic,
+				'total_questions' => $count,
+			),
+			'questions'      => array(
+				array(
+					'external_id'     => $prefix . '-001',
+					'question'        => 'Plain text question strictly about ' . $primary_topic . '?',
+					'difficulty'      => ( 'all' === $difficulty ) ? 'beginner' : $difficulty,
+					'question_type'   => $sample_type,
+					'answer_mode'     => $sample_mode,
+					'tags'            => $sample_tags,
+					'options'         => $sample_options,
+					'correct_answers' => $sample_correct,
+					'explanation'     => 'Explain why ' . implode( ' and ', $sample_correct ) . ' is correct and why the other options are wrong.',
+					'code_snippet'    => null,
+					'code_language'   => null,
+				),
+			),
+		);
+
+		$sample_json = wp_json_encode( $sample, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+		$lines   = array();
+		$lines[] = 'Generate structured assessment questions for the WordPress plugin "PSM AI Question Generator & Importer" (psm-ai-importer).';
+		$lines[] = '';
+		$lines[] = 'OUTPUT FORMAT (ONE DOWNLOADABLE JSON FILE):';
+		$lines[] = '- Your ENTIRE response must be one valid, raw JSON document that the user can download/save directly as a .json file named questions-export.json.';
+		$lines[] = '- Return only the JSON file content: no Markdown ```json fences, no "Here is the JSON" preamble, no explanations, no links, and nothing after the closing brace.';
+		$lines[] = '- The saved file must be importable as-is: valid JSON syntax, double quotes escaped with \", no comments, and no trailing commas.';
+		$lines[] = '- If the response is too long for one reply, continue only with the remaining JSON inside the same file - never start a new file or add prose.';
+		$lines[] = '';
+		$lines[] = 'STRICT SKILL & TAG FOCUS:';
+		$lines[] = '- Skill Name: "' . $skill_name . '"';
+		$lines[] = '- Skill Slug: "' . $skill_slug . '"';
+		if ( ! empty( $tags_selected ) ) {
+			$lines[] = '- Selected Tag Focus: ' . implode( ', ', array_map( static function ( $slug ) { return '"' . $slug . '"'; }, $tags_selected ) ) . ' (topic: ' . implode( ', ', $focus_labels ) . ')';
+			$lines[] = '- CRITICAL: Every single question MUST be specifically about ' . implode( ' or ', array_map( static function ( $label ) { return '"' . $label . '"'; }, $focus_labels ) ) . ' for skill "' . $skill_name . '". Do not drift into unrelated topics.';
+			if ( count( $tags_selected ) === 1 ) {
+				$lines[] = '- Every question\'s "tags" array MUST include "' . $tags_selected[0] . '".';
+			} else {
+				$lines[] = '- Every question must be about exactly one of the selected topics above, and its "tags" array MUST include that topic\'s selected slug.';
+			}
+		} else {
+			$lines[] = '- Selected Tag Focus: (none selected - cover the skill broadly across valid topics)';
+		}
+		$lines[] = '- Every tag in "tags" must be skill-prefixed using "' . $skill_slug . '-" without repeating the prefix (e.g., "' . ( $sample_tags[0] ?? $skill_slug . '-topic' ) . '", never "' . $skill_slug . '-' . $skill_slug . '-...").';
+		$lines[] = '- Never produce double-prefixed or unprefixed slugs.';
+		$lines[] = '- Allowed tag slugs (use ONLY values from this list): ' . $tag_list;
+		$lines[] = '';
+		$lines[] = 'COUNT, DIFFICULTY & QUESTION TYPE RULES:';
+		$lines[] = '- Total count: ' . $count . ' (default 50). "generation.total_questions" MUST equal ' . $count . ' and "questions" MUST have exactly ' . $count . ' items.';
+		$lines[] = '- Unique external_id: "' . $prefix . '-001" through "' . $last_id . '" - sequential, zero duplicates.';
+		$lines[] = '- Difficulty setting: "' . $difficulty . '" (one of: "all", "beginner", "intermediate", "advanced").';
+		if ( 'all' === $difficulty ) {
+			$lines[] = '  - Because the setting is "all", vary each item\'s "difficulty" across "beginner", "intermediate", and "advanced".';
+		} else {
+			$lines[] = '  - Every item\'s "difficulty" MUST be exactly "' . $difficulty . '".';
+		}
+		$lines[] = '- Question types allowed: ' . $qtypes_str . ' (from: "single_choice", "multiple_choice", "two_option", "true_false").';
+		if ( count( $types ) === 4 ) {
+			$lines[] = '  - Because "all" types were chosen, mix the four types across the set.';
+		} else {
+			$lines[] = '  - Every item\'s "question_type" MUST be one of the selected types above.';
+		}
+		$lines[] = '  - For "single_choice": 4 options (A-D), 1 correct answer, "answer_mode": "single".';
+		$lines[] = '  - For "multiple_choice": 4 options (A-D), two or three correct answers, "answer_mode": "multiple".';
+		$lines[] = '  - For "two_option": 2 options (A-B), 1 correct answer, "answer_mode": "single".';
+		$lines[] = '  - For "true_false": 2 options ("True" and "False"), 1 correct answer, "answer_mode": "single".';
+		$lines[] = '- Keep "question" and every option "text" as plain text (no HTML or Markdown; List<int> and Dictionary<string, int> are fine in plain text).';
+		$lines[] = '- Put code in "code_snippet" as a single string with \n line breaks and set "code_language" (php, csharp, java, python, javascript, typescript, sql, html, css, json, bash) or null when there is no code.';
+		$lines[] = '- Provide a 1 to 3 sentence "explanation" for each question. Never use "All of the above" or "None of the above".';
+		$lines[] = '- Post/question status context: "' . $status . '" (applied at import time; do not add extra schema fields for it).';
+		$lines[] = '';
+		$lines[] = 'CONTENT & QUALITY RULES:';
+		$lines[] = '- Every question must be unique; never repeat scenarios, variable names, or reworded versions of existing questions.';
+		$lines[] = '- Distractors must be plausible technical misconceptions. Never use "All of the above" or "None of the above".';
+		$lines[] = '- Ensure 100% technical accuracy; do not invent APIs, behaviors, or facts.';
+		if ( '' !== $rules ) {
+			$lines[] = '';
+			$lines[] = 'ADDITIONAL CUSTOM RULES (follow strictly):';
+			$lines[] = $rules;
+		}
+		if ( '' !== $user_prompt ) {
+			$lines[] = '';
+			$lines[] = 'TOPIC FOCUS:';
+			$lines[] = $user_prompt;
+		}
+		$lines[] = '';
+		$lines[] = 'JSON SCHEMA:';
+		$lines[] = $sample_json;
+		$lines[] = '';
+		$lines[] = 'Return exactly ' . $count . ' question objects in the "questions" array. The response must be one valid downloadable .json file (questions-export.json) - no Markdown fences, no commentary - that can be imported directly without edits.';
 
 		return implode( "\n", $lines );
 	}
@@ -379,7 +630,9 @@ class PSM_API_Client {
 			. "
 OUTPUT FORMAT (STRICT JSON):
 "
-			. 'Return a JSON object with a single root key "questions" containing an array of objects. Each object has: "question", "question_type", "difficulty", "options" (array of {"key":"A","text":"..."}), "correct_answers" (array of option keys), "explanation" (clear explanation with example when helpful), "code_snippet" (string with \n or null), "code_language" (php|csharp|java|python|javascript|typescript|sql|html|css|json|bash or empty/null), and "tags" (array of valid tag slugs for the skill).';
+			. 'Return a JSON object with a single root key "questions" containing an array of objects. Each object has: "question", "question_type", "difficulty", "options" (array of {"key":"A","text":"..."}), "correct_answers" (array of option keys), "explanation" (clear explanation with example when helpful), "code_snippet" (string with \n or null), "code_language" (php|csharp|java|python|javascript|typescript|sql|html|css|json|bash or empty/null), and "tags" (array of valid tag slugs for the skill).'
+			. '
+Return ONLY that raw JSON document so it can be downloaded directly as questions-export.json and imported without edits (no Markdown fences, no prose before or after).';
 	}
 
 	private static function extract_json_questions( $raw_body, $provider ) {
