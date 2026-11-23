@@ -1168,11 +1168,25 @@ class PSM_Admin_UI {
 			 ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC"
 		);
 
+		// $tags = $wpdb->get_results(
+		// 	"SELECT t.*, s.name AS skill_name
+		// 	 FROM {$wpdb->prefix}psm_tags t
+		// 	 LEFT JOIN {$wpdb->prefix}psm_skills s ON t.skill_id = s.id
+		// 	 ORDER BY t.sort_order ASC, t.name ASC"
+		// );
+
 		$tags = $wpdb->get_results(
-			"SELECT t.*, s.name AS skill_name
-			 FROM {$wpdb->prefix}psm_tags t
-			 LEFT JOIN {$wpdb->prefix}psm_skills s ON t.skill_id = s.id
-			 ORDER BY t.sort_order ASC, t.name ASC"
+			"SELECT 
+				t.*,
+				s.name AS skill_name,
+				COUNT(qt.question_id) AS question_count
+			FROM {$wpdb->prefix}psm_tags t
+			LEFT JOIN {$wpdb->prefix}psm_skills s 
+				ON t.skill_id = s.id
+			LEFT JOIN {$wpdb->prefix}psm_question_tags qt 
+				ON t.id = qt.tag_id
+			GROUP BY t.id
+			ORDER BY t.sort_order ASC, t.name ASC"
 		);
 
 		$batches = $wpdb->get_results(
@@ -1193,7 +1207,7 @@ class PSM_Admin_UI {
 			if ( $t->status === 'active' ) {
 				$tags_by_skill[ (int) $t->skill_id ][] = array(
 					'id'   => (int) $t->id,
-					'name' => $t->name,
+					'name' => $t->name.($t->question_count > 0 ? "({$t->question_count})" : ''),
 					'slug' => $t->slug,
 				);
 			}
@@ -1407,7 +1421,7 @@ class PSM_Admin_UI {
 
 			<nav class="nav-tab-wrapper">
 				<a href="?page=psm-ai-importer&tab=generate" class="nav-tab <?php echo $tab === 'generate' ? 'nav-tab-active' : ''; ?>">1. Prompt, Preview &amp; Import</a>
-				<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $entity ); ?>" class="nav-tab <?php echo $tab === 'masters' ? 'nav-tab-active' : ''; ?>">2. Master Tables (AJAX Modal CRUD)</a>
+				<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $entity ); ?>" class="nav-tab <?php echo $tab === 'masters' ? 'nav-tab-active' : ''; ?>">2. Master Tables</a>
 				<a href="?page=psm-ai-importer&tab=batches" class="nav-tab <?php echo $tab === 'batches' ? 'nav-tab-active' : ''; ?>">3. Batches &amp; Label Download</a>
 				<a href="?page=psm-ai-importer&tab=settings" class="nav-tab <?php echo $tab === 'settings' ? 'nav-tab-active' : ''; ?>">4. AI Providers, Usage &amp; Reset (3 Forms)</a>
 			</nav>
@@ -2030,7 +2044,7 @@ class PSM_Admin_UI {
 						<textarea id="psm_prompt_textarea" rows="18" readonly style="width:100%;font-family:Consolas,Monaco,monospace;font-size:12px;white-space:pre;overflow:auto;"></textarea>
 					</div>
 					<div class="psm-modal-footer">
-						<button type="button" class="button button-secondary" id="psm_prompt_close_footer">Close (ESC)</button>
+						<button type="button" class="button button-secondary" id="psm_prompt_close_footer">Close</button>
 						<button type="button" class="button" id="psm_prompt_download" style="margin-left:8px;">Download .txt</button>
 						<button type="button" class="button button-primary" id="psm_prompt_copy" style="margin-left:8px;">Copy Prompt</button>
 					</div>
@@ -2114,7 +2128,7 @@ class PSM_Admin_UI {
 							</label>
 						</div>
 						<div class="psm-modal-footer">
-							<button type="button" class="button button-secondary" id="psm_modal_cancel">Cancel (ESC)</button>
+							<button type="button" class="button button-secondary" id="psm_modal_cancel">Cancel	</button>
 							<button type="submit" class="psm-btn-add" style="margin-left:8px;">Save Record</button>
 						</div>
 					</form>
@@ -2223,7 +2237,7 @@ class PSM_Admin_UI {
 				} else {
 					let html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px;">';
 					list.forEach(function(t) {
-						html += '<label style="display:block;"><input type="checkbox" name="tag_ids[]" value="' + t.id + '"> <code>' + t.slug + '</code></label>';
+						html += '<label style="display:block;"><input type="checkbox" name="tag_ids[]" value="' + t.id + '" title="' + t.slug + '"> <code>' + t.name + '</code></label>';
 					});
 					html += '</div>';
 					tagBox.innerHTML = html;

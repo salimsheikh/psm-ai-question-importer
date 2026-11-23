@@ -1,0 +1,3399 @@
+{
+  "schema_version": "1.0",
+  "skill": {
+    "name": "HTML",
+    "slug": "html"
+  },
+  "generation": {
+    "difficulty": "all",
+    "language": "plain text",
+    "framework": "HTML",
+    "topic": "HTML",
+    "total_questions": 100
+  },
+  "questions": [
+    {
+      "external_id": "HTML-20261124013507-001",
+      "question": "What is the primary purpose of the <!DOCTYPE html> declaration at the very top of an HTML5 document?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It imports the default HTML5 stylesheet from the W3C servers."
+        },
+        {
+          "key": "B",
+          "text": "It instructs the browser to render the page in standards mode rather than quirks mode."
+        },
+        {
+          "key": "C",
+          "text": "It defines the root element of the Document Object Model tree."
+        },
+        {
+          "key": "D",
+          "text": "It specifies the character encoding of the document as UTF-8."
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "The <!DOCTYPE html> declaration ensures browsers follow modern W3C specifications using standards mode. Without it, browsers fall back to quirks mode to support legacy layouts.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-002",
+      "question": "Which HTML elements are classified as void elements and must not have a closing tag or inner content?",
+      "difficulty": "beginner",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "br"
+        },
+        {
+          "key": "B",
+          "text": "img"
+        },
+        {
+          "key": "C",
+          "text": "span"
+        },
+        {
+          "key": "D",
+          "text": "meta"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "D"
+      ],
+      "explanation": "Void elements like br, img, and meta cannot contain child nodes and never have end tags in HTML. The span element is a standard inline container that requires a closing tag.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-003",
+      "question": "Which attribute on the html root element helps screen readers and search engines identify the primary natural language of the page?",
+      "difficulty": "beginner",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "lang"
+        },
+        {
+          "key": "B",
+          "text": "locale"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The global lang attribute on the html tag specifies the primary language using BCP 47 language tags such as en or fr. There is no locale attribute in HTML.",
+      "code_snippet": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n</head>\n</html>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-004",
+      "question": "In HTML5, the charset meta tag must appear within the first 1024 bytes of the document to ensure the browser parses characters accurately before executing scripts.",
+      "difficulty": "intermediate",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "According to the HTML specification, the element declaring the character encoding must be serialized completely within the first 1024 bytes of the document so the parser does not need to restart.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-005",
+      "question": "How does adding the defer attribute to an external script tag affect HTML parsing and execution?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It pauses HTML parsing immediately until the script downloads and executes."
+        },
+        {
+          "key": "B",
+          "text": "It downloads the script in parallel with HTML parsing and executes it in order after the document is parsed."
+        },
+        {
+          "key": "C",
+          "text": "It executes the script immediately upon download completion, regardless of document order."
+        },
+        {
+          "key": "D",
+          "text": "It prevents the script from running until the user interacts with the page."
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "Scripts with the defer attribute download asynchronously without blocking HTML parsing and execute sequentially right before the DOMContentLoaded event. Immediate execution upon download describes the async attribute.",
+      "code_snippet": "<script src=\"app.js\" defer></script>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-006",
+      "question": "What happens when a document contains multiple base elements in its head section?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "The last base element overrides all previous ones."
+        },
+        {
+          "key": "B",
+          "text": "Only the first base element with an href or target is obeyed, and subsequent ones are ignored."
+        },
+        {
+          "key": "C",
+          "text": "The browser throws a syntax error and fails to resolve relative URLs."
+        },
+        {
+          "key": "D",
+          "text": "Each base element applies to the links immediately following it."
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "HTML allows at most one base element per document. If multiple base elements are present, only the first one specifying an href and the first one specifying a target are respected.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-007",
+      "question": "Which rel attribute values on a link tag instruct the browser to optimize resource loading for external origins or upcoming navigations?",
+      "difficulty": "advanced",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "preconnect"
+        },
+        {
+          "key": "B",
+          "text": "dns-prefetch"
+        },
+        {
+          "key": "C",
+          "text": "preload"
+        },
+        {
+          "key": "D",
+          "text": "deferload"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "preconnect, dns-prefetch, and preload are standard resource hints supported on the link element to speed up DNS resolution, TCP/TLS handshakes, and high-priority asset fetching. deferload is not a valid HTML keyword.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-008",
+      "question": "Which viewport meta tag configuration prevents mobile browsers from zooming out to render the page at a simulated 980px desktop width?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "width=device-width, initial-scale=1.0"
+        },
+        {
+          "key": "B",
+          "text": "width=100%, zoom=1.0"
+        },
+        {
+          "key": "C",
+          "text": "viewport=mobile, scale=none"
+        },
+        {
+          "key": "D",
+          "text": "screen=device, ratio=1"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Setting width=device-width matches the layout viewport to the screen width in device-independent pixels, and initial-scale=1.0 sets a 1:1 zoom ratio.",
+      "code_snippet": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-009",
+      "question": "What security vulnerability does adding rel=\"noopener\" to an anchor tag with target=\"_blank\" mitigate?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It prevents the destination page from accessing the window.opener object to redirect the originating tab."
+        },
+        {
+          "key": "B",
+          "text": "It strips all cookies from outgoing HTTPS requests to the external domain."
+        },
+        {
+          "key": "C",
+          "text": "It blocks inline JavaScript execution inside the newly opened tab."
+        },
+        {
+          "key": "D",
+          "text": "It encrypts the URL query parameters before opening the new window."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Without rel=\"noopener\", a newly opened tab can manipulate the original page via window.opener.location, enabling reverse tabnabbing phishing attacks.",
+      "code_snippet": "<a href=\"https://example.com\" target=\"_blank\" rel=\"noopener noreferrer\">External Site</a>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-010",
+      "question": "Custom data attributes in HTML5 must start with the prefix data- and may contain uppercase ASCII letters in their names.",
+      "difficulty": "intermediate",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "According to the HTML specification, custom data attribute names must begin with data- and must not contain any uppercase ASCII letters.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-011",
+      "question": "How are named character references like &nbsp; and &copy; distinct from numeric character references like &#169;?",
+      "difficulty": "beginner",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Named references use predefined entity keywords, while numeric references use Unicode code points in decimal or hexadecimal."
+        },
+        {
+          "key": "B",
+          "text": "Named references work only in UTF-8 documents, while numeric references work only in ASCII documents."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Named character references map human-readable names to characters, whereas numeric character references specify exact Unicode code points using &#decimal; or &#xhex; syntax.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-012",
+      "question": "Which statements accurately describe the behavior of the HTML template element?",
+      "difficulty": "advanced",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Its contents are parsed by the browser for syntax validity during page load."
+        },
+        {
+          "key": "B",
+          "text": "Images inside a template tag are fetched immediately when the page loads."
+        },
+        {
+          "key": "C",
+          "text": "Scripts inside a template tag do not execute until the template content is cloned and inserted into the active document."
+        },
+        {
+          "key": "D",
+          "text": "Its inner nodes are stored in an inert DocumentFragment accessible via the content property."
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "C",
+        "D"
+      ],
+      "explanation": "The template element holds inert markup inside a DocumentFragment. While the HTML parser validates the markup, resources are not loaded and scripts do not run until cloned into the live DOM.",
+      "code_snippet": "<template id=\"card-tpl\">\n  <img src=\"avatar.png\" alt=\"\">\n  <script>console.log('cloned');</script>\n</template>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-013",
+      "question": "What does the download attribute on an anchor tag instruct the browser to do when the user clicks the link?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Prompt the user to save the linked resource as a file instead of navigating to it."
+        },
+        {
+          "key": "B",
+          "text": "Compress the linked file into a ZIP archive on the client side."
+        },
+        {
+          "key": "C",
+          "text": "Pre-fetch the linked file into the browser cache in the background."
+        },
+        {
+          "key": "D",
+          "text": "Force the server to send a Content-Type: application/octet-stream header."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The download attribute tells the browser to treat the linked URL as a downloadable file, optionally accepting a value to suggest the saved filename (for same-origin URLs).",
+      "code_snippet": "<a href=\"/reports/annual.pdf\" download=\"2026-Report.pdf\">Download PDF</a>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-014",
+      "question": "Which attribute prevents the browser from automatically translating the text content of a specific element into the user's preferred language?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "translate=\"no\""
+        },
+        {
+          "key": "B",
+          "text": "lang=\"none\""
+        },
+        {
+          "key": "C",
+          "text": "notranslate=\"true\""
+        },
+        {
+          "key": "D",
+          "text": "localize=\"false\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The global translate attribute accepts \"yes\" or \"no\". Setting translate=\"no\" signals to translation tools like Google Translate to leave brand names or code snippets untranslated.",
+      "code_snippet": "<p>Welcome to <span translate=\"no\">AcmeCorp</span>.</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-015",
+      "question": "What is the effect of the boolean hidden attribute when placed on an HTML element?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It hides the element visually and removes it from the accessibility tree."
+        },
+        {
+          "key": "B",
+          "text": "It makes the element invisible while preserving its layout box space."
+        },
+        {
+          "key": "C",
+          "text": "It hides the element visually but keeps it readable by screen readers."
+        },
+        {
+          "key": "D",
+          "text": "It prevents the element from being queried via document.querySelector()."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "By default, browsers apply display: none to elements with the hidden attribute, removing them from visual rendering, layout flow, and the accessibility tree, though they remain in the DOM.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-016",
+      "question": "Which global attribute allows an element and all of its descendants to ignore pointer events, text selection, focus, and assistive technology interaction?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "inert"
+        },
+        {
+          "key": "B",
+          "text": "disabled"
+        },
+        {
+          "key": "C",
+          "text": "readonly"
+        },
+        {
+          "key": "D",
+          "text": "static"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The global inert attribute makes an entire DOM subtree non-interactive, removing it from tab order, click events, and the accessibility tree—ideal for background content behind an open modal.",
+      "code_snippet": "<div id=\"background-app\" inert>\n  <button>Cannot be clicked or focused</button>\n</div>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-017",
+      "question": "In HTML5, block-level elements such as div and h2 are allowed to be nested inside an anchor (a) element.",
+      "difficulty": "intermediate",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "HTML5 introduced transparent content models for the anchor element, allowing it to wrap flow (block-level) elements as long as there are no nested interactive elements inside it.",
+      "code_snippet": "<a href=\"/article\">\n  <div>\n    <h2>Card Title</h2>\n    <p>Card description text.</p>\n  </div>\n</a>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-018",
+      "question": "What does the integrity attribute on a script or link element verify before the browser executes or applies the fetched resource?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "That the cryptographic hash of the downloaded file matches the expected base64-encoded hash."
+        },
+        {
+          "key": "B",
+          "text": "That the TLS certificate of the CDN was issued by a trusted root authority."
+        },
+        {
+          "key": "C",
+          "text": "That the file contains zero deprecated HTML or JavaScript APIs."
+        },
+        {
+          "key": "D",
+          "text": "That the server responded with an HTTP 200 status code and valid CORS headers."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Subresource Integrity (SRI) uses the integrity attribute to compare a cryptographic hash (such as sha384) of the fetched asset against the expected digest, blocking compromised CDN files.",
+      "code_snippet": "<script src=\"https://cdn.example.com/lib.js\" integrity=\"sha384-oqVuAfXRKap7fdgcCY5uykM6+R9GqQ8K/uxy9rx7HNQlGYl1kPzQho1wx4JwY8wC\" crossorigin=\"anonymous\"></script>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-019",
+      "question": "Which HTML element provides a declarative shadow DOM root directly inside static HTML markup without requiring JavaScript attachShadow() calls?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "<template shadowrootmode=\"open\">"
+        },
+        {
+          "key": "B",
+          "text": "<shadow-root mode=\"open\">"
+        },
+        {
+          "key": "C",
+          "text": "<slot shadow=\"open\">"
+        },
+        {
+          "key": "D",
+          "text": "<div shadowdom=\"true\">"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Declarative Shadow DOM uses a template element with the shadowrootmode attribute set to \"open\" or \"closed\", which the HTML parser automatically converts into a shadow root on its parent element.",
+      "code_snippet": "<my-widget>\n  <template shadowrootmode=\"open\">\n    <style>p { color: navy; }</style>\n    <p><slot></slot></p>\n  </template>\n  <span>Slotted text</span>\n</my-widget>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-020",
+      "question": "Which global attributes are valid on every standard HTML element?",
+      "difficulty": "beginner",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "id"
+        },
+        {
+          "key": "B",
+          "text": "title"
+        },
+        {
+          "key": "C",
+          "text": "tabindex"
+        },
+        {
+          "key": "D",
+          "text": "href"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "id, title, and tabindex are global attributes permitted on all HTML elements. The href attribute is specific to elements like a, area, base, and link.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-021",
+      "question": "When should you use an article element instead of a section element in HTML5?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "When the content is self-contained and could be independently syndicated or reused, such as a blog post or forum comment."
+        },
+        {
+          "key": "B",
+          "text": "Whenever you need to apply CSS grid or flexbox layout properties to a container."
+        },
+        {
+          "key": "C",
+          "text": "Only when the content contains at least one h1 heading and a footer element."
+        },
+        {
+          "key": "D",
+          "text": "When grouping unrelated sidebar widgets that share a common background color."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The article element represents an independent, self-contained composition (like a news story, product card, or comment), whereas section represents a thematic grouping of content within a document.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-022",
+      "question": "How many visible main elements are permitted to exist simultaneously in an HTML document without the hidden attribute?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Exactly one"
+        },
+        {
+          "key": "B",
+          "text": "One per article element"
+        },
+        {
+          "key": "C",
+          "text": "Up to two (primary and secondary)"
+        },
+        {
+          "key": "D",
+          "text": "Unlimited, provided each has a unique id"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "A document must not have more than one main element that lacks the hidden attribute, ensuring screen readers have a single unambiguous main landmark.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-023",
+      "question": "What is the semantic difference between the strong element and the b element?",
+      "difficulty": "beginner",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "strong conveys high importance, seriousness, or urgency, while b draws stylistic attention without extra semantic importance."
+        },
+        {
+          "key": "B",
+          "text": "strong renders text in bold font-weight, while b renders text in italic font-style."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Both elements default to bold styling visually, but strong carries semantic weight indicating urgency or importance, whereas b is used for keywords or product names without elevated importance.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-024",
+      "question": "Which element is semantically appropriate for marking up a standalone illustration, diagram, or code listing along with its caption?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "figure paired with figcaption"
+        },
+        {
+          "key": "B",
+          "text": "aside paired with summary"
+        },
+        {
+          "key": "C",
+          "text": "picture paired with caption"
+        },
+        {
+          "key": "D",
+          "text": "details paired with legend"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The figure element represents self-contained content referenced from the main flow, and figcaption provides its optional caption as either the first or last child of figure.",
+      "code_snippet": "<figure>\n  <img src=\"architecture.png\" alt=\"Microservices diagram\">\n  <figcaption>Figure 1: Service communication flow.</figcaption>\n</figure>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-025",
+      "question": "Which of the following elements can validly contain header and footer elements as descendants?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "article"
+        },
+        {
+          "key": "B",
+          "text": "section"
+        },
+        {
+          "key": "C",
+          "text": "body"
+        },
+        {
+          "key": "D",
+          "text": "address"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "header and footer elements are not restricted to the page level; they can be used inside body, article, and section elements. However, they cannot be placed inside address or another header/footer.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-026",
+      "question": "What is the proper semantic use of the HTML address element?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Providing contact information for the author or owner of the nearest article or body ancestor."
+        },
+        {
+          "key": "B",
+          "text": "Formatting any street address mentioned anywhere inside a blog post or store directory."
+        },
+        {
+          "key": "C",
+          "text": "Wrapping physical shipping addresses inside an e-commerce checkout form."
+        },
+        {
+          "key": "D",
+          "text": "Displaying IP addresses and server hostnames in technical documentation."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The address element specifically represents contact information (email, phone, physical location, social handles) for the nearest article or body owner, not arbitrary postal addresses.",
+      "code_snippet": "<article>\n  <h1>Quarterly Analysis</h1>\n  <p>Report content...</p>\n  <footer>\n    <address>Contact author: <a href=\"mailto:jane@example.com\">Jane Doe</a></address>\n  </footer>\n</article>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-027",
+      "question": "The HTML dialog element can be opened as a true modal with a backdrop and focus trapping using its native showModal() JavaScript method.",
+      "difficulty": "intermediate",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Calling dialogElement.showModal() displays the dialog in the top layer, renders a ::backdrop pseudo-element, makes background content inert, and supports closing with the Escape key.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-028",
+      "question": "How do the details and summary elements create an interactive disclosure widget without JavaScript?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "The summary element acts as the clickable label that toggles the open attribute on its parent details element."
+        },
+        {
+          "key": "B",
+          "text": "The details element acts as the button that expands a sibling summary container."
+        },
+        {
+          "key": "C",
+          "text": "Both elements require a matching for and id attribute to link the toggle trigger to the content."
+        },
+        {
+          "key": "D",
+          "text": "The details element automatically fetches remote HTML when summary is hovered."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "When summary is placed as the first child of details, clicking it natively toggles the boolean open attribute on details, showing or hiding the remaining child content.",
+      "code_snippet": "<details>\n  <summary>System Requirements</summary>\n  <p>Requires 8GB RAM and a modern browser.</p>\n</details>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-029",
+      "question": "Which attribute on the time element provides a standardized machine-readable date or duration while allowing flexible human-readable text inside the tag?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "datetime"
+        },
+        {
+          "key": "B",
+          "text": "iso-date"
+        },
+        {
+          "key": "C",
+          "text": "timestamp"
+        },
+        {
+          "key": "D",
+          "text": "value"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The datetime attribute on the time element accepts valid ISO 8601 date, time, or duration strings (e.g., 2026-11-24) so browsers and search engines can parse the exact date.",
+      "code_snippet": "<p>Published on <time datetime=\"2026-11-24\">November 24, 2026</time>.</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-030",
+      "question": "Which description list elements are required to construct a valid key-value glossary or metadata list in HTML?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "dl"
+        },
+        {
+          "key": "B",
+          "text": "dt"
+        },
+        {
+          "key": "C",
+          "text": "dd"
+        },
+        {
+          "key": "D",
+          "text": "di"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "A description list uses dl as the outer container, dt for each term/name, and dd for each description/value. Note that div is allowed inside dl to group dt/dd pairs, while di does not exist in HTML.",
+      "code_snippet": "<dl>\n  <dt>API</dt>\n  <dd>Application Programming Interface</dd>\n</dl>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-031",
+      "question": "What is the semantic distinction between the blockquote and q elements?",
+      "difficulty": "beginner",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "blockquote represents an extended block-level quotation, whereas q represents a short inline quotation."
+        },
+        {
+          "key": "B",
+          "text": "blockquote requires a cite attribute to be valid, whereas q forbids the cite attribute."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "blockquote is a flow (block-level) element for multi-line or standalone quotes, while q is a phrasing (inline) element for short quotes inside a sentence; both accept an optional cite URL attribute.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-032",
+      "question": "What does the cite element represent in HTML5?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "The title of a creative work such as a book, research paper, film, or song."
+        },
+        {
+          "key": "B",
+          "text": "The full name of the person who spoke a quoted sentence."
+        },
+        {
+          "key": "C",
+          "text": "A clickable footnote link at the bottom of an academic article."
+        },
+        {
+          "key": "D",
+          "text": "A block of verbatim source code copied from an external repository."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "In HTML5, the cite element specifically denotes the title of a cited work (e.g., <cite>The Pragmatic Programmer</cite>), not the author's name.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-033",
+      "question": "Which HTML element should be used to highlight text that has relevance in the user's current context, such as matching keywords in search results?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "mark"
+        },
+        {
+          "key": "B",
+          "text": "em"
+        },
+        {
+          "key": "C",
+          "text": "ins"
+        },
+        {
+          "key": "D",
+          "text": "span"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The mark element represents text highlighted for reference or notation purposes due to its relevance in another context, such as search term matches.",
+      "code_snippet": "<p>Showing results for <mark>semantic HTML</mark> elements.</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-034",
+      "question": "How do del and s elements differ in their semantic meaning?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "del indicates content removed as a document edit, while s indicates content that is no longer accurate or relevant (such as an old price)."
+        },
+        {
+          "key": "B",
+          "text": "del renders a single strikethrough line, while s renders a double underline."
+        },
+        {
+          "key": "C",
+          "text": "del is a block-level container, while s can only wrap single characters."
+        },
+        {
+          "key": "D",
+          "text": "del hides text from screen readers, while s announces it as deleted."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Both render with a strikethrough by default, but del represents tracked editorial deletions (supporting cite and datetime attributes), whereas s marks outdated information like superseded prices.",
+      "code_snippet": "<p><s>Was $99</s> Now $59!</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-035",
+      "question": "Every group of links on a web page, including social media links in the footer, should be wrapped in a nav element.",
+      "difficulty": "intermediate",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "The nav element is intended only for major blocks of navigation links. Overusing nav for minor link groups creates unnecessary landmark noise for assistive technology users.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-036",
+      "question": "Which HTML element provides a visible heading for a group of related form controls inside a fieldset?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "legend"
+        },
+        {
+          "key": "B",
+          "text": "caption"
+        },
+        {
+          "key": "C",
+          "text": "label"
+        },
+        {
+          "key": "D",
+          "text": "summary"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The legend element must be the first child of a fieldset and provides the accessible group label for all controls inside that fieldset.",
+      "code_snippet": "<fieldset>\n  <legend>Shipping Method</legend>\n  <label><input type=\"radio\" name=\"ship\" value=\"standard\"> Standard</label>\n  <label><input type=\"radio\" name=\"ship\" value=\"express\"> Express</label>\n</fieldset>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-037",
+      "question": "Which semantic inline elements are designed specifically for technical documentation and computer interaction?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "kbd (keyboard input)"
+        },
+        {
+          "key": "B",
+          "text": "samp (sample program output)"
+        },
+        {
+          "key": "C",
+          "text": "var (mathematical or programming variable)"
+        },
+        {
+          "key": "D",
+          "text": "term (shell command keyword)"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "kbd, samp, and var are standard HTML semantic phrasing elements for user input, program output, and variables respectively. term is not an HTML element.",
+      "code_snippet": "<p>Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to stop <var>processId</var>; output will show <samp>Terminated</samp>.</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-038",
+      "question": "What does the wbr element indicate to the browser's text layout engine?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "A word break opportunity where the browser may optionally wrap a long word or URL if space is constrained."
+        },
+        {
+          "key": "B",
+          "text": "A mandatory line break that forces subsequent text onto a new line."
+        },
+        {
+          "key": "C",
+          "text": "A non-breaking space that prevents two words from ever wrapping across lines."
+        },
+        {
+          "key": "D",
+          "text": "An automatic visible hyphen inserted even when the word fits on a single line."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The wbr (Word Break Opportunity) void element marks a position within long unbroken text (such as a URL or camelCase identifier) where the browser can cleanly break the line only if needed.",
+      "code_snippet": "<p>https://example.com/<wbr>api/<wbr>v2/<wbr>authentication</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-039",
+      "question": "What is the role of the search element introduced into the HTML specification?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It represents a container for form controls or interactive widgets dedicated to searching or filtering content."
+        },
+        {
+          "key": "B",
+          "text": "It replaces <input type=\"search\"> as a self-closing text box."
+        },
+        {
+          "key": "C",
+          "text": "It automatically indexes page headings for client-side full-text search."
+        },
+        {
+          "key": "D",
+          "text": "It submits GET queries to the browser's default search engine."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The search element is a semantic container (implicitly mapping to ARIA role=\"search\") that wraps search forms or filtering controls so assistive technologies can jump directly to search landmarks.",
+      "code_snippet": "<search>\n  <form action=\"/search\">\n    <label for=\"q\">Search docs</label>\n    <input id=\"q\" type=\"search\" name=\"q\">\n    <button type=\"submit\">Go</button>\n  </form>\n</search>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-040",
+      "question": "How do meter and progress elements differ semantically?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "meter represents a scalar measurement within a known range (like disk usage), while progress represents the completion status of a task."
+        },
+        {
+          "key": "B",
+          "text": "meter supports indeterminate states, while progress requires explicit min and max attributes."
+        },
+        {
+          "key": "C",
+          "text": "meter is purely decorative, while progress submits its value with a parent form."
+        },
+        {
+          "key": "D",
+          "text": "meter renders a circular gauge, while progress renders a horizontal bar."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The meter element displays a static or dynamic gauge within known boundaries (supporting low, high, and optimum thresholds), whereas progress tracks task completion from 0 to max (or indeterminate when value is omitted).",
+      "code_snippet": "<meter value=\"0.75\" min=\"0\" max=\"1\" low=\"0.3\" high=\"0.8\" optimum=\"0.5\">75%</meter>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-041",
+      "question": "Which attribute on a form element is mandatory when uploading files via an <input type=\"file\"> control?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "enctype=\"multipart/form-data\" with method=\"post\""
+        },
+        {
+          "key": "B",
+          "text": "enctype=\"text/plain\" with method=\"get\""
+        },
+        {
+          "key": "C",
+          "text": "encoding=\"binary\" with method=\"put\""
+        },
+        {
+          "key": "D",
+          "text": "accept=\"file/*\" with method=\"post\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The default application/x-www-form-urlencoded encoding only sends the filename, not binary file bytes. File uploads require method=\"post\" and enctype=\"multipart/form-data\".",
+      "code_snippet": "<form action=\"/upload\" method=\"post\" enctype=\"multipart/form-data\">\n  <input type=\"file\" name=\"avatar\">\n  <button type=\"submit\">Upload</button>\n</form>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-042",
+      "question": "What happens during form submission if an input element has the disabled attribute versus the readonly attribute?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "A disabled input's value is excluded from form submission, whereas a readonly input's value is submitted."
+        },
+        {
+          "key": "B",
+          "text": "Both disabled and readonly inputs are excluded from form submission."
+        },
+        {
+          "key": "C",
+          "text": "A disabled input can receive keyboard focus, whereas a readonly input cannot."
+        },
+        {
+          "key": "D",
+          "text": "Both disabled and readonly inputs are submitted, but disabled sends an empty string."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Disabled controls are unfocusable and completely omitted from the submitted form payload. Readonly controls cannot be edited by the user, but they remain focusable and their values are included on submit.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-043",
+      "question": "What is the default type attribute of a button element placed inside a form when no type attribute is explicitly specified?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "submit"
+        },
+        {
+          "key": "B",
+          "text": "button"
+        },
+        {
+          "key": "C",
+          "text": "reset"
+        },
+        {
+          "key": "D",
+          "text": "none"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "A button without a type attribute defaults to type=\"submit\" when associated with a form, which often causes unintended form submissions if type=\"button\" is forgotten.",
+      "code_snippet": "<form action=\"/save\">\n  <button>This submits the form!</button>\n  <button type=\"button\">This does not</button>\n</form>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-044",
+      "question": "How do you properly associate a label element with an input element so clicking the label focuses or activates the input?",
+      "difficulty": "beginner",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-forms-inputs",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Set the label's for attribute to match the input's id attribute."
+        },
+        {
+          "key": "B",
+          "text": "Nest the input element directly inside the label element."
+        },
+        {
+          "key": "C",
+          "text": "Set the label's for attribute to match the input's name attribute."
+        },
+        {
+          "key": "D",
+          "text": "Place the label immediately before the input without any attributes."
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B"
+      ],
+      "explanation": "HTML supports explicit association via matching for and id attributes, as well as implicit association by wrapping the input inside the label. Matching for to name does not work.",
+      "code_snippet": "<label for=\"user-email\">Email</label>\n<input id=\"user-email\" name=\"email\" type=\"email\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-045",
+      "question": "How does a datalist element differ from a select element when paired with an input?",
+      "difficulty": "intermediate",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "datalist provides autocomplete suggestions while still allowing free-form text entry, whereas select restricts input to predefined options."
+        },
+        {
+          "key": "B",
+          "text": "datalist submits multiple selected values as an array, whereas select only ever submits a single value."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Linking an input's list attribute to a datalist's id offers a filterable dropdown of suggested options while letting users type custom values not in the list.",
+      "code_snippet": "<label for=\"browser\">Browser:</label>\n<input list=\"browsers\" id=\"browser\" name=\"browser\">\n<datalist id=\"browsers\">\n  <option value=\"Firefox\">\n  <option value=\"Chrome\">\n  <option value=\"Safari\">\n</datalist>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-046",
+      "question": "In HTML5 constraint validation, the pattern attribute on an input element implicitly anchors the regular expression to match the entire input value (as if wrapped in ^(?:...)$).",
+      "difficulty": "advanced",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Unlike standard JavaScript RegExp.test(), the HTML pattern attribute automatically compiles the pattern with the JavaScript v/u flag and anchors it across the full string value.",
+      "code_snippet": "<input type=\"text\" pattern=\"[A-Z]{3}-[0-9]{4}\" title=\"Three uppercase letters, hyphen, four digits\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-047",
+      "question": "Which attribute allows a submit button or form control to be associated with a form element located elsewhere in the document rather than being nested inside it?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "The form attribute referencing the form's id"
+        },
+        {
+          "key": "B",
+          "text": "The target attribute referencing the form's name"
+        },
+        {
+          "key": "C",
+          "text": "The controls attribute referencing the form's id"
+        },
+        {
+          "key": "D",
+          "text": "The parent attribute referencing the form's class"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "HTML5 allows form-associated elements (input, select, textarea, button, fieldset) anywhere in the DOM to bind to a form by setting their form attribute to the form's id.",
+      "code_snippet": "<form id=\"profile-form\" action=\"/update\" method=\"post\"></form>\n<input type=\"text\" name=\"username\" form=\"profile-form\">\n<button type=\"submit\" form=\"profile-form\">Save</button>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-048",
+      "question": "Which attributes can be placed directly on a submit button to override the parent form's submission behavior?",
+      "difficulty": "advanced",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "formaction"
+        },
+        {
+          "key": "B",
+          "text": "formmethod"
+        },
+        {
+          "key": "C",
+          "text": "formnovalidate"
+        },
+        {
+          "key": "D",
+          "text": "formcharset"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "Submit buttons support formaction, formmethod, formenctype, formtarget, and formnovalidate (useful for a 'Save Draft' button that bypasses validation). formcharset is not a valid attribute.",
+      "code_snippet": "<form action=\"/publish\" method=\"post\">\n  <input type=\"text\" name=\"title\" required>\n  <button type=\"submit\">Publish</button>\n  <button type=\"submit\" formaction=\"/draft\" formnovalidate>Save Draft</button>\n</form>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-049",
+      "question": "How do a group of radio buttons behave when they share the same name attribute inside a form?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecting one radio button automatically deselects any other radio button with the same name in that form."
+        },
+        {
+          "key": "B",
+          "text": "Multiple radio buttons can be checked simultaneously and are submitted as a comma-separated string."
+        },
+        {
+          "key": "C",
+          "text": "Sharing a name attribute causes a duplicate ID validation error in HTML5."
+        },
+        {
+          "key": "D",
+          "text": "The browser merges all radio buttons with the same name into a dropdown menu on mobile screens."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Radio buttons with identical name attributes within the same form (or document if outside a form) form a mutually exclusive radio group where only one value is submitted.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-050",
+      "question": "What happens when an unchecked checkbox is submitted as part of a standard HTML form?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "No key-value pair for that checkbox is included in the submitted form data at all."
+        },
+        {
+          "key": "B",
+          "text": "It is submitted with its name and a value of \"false\"."
+        },
+        {
+          "key": "C",
+          "text": "It is submitted with its name and a value of \"off\"."
+        },
+        {
+          "key": "D",
+          "text": "It is submitted with its name and an empty string \"\"."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Only checked checkboxes are considered successful controls and sent in form submissions. Unchecked checkboxes are omitted completely from the request payload.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-051",
+      "question": "Which inputmode attribute value displays a numeric keypad with a decimal separator on mobile virtual keyboards without enforcing strict number input spinners?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "inputmode=\"decimal\""
+        },
+        {
+          "key": "B",
+          "text": "inputmode=\"float\""
+        },
+        {
+          "key": "C",
+          "text": "inputmode=\"currency\""
+        },
+        {
+          "key": "D",
+          "text": "inputmode=\"digits\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The global inputmode attribute hints which virtual keyboard to show; valid values include none, text, decimal, numeric, tel, search, email, and url.",
+      "code_snippet": "<input type=\"text\" inputmode=\"decimal\" pattern=\"[0-9]*[.,]?[0-9]*\" name=\"amount\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-052",
+      "question": "Which autocomplete attribute token helps password managers distinguish a new account registration password field from an existing login password field?",
+      "difficulty": "intermediate",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "autocomplete=\"new-password\""
+        },
+        {
+          "key": "B",
+          "text": "autocomplete=\"register-password\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "autocomplete=\"new-password\" signals browsers and password managers to suggest generating a strong new password rather than autofilling an existing saved credential (which uses current-password).",
+      "code_snippet": "<label for=\"npw\">Create Password</label>\n<input id=\"npw\" type=\"password\" name=\"password\" autocomplete=\"new-password\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-053",
+      "question": "What is the purpose of the HTML output element inside a form?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It represents the result of a calculation or user action and maps to an implicit ARIA status live region."
+        },
+        {
+          "key": "B",
+          "text": "It automatically evaluates mathematical expressions written inside its value attribute without JavaScript."
+        },
+        {
+          "key": "C",
+          "text": "It transmits calculated totals to the server when the form is submitted."
+        },
+        {
+          "key": "D",
+          "text": "It renders server-side console logs returned from a POST request."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The output element semantically represents calculation results (often paired with a for attribute listing source input IDs) and exposes role=\"status\" so screen readers announce updates.",
+      "code_snippet": "<form oninput=\"total.value = parseInt(a.value) + parseInt(b.value)\">\n  <input type=\"number\" id=\"a\" value=\"10\"> +\n  <input type=\"number\" id=\"b\" value=\"20\"> =\n  <output name=\"total\" for=\"a b\">30</output>\n</form>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-054",
+      "question": "Which element is used to visually group related option elements inside a select dropdown menu?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "optgroup with a label attribute"
+        },
+        {
+          "key": "B",
+          "text": "fieldset with a legend element"
+        },
+        {
+          "key": "C",
+          "text": "optiongroup with a title attribute"
+        },
+        {
+          "key": "D",
+          "text": "datalist with a name attribute"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The optgroup element creates a non-selectable category header inside a select element using its required label attribute.",
+      "code_snippet": "<select name=\"car\">\n  <optgroup label=\"Electric\">\n    <option value=\"ev1\">Model S</option>\n  </optgroup>\n  <optgroup label=\"Hybrid\">\n    <option value=\"hy1\">Prius</option>\n  </optgroup>\n</select>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-055",
+      "question": "Which HTML5 input types provide built-in client-side format validation without requiring a pattern attribute?",
+      "difficulty": "beginner",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "email"
+        },
+        {
+          "key": "B",
+          "text": "url"
+        },
+        {
+          "key": "C",
+          "text": "number"
+        },
+        {
+          "key": "D",
+          "text": "search"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "email, url, and number validate email syntax, full URL schemes, and numeric values (along with min/max/step) respectively. search behaves like a plain text input with a clear button.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-056",
+      "question": "Adding the novalidate attribute to a form element disables all HTML5 constraint validation checks when the user submits the form.",
+      "difficulty": "beginner",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The boolean novalidate attribute bypasses native browser validation popups on submit, which is commonly used when developers implement custom accessible validation summaries via JavaScript.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-057",
+      "question": "How does the accept attribute behave on an <input type=\"file\"> element?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It filters the OS file picker dialog to specified MIME types or extensions, though server-side validation is still required."
+        },
+        {
+          "key": "B",
+          "text": "It cryptographically verifies the file's magic bytes and blocks form submission if spoofed."
+        },
+        {
+          "key": "C",
+          "text": "It enforces a maximum file upload size in megabytes."
+        },
+        {
+          "key": "D",
+          "text": "It automatically converts uploaded images to the specified MIME format."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The accept attribute (e.g., accept=\"image/png, .pdf\") hints to the browser's file picker which file types to show, but users can still bypass it, so server-side checks remain mandatory.",
+      "code_snippet": "<input type=\"file\" name=\"doc\" accept=\".pdf,application/pdf\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-058",
+      "question": "What does setting step=\"any\" on an <input type=\"number\"> element accomplish?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It allows any floating-point decimal value to pass constraint validation instead of defaulting to integer steps of 1."
+        },
+        {
+          "key": "B",
+          "text": "It allows non-numeric text characters to be entered into the number input."
+        },
+        {
+          "key": "C",
+          "text": "It disables the min and max boundary constraints on the input."
+        },
+        {
+          "key": "D",
+          "text": "It increments the value by 10 each time the up arrow is pressed."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "By default, <input type=\"number\"> has an implicit step of 1, causing decimal values like 12.5 to fail validation. Setting step=\"any\" permits arbitrary decimal precision.",
+      "code_snippet": "<input type=\"number\" name=\"latitude\" min=\"-90\" max=\"90\" step=\"any\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-059",
+      "question": "When a textarea element has the wrap=\"hard\" attribute set, what additional attribute is required for line breaks to be inserted at the wrap width upon form submission?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "cols"
+        },
+        {
+          "key": "B",
+          "text": "rows"
+        },
+        {
+          "key": "C",
+          "text": "maxlength"
+        },
+        {
+          "key": "D",
+          "text": "spellcheck"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "When wrap=\"hard\" is used, the browser inserts CRLF newlines into the submitted text so no line exceeds the character width specified by the cols attribute.",
+      "code_snippet": "<textarea name=\"notes\" rows=\"5\" cols=\"40\" wrap=\"hard\"></textarea>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-060",
+      "question": "Which attribute on a form element specifies that the response returned after submission should be displayed inside a named iframe on the same page?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "target matching the iframe's name attribute"
+        },
+        {
+          "key": "B",
+          "text": "action matching the iframe's id attribute"
+        },
+        {
+          "key": "C",
+          "text": "rel=\"iframe\""
+        },
+        {
+          "key": "D",
+          "text": "sandbox=\"form\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Setting target=\"frameName\" on a form routes the HTTP response into the browsing context of an iframe whose name attribute is \"frameName\".",
+      "code_snippet": "<form action=\"/preview\" method=\"post\" target=\"preview-frame\">\n  <button type=\"submit\">Preview</button>\n</form>\n<iframe name=\"preview-frame\" title=\"Preview output\"></iframe>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-061",
+      "question": "What is the first rule of ARIA usage recommended by the W3C WAI-ARIA Authoring Practices?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "If you can use a native HTML element or attribute with the semantics and behavior you require, do so instead of repurposing an element with ARIA."
+        },
+        {
+          "key": "B",
+          "text": "Always add an explicit role attribute to every semantic HTML5 element for legacy browser compatibility."
+        },
+        {
+          "key": "C",
+          "text": "Use aria-label on every visible paragraph to ensure screen readers announce the text."
+        },
+        {
+          "key": "D",
+          "text": "Replace native form inputs with div elements styled with CSS and role=\"textbox\"."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Native HTML elements like button, input, and nav already come with built-in keyboard handling, focus management, and accessibility tree mappings that custom ARIA widgets must manually recreate.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-062",
+      "question": "How should the alt attribute be written on a purely decorative image that conveys no information to the user?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Include an empty alt attribute (alt=\"\") so screen readers skip the image."
+        },
+        {
+          "key": "B",
+          "text": "Omit the alt attribute completely so the browser knows it is decorative."
+        },
+        {
+          "key": "C",
+          "text": "Write alt=\"decorative image\" so blind users know an image is present."
+        },
+        {
+          "key": "D",
+          "text": "Set alt to the image's filename without the file extension."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "An empty alt=\"\" marks the image as presentational so assistive technologies ignore it. Omitting alt altogether often causes screen readers to read out the full image URL or filename.",
+      "code_snippet": "<img src=\"swirl-divider.svg\" alt=\"\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-063",
+      "question": "What happens when you set aria-hidden=\"true\" on a focusable element such as a button or link?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It creates a severe accessibility barrier because keyboard users can still tab to the element while screen readers announce nothing."
+        },
+        {
+          "key": "B",
+          "text": "The browser automatically removes the element from the keyboard tab order."
+        },
+        {
+          "key": "C",
+          "text": "The browser visually hides the element with display: none."
+        },
+        {
+          "key": "D",
+          "text": "It disables click event listeners attached to the element."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "aria-hidden=\"true\" only removes an element from the accessibility tree; it does not affect visual display or keyboard focus. Focusable elements must never be inside an aria-hidden=\"true\" container.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-064",
+      "question": "How do positive tabindex values (such as tabindex=\"1\" or tabindex=\"2\") affect keyboard navigation on a web page?",
+      "difficulty": "intermediate",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "They override the natural DOM tab order by focusing positive elements first, which is an anti-pattern that confuses keyboard users."
+        },
+        {
+          "key": "B",
+          "text": "They remove the element from the tab sequence so it can only be focused via JavaScript .focus()."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Positive tabindex values jump ahead of tabindex=\"0\" and naturally focusable elements, breaking visual-to-DOM reading order. Use tabindex=\"0\" to add an element to natural tab order or tabindex=\"-1\" for programmatic focus only.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-065",
+      "question": "Which statements accurately compare aria-label and aria-labelledby?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "aria-labelledby takes one or more space-separated element IDs whose text content forms the accessible name."
+        },
+        {
+          "key": "B",
+          "text": "aria-label takes a direct string value as the accessible name when no visible text label exists."
+        },
+        {
+          "key": "C",
+          "text": "If both are present on the same element, aria-labelledby takes precedence over aria-label."
+        },
+        {
+          "key": "D",
+          "text": "aria-labelledby cannot reference elements that have hidden or display: none applied."
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "In the Accessible Name and Description Computation specification, aria-labelledby has the highest priority (even overriding aria-label) and can concatenate text from multiple IDs, including visually hidden elements.",
+      "code_snippet": "<h2 id=\"billing-heading\">Billing Address</h2>\n<section aria-labelledby=\"billing-heading\">\n  ...\n</section>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-066",
+      "question": "What is the difference between aria-live=\"polite\" and aria-live=\"assertive\" for dynamic status updates?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "polite waits until the screen reader finishes its current speech before announcing updates, whereas assertive interrupts immediately."
+        },
+        {
+          "key": "B",
+          "text": "polite only announces updates on user click, whereas assertive polls the DOM every second."
+        },
+        {
+          "key": "C",
+          "text": "polite logs updates to the browser console, whereas assertive triggers a native browser alert popup."
+        },
+        {
+          "key": "D",
+          "text": "polite announces only added nodes, whereas assertive announces only removed nodes."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "aria-live=\"polite\" queues announcements until the user pauses, making it ideal for toast notifications or search result counts. aria-live=\"assertive\" interrupts current speech and should be reserved for urgent errors.",
+      "code_snippet": "<div role=\"status\" aria-live=\"polite\">3 items in cart</div>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-067",
+      "question": "Why is skipping heading levels (for example, jumping directly from h1 to h4 for visual font-size styling) problematic for screen reader users?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Screen reader users navigate by heading hierarchy to understand page outline, and skipped levels suggest missing content."
+        },
+        {
+          "key": "B",
+          "text": "Browsers refuse to render h4 tags unless an h2 and h3 exist earlier in the body."
+        },
+        {
+          "key": "C",
+          "text": "Search engines penalize pages by excluding any text beneath skipped heading tags."
+        },
+        {
+          "key": "D",
+          "text": "CSS font-size rules cannot be applied to heading elements."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Assistive technology users rely on sequential heading levels (h1 -> h2 -> h3) as a table of contents. Visual sizing should always be controlled with CSS classes rather than choosing arbitrary heading ranks.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-068",
+      "question": "Adding role=\"button\" to a div element automatically enables activation when the user presses the Enter or Space keys.",
+      "difficulty": "intermediate",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "ARIA roles only modify how the element is exposed in the accessibility tree; they add zero keyboard focusability (tabindex=\"0\") or Enter/Space keydown handlers, which is why native <button> is strongly preferred.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-069",
+      "question": "Which attribute links a form input to an adjacent helper text or validation error message so screen readers announce the hint after reading the input's label?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "aria-describedby"
+        },
+        {
+          "key": "B",
+          "text": "aria-controls"
+        },
+        {
+          "key": "C",
+          "text": "aria-owns"
+        },
+        {
+          "key": "D",
+          "text": "aria-flowto"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "aria-describedby references the ID of supplementary descriptive text (like password rules or error messages), which assistive technologies announce after the primary accessible name.",
+      "code_snippet": "<label for=\"pwd\">Password</label>\n<input id=\"pwd\" type=\"password\" aria-describedby=\"pwd-hint\">\n<p id=\"pwd-hint\">Must be at least 12 characters long.</p>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-070",
+      "question": "What is the primary purpose of a 'Skip to main content' anchor link placed as the first focusable element inside the body?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It allows keyboard and switch-device users to bypass repetitive top navigation menus on every page load."
+        },
+        {
+          "key": "B",
+          "text": "It forces search engine crawlers to ignore header and footer links."
+        },
+        {
+          "key": "C",
+          "text": "It defers loading of header images until the user scrolls back up."
+        },
+        {
+          "key": "D",
+          "text": "It creates an automatic table of contents for mobile browsers."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "A skip link targeting href=\"#main\" lets keyboard-only users jump past dozens of header navigation links directly into the main content area with a single Enter press.",
+      "code_snippet": "<body>\n  <a href=\"#main-content\" class=\"skip-link\">Skip to main content</a>\n  <header>...</header>\n  <main id=\"main-content\">...</main>\n</body>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-071",
+      "question": "Which ARIA attributes are appropriate for building an accessible accordion toggle button?",
+      "difficulty": "advanced",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "aria-expanded=\"true\" or \"false\" on the button"
+        },
+        {
+          "key": "B",
+          "text": "aria-controls referencing the panel's id"
+        },
+        {
+          "key": "C",
+          "text": "aria-selected=\"true\" on the button"
+        },
+        {
+          "key": "D",
+          "text": "aria-checked=\"true\" on the button"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B"
+      ],
+      "explanation": "Disclosure and accordion buttons use aria-expanded to communicate open/closed state and aria-controls to associate the button with the collapsible panel. aria-selected is for tabs/options and aria-checked is for checkboxes/radios.",
+      "code_snippet": "<button type=\"button\" aria-expanded=\"false\" aria-controls=\"panel-1\">Section 1</button>\n<div id=\"panel-1\" hidden>Panel content</div>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-072",
+      "question": "When a page has multiple nav landmarks (such as primary navigation and pagination), how should you distinguish them for screen reader users?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Provide a unique accessible name on each nav using aria-label or aria-labelledby."
+        },
+        {
+          "key": "B",
+          "text": "Wrap the secondary nav inside a div with role=\"region\"."
+        },
+        {
+          "key": "C",
+          "text": "Use <nav1> and <nav2> tags instead of <nav>."
+        },
+        {
+          "key": "D",
+          "text": "Add different CSS class names to each nav element."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Giving each nav a concise label (e.g., aria-label=\"Primary\" and aria-label=\"Pagination\") allows screen reader landmark lists to differentiate them without repeating the word 'navigation'.",
+      "code_snippet": "<nav aria-label=\"Primary\">...</nav>\n<nav aria-label=\"Pagination\">...</nav>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-073",
+      "question": "What does aria-current=\"page\" communicate when placed on an anchor link inside a navigation menu?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It indicates to assistive technologies that this link corresponds to the currently active page."
+        },
+        {
+          "key": "B",
+          "text": "It prevents the browser from reloading the page when the link is clicked."
+        },
+        {
+          "key": "C",
+          "text": "It automatically applies bold font styling to the active link."
+        },
+        {
+          "key": "D",
+          "text": "It marks the link as the canonical URL for search engine indexing."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Visual active states (like a highlight color) are invisible to screen readers; aria-current=\"page\" programmatically identifies the active item in a navigation list or breadcrumb trail.",
+      "code_snippet": "<nav aria-label=\"Main\">\n  <ul>\n    <li><a href=\"/\">Home</a></li>\n    <li><a href=\"/pricing\" aria-current=\"page\">Pricing</a></li>\n  </ul>\n</nav>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-074",
+      "question": "In an accessible breadcrumb trail, where should the separator characters (such as / or >) be placed so screen readers do not announce them repeatedly?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Generated via CSS ::before/::after pseudo-elements or placed inside spans with aria-hidden=\"true\"."
+        },
+        {
+          "key": "B",
+          "text": "Placed directly inside the anchor text of each link."
+        },
+        {
+          "key": "C",
+          "text": "Inserted as separate <li> items with role=\"button\"."
+        },
+        {
+          "key": "D",
+          "text": "Added using title attributes on each list item."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Decorative breadcrumb separators should be hidden from the accessibility tree (via CSS content or aria-hidden=\"true\") so screen readers cleanly announce the ordered list of links.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-075",
+      "question": "What is the difference between role=\"presentation\" (or role=\"none\") and aria-hidden=\"true\" on an HTML element?",
+      "difficulty": "advanced",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "role=\"presentation\" removes the element's implicit semantic role while keeping its text content accessible, whereas aria-hidden=\"true\" hides both the element and all descendants from assistive technologies."
+        },
+        {
+          "key": "B",
+          "text": "role=\"presentation\" hides the element visually on desktop, whereas aria-hidden=\"true\" hides it only on mobile devices."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Setting role=\"presentation\" on a layout table strips table/row/cell semantics while preserving the readable text inside, whereas aria-hidden=\"true\" suppresses the entire subtree from the accessibility tree.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-076",
+      "question": "Which ARIA attribute indicates that a form field has failed validation and currently contains an invalid value?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-forms-inputs"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "aria-invalid=\"true\""
+        },
+        {
+          "key": "B",
+          "text": "aria-error=\"true\""
+        },
+        {
+          "key": "C",
+          "text": "aria-valid=\"false\""
+        },
+        {
+          "key": "D",
+          "text": "aria-required=\"false\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Setting aria-invalid=\"true\" (paired with aria-errormessage or aria-describedby pointing to the error text) informs screen reader users that the input value needs correction.",
+      "code_snippet": "<label for=\"zip\">Postal Code</label>\n<input id=\"zip\" type=\"text\" aria-invalid=\"true\" aria-describedby=\"zip-err\">\n<span id=\"zip-err\">Enter a 5-digit postal code.</span>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-077",
+      "question": "What does the scope=\"col\" attribute on a th element communicate to assistive technologies?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "That the header cell applies to all data cells beneath it in that column."
+        },
+        {
+          "key": "B",
+          "text": "That the column should automatically sort alphabetically when clicked."
+        },
+        {
+          "key": "C",
+          "text": "That the column spans across multiple table sections."
+        },
+        {
+          "key": "D",
+          "text": "That the cell should be hidden on narrow viewports."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The scope attribute explicitly associates a table header cell (th) with either a column (col), row (row), column group (colgroup), or row group (rowgroup).",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-078",
+      "question": "An icon-only button (such as a close button containing only an SVG 'X') has a valid accessible name even without text, aria-label, or visually hidden text.",
+      "difficulty": "beginner",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "Without visible text, visually hidden text, or an aria-label/aria-labelledby attribute, a screen reader will merely announce 'button' with no indication of what clicking it does.",
+      "code_snippet": "<button type=\"button\" aria-label=\"Close modal\">\n  <svg aria-hidden=\"true\" viewBox=\"0 0 24 24\">...</svg>\n</button>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-079",
+      "question": "Which native HTML5 elements map implicitly to ARIA landmark roles without needing explicit role attributes?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-semantic-elements"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "aside (maps to complementary)"
+        },
+        {
+          "key": "B",
+          "text": "main (maps to main)"
+        },
+        {
+          "key": "C",
+          "text": "nav (maps to navigation)"
+        },
+        {
+          "key": "D",
+          "text": "div (maps to region)"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "aside, main, and nav automatically expose complementary, main, and navigation landmark roles. A div has no implicit ARIA role (generic).",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-080",
+      "question": "In complex multi-level tables where simple row/col scope attributes are ambiguous, which attribute on a td element explicitly links it to the exact th elements that describe it?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-accessibility-aria",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "headers containing a space-separated list of th IDs"
+        },
+        {
+          "key": "B",
+          "text": "aria-labelledby containing a comma-separated list of th names"
+        },
+        {
+          "key": "C",
+          "text": "for referencing the parent thead ID"
+        },
+        {
+          "key": "D",
+          "text": "axis referencing the column index"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "For irregular or multi-header tables, each th is given a unique id and each td specifies headers=\"id1 id2\" so screen readers announce all relevant headers for that cell.",
+      "code_snippet": "<table>\n  <tr><th id=\"q1\">Q1</th><th id=\"rev\">Revenue</th></tr>\n  <tr><td headers=\"q1 rev\">$1.2M</td></tr>\n</table>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-081",
+      "question": "Where must the caption element be positioned inside an HTML table?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "As the very first child element inside the table tag."
+        },
+        {
+          "key": "B",
+          "text": "Immediately after the closing </table> tag."
+        },
+        {
+          "key": "C",
+          "text": "Inside the tfoot element at the bottom of the table."
+        },
+        {
+          "key": "D",
+          "text": "Inside the first tr element alongside the th cells."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "According to the HTML content model, caption must be the first child of table (even though CSS caption-side: bottom can visually render it below the table).",
+      "code_snippet": "<table>\n  <caption>2026 Quarterly Sales</caption>\n  <thead>...</thead>\n</table>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-082",
+      "question": "Which attribute allows a single table cell (td or th) to stretch horizontally across three adjacent columns?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "colspan=\"3\""
+        },
+        {
+          "key": "B",
+          "text": "rowspan=\"3\""
+        },
+        {
+          "key": "C",
+          "text": "span=\"3\""
+        },
+        {
+          "key": "D",
+          "text": "columns=\"3\""
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "colspan specifies the number of columns a cell spans horizontally, while rowspan specifies the number of rows a cell spans vertically.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-083",
+      "question": "What is the purpose of the colgroup and col elements inside an HTML table?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "They allow applying shared styles or widths to entire columns without repeating attributes on every cell."
+        },
+        {
+          "key": "B",
+          "text": "They wrap vertical stacks of td elements instead of using horizontal tr rows."
+        },
+        {
+          "key": "C",
+          "text": "They enable interactive column drag-and-drop reordering in the browser."
+        },
+        {
+          "key": "D",
+          "text": "They replace thead and tbody in responsive mobile tables."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "HTML tables are strictly row-major (tr), so colgroup and col provide a way to target and style entire columns (e.g., setting background-color or width) cleanly.",
+      "code_snippet": "<table>\n  <colgroup>\n    <col>\n    <col span=\"2\" style=\"background-color: #f4f4f4;\">\n  </colgroup>\n  <tr><th>Item</th><th>Jan</th><th>Feb</th></tr>\n</table>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-084",
+      "question": "Which structural table section elements help browsers repeat headers/footers when printing multi-page tables and allow independent scrolling of table data?",
+      "difficulty": "beginner",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "thead"
+        },
+        {
+          "key": "B",
+          "text": "tbody"
+        },
+        {
+          "key": "C",
+          "text": "tfoot"
+        },
+        {
+          "key": "D",
+          "text": "trow"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "thead, tbody, and tfoot group header, body, and summary rows semantically. Note that a single table can even contain multiple tbody sections, whereas trow is not a valid HTML tag.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-085",
+      "question": "How do the picture element and the img srcset/sizes attributes differ in responsive image workflows?",
+      "difficulty": "intermediate",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "picture enables art direction and modern format fallbacks (like AVIF/WebP) via source tags, whereas srcset/sizes on img lets the browser pick the best resolution for the same image."
+        },
+        {
+          "key": "B",
+          "text": "picture works only for vector SVG graphics, whereas srcset/sizes works only for raster JPEG and PNG files."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The picture element wraps one or more source elements (with media or type attributes) plus a mandatory fallback img element for art direction or next-gen format negotiation, while srcset/sizes handles resolution switching.",
+      "code_snippet": "<picture>\n  <source srcset=\"hero.avif\" type=\"image/avif\">\n  <source srcset=\"hero.webp\" type=\"image/webp\">\n  <img src=\"hero.jpg\" alt=\"Mountain landscape\" width=\"1200\" height=\"600\">\n</picture>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-086",
+      "question": "Why is it considered a best practice to always include explicit width and height attributes on an img element even when CSS makes the image responsive (width: 100%; height: auto;)?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Modern browsers compute the intrinsic aspect ratio from width and height to reserve layout space before the image downloads, preventing Cumulative Layout Shift (CLS)."
+        },
+        {
+          "key": "B",
+          "text": "The width and height attributes prevent the browser from ever scaling the image beyond those pixel dimensions."
+        },
+        {
+          "key": "C",
+          "text": "Omitting width and height disables browser image caching."
+        },
+        {
+          "key": "D",
+          "text": "The loading=\"lazy\" attribute is ignored unless width and height are present."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Browsers use the HTML width and height attributes to calculate the image's aspect ratio immediately upon HTML parsing, reserving the exact vertical space needed before image bytes arrive.",
+      "code_snippet": "<img src=\"product.jpg\" alt=\"Wireless headphones\" width=\"800\" height=\"600\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-087",
+      "question": "What does adding loading=\"lazy\" to an img or iframe element instruct the browser to do?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Defer fetching the offscreen resource until the user scrolls near its viewport threshold."
+        },
+        {
+          "key": "B",
+          "text": "Load a low-resolution blurred placeholder first and upgrade it after 5 seconds."
+        },
+        {
+          "key": "C",
+          "text": "Download the image only when the user clicks directly on it."
+        },
+        {
+          "key": "D",
+          "text": "Compress the image over HTTP/3 using lossy encoding."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Native lazy loading (loading=\"lazy\") delays network requests for below-the-fold images and iframes until they approach the visible viewport, saving bandwidth on initial page load.",
+      "code_snippet": "<img src=\"gallery-12.jpg\" alt=\"Gallery photo\" loading=\"lazy\" width=\"600\" height=\"400\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-088",
+      "question": "In modern browsers, a video element with the autoplay attribute will reliably start playing automatically even if the muted attribute is omitted.",
+      "difficulty": "beginner",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "Browser autoplay policies block unmuted autoplay with sound unless the user has previously interacted with the domain; adding muted (and often playsinline for iOS) is required for reliable autoplay.",
+      "code_snippet": "<video src=\"promo.mp4\" autoplay muted loop playsinline></video>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-089",
+      "question": "Which HTML element is used inside a video or audio element to attach timed text tracks such as WebVTT captions, subtitles, or chapters?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "track"
+        },
+        {
+          "key": "B",
+          "text": "caption"
+        },
+        {
+          "key": "C",
+          "text": "subtitle"
+        },
+        {
+          "key": "D",
+          "text": "source"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The void track element references external .vtt files via src and specifies kind (captions, subtitles, descriptions, chapters, metadata), srclang, and label.",
+      "code_snippet": "<video controls src=\"lecture.mp4\">\n  <track kind=\"captions\" src=\"lecture-en.vtt\" srclang=\"en\" label=\"English\" default>\n</video>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-090",
+      "question": "Which preload attribute values are valid on HTML audio and video elements?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "none"
+        },
+        {
+          "key": "B",
+          "text": "metadata"
+        },
+        {
+          "key": "C",
+          "text": "auto"
+        },
+        {
+          "key": "D",
+          "text": "lazy"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "Media elements accept preload=\"none\" (do not pre-fetch), preload=\"metadata\" (fetch duration and dimensions only), or preload=\"auto\" (let the browser download the file). lazy is used on img and iframe, not video/audio.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-091",
+      "question": "What does the sandbox attribute (with an empty value sandbox=\"\") enforce on an embedded iframe?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It applies maximum restrictions: treats the iframe as a unique opaque origin, blocks scripts, blocks form submissions, and blocks popups."
+        },
+        {
+          "key": "B",
+          "text": "It grants the iframe full read/write access to the parent page's cookies and localStorage."
+        },
+        {
+          "key": "C",
+          "text": "It renders the iframe inside a separate OS virtual machine process with WebGL disabled."
+        },
+        {
+          "key": "D",
+          "text": "It strips all CSS stylesheets inside the framed document."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "An empty sandbox attribute locks down untrusted embedded content completely; specific capabilities can then be selectively re-enabled using tokens like allow-scripts or allow-forms.",
+      "code_snippet": "<iframe src=\"https://untrusted.example.com/widget\" sandbox=\"allow-scripts\" title=\"External widget\"></iframe>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-092",
+      "question": "In an img element's srcset attribute, what does a width descriptor like hero-800.jpg 800w tell the browser?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "The intrinsic pixel width of that image file is 800px, allowing the browser to combine it with the sizes attribute and device pixel ratio to pick the optimal file."
+        },
+        {
+          "key": "B",
+          "text": "The image should only be displayed when the browser viewport is at least 800px wide."
+        },
+        {
+          "key": "C",
+          "text": "The browser must stretch or shrink the image to render at exactly 800 CSS pixels wide."
+        },
+        {
+          "key": "D",
+          "text": "The image file size is approximately 800 kilobytes."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Width descriptors (w) declare each candidate file's natural pixel width so the browser can multiply the rendered slot width from sizes by screen DPR to choose the sharpest, smallest asset.",
+      "code_snippet": "<img src=\"hero-800.jpg\"\n     srcset=\"hero-400.jpg 400w, hero-800.jpg 800w, hero-1600.jpg 1600w\"\n     sizes=\"(max-width: 600px) 100vw, 50vw\"\n     alt=\"City skyline\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-093",
+      "question": "What is a fundamental architectural difference between SVG and HTML canvas?",
+      "difficulty": "intermediate",
+      "question_type": "two_option",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "SVG is retained-mode vector XML where shapes exist as DOM nodes, whereas canvas is immediate-mode bitmap drawing controlled via JavaScript APIs."
+        },
+        {
+          "key": "B",
+          "text": "SVG supports JavaScript click event listeners, whereas canvas cannot detect mouse or pointer coordinates."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "SVG shapes (<circle>, <path>) are part of the DOM, scale infinitely without pixelation, and accept CSS/DOM events, whereas canvas draws pixels onto a raster bitmap buffer using 2D/WebGL contexts.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-094",
+      "question": "How do the map and area elements create a clickable client-side image map on an img element?",
+      "difficulty": "intermediate",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "The img element's usemap attribute references the map element's name prefixed with #, and area tags define shape and coords."
+        },
+        {
+          "key": "B",
+          "text": "area tags are nested directly inside the img tag with percentage top/left attributes."
+        },
+        {
+          "key": "C",
+          "text": "The map element wraps the img tag and uses CSS grid coordinates."
+        },
+        {
+          "key": "D",
+          "text": "The img element's ismap attribute automatically links to an external JSON coordinate file."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Client-side image maps pair <img usemap=\"#planetmap\"> with <map name=\"planetmap\"> containing <area shape=\"rect|circle|poly\" coords=\"...\" href=\"...\" alt=\"...\">.",
+      "code_snippet": "<img src=\"solar.png\" alt=\"Solar System\" usemap=\"#solar-map\">\n<map name=\"solar-map\">\n  <area shape=\"circle\" coords=\"90,58,15\" href=\"/mercury\" alt=\"Mercury\">\n</map>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-095",
+      "question": "What does setting decoding=\"async\" on an img element suggest to the browser?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "Decode the image off the main thread so it does not delay rendering of surrounding text and layout."
+        },
+        {
+          "key": "B",
+          "text": "Download the image over WebSockets instead of HTTP."
+        },
+        {
+          "key": "C",
+          "text": "Skip image decoding until the user hovers over the element."
+        },
+        {
+          "key": "D",
+          "text": "Convert animated GIFs into static first-frame bitmaps."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "decoding=\"async\" hints that the browser can decode image data asynchronously off the main thread to avoid jank when rendering other content.",
+      "code_snippet": "<img src=\"banner.jpg\" alt=\"Conference banner\" decoding=\"async\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-096",
+      "question": "Which attribute on a video element specifies an image URL to display while the video is downloading or until the user presses play?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "poster"
+        },
+        {
+          "key": "B",
+          "text": "thumbnail"
+        },
+        {
+          "key": "C",
+          "text": "placeholder"
+        },
+        {
+          "key": "D",
+          "text": "preview"
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The poster attribute displays a static preview image frame until playback begins.",
+      "code_snippet": "<video controls poster=\"intro-frame.jpg\" src=\"course-intro.mp4\"></video>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-097",
+      "question": "In HTML5, a tfoot element may be placed either before or after tbody elements inside a table, though placing it after tbody is standard.",
+      "difficulty": "advanced",
+      "question_type": "true_false",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "True"
+        },
+        {
+          "key": "B",
+          "text": "False"
+        }
+      ],
+      "correct_answers": [
+        "B"
+      ],
+      "explanation": "While HTML4 once required tfoot before tbody, the modern HTML Living Standard strictly requires tfoot to appear after thead, colgroup, caption, and all tbody/tr elements.",
+      "code_snippet": null,
+      "code_language": null
+    },
+    {
+      "external_id": "HTML-20261124013507-098",
+      "question": "Which attributes on an iframe element help improve page performance, privacy, and accessibility?",
+      "difficulty": "intermediate",
+      "question_type": "multiple_choice",
+      "answer_mode": "multiple",
+      "tags": [
+        "html",
+        "html-tables-media",
+        "html-accessibility-aria"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "title (provides an accessible name for screen readers)"
+        },
+        {
+          "key": "B",
+          "text": "loading=\"lazy\" (defers loading offscreen frames)"
+        },
+        {
+          "key": "C",
+          "text": "referrerpolicy (controls Referer header information sent)"
+        },
+        {
+          "key": "D",
+          "text": "alt (provides fallback text when the iframe fails to load)"
+        }
+      ],
+      "correct_answers": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": "title gives an iframe its accessible label, loading=\"lazy\" defers offscreen loading, and referrerpolicy controls referrer leakage. The alt attribute is not valid on iframe elements.",
+      "code_snippet": "<iframe src=\"https://maps.example.com/embed\" title=\"Store location map\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\"></iframe>",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-099",
+      "question": "What does the fetchpriority=\"high\" attribute do when added to the hero img element on a web page?",
+      "difficulty": "advanced",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media",
+        "html-fundamentals"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It signals the browser's network scheduler to boost the relative download priority of that Largest Contentful Paint image."
+        },
+        {
+          "key": "B",
+          "text": "It blocks HTML parsing until the image finishes downloading."
+        },
+        {
+          "key": "C",
+          "text": "It bypasses the browser's HTTP cache and forces a fresh network request."
+        },
+        {
+          "key": "D",
+          "text": "It automatically converts the image into a base64 data URI."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "Priority Hints via fetchpriority=\"high\" tell the browser to prioritize critical above-the-fold hero images early in the resource queue instead of waiting until layout determines the image is visible.",
+      "code_snippet": "<img src=\"hero-lcp.webp\" alt=\"Featured product\" fetchpriority=\"high\" width=\"1200\" height=\"630\">",
+      "code_language": "html"
+    },
+    {
+      "external_id": "HTML-20261124013507-100",
+      "question": "When an audio element contains multiple child source elements with different formats (such as Ogg Vorbis and MP3), how does the browser choose which file to play?",
+      "difficulty": "beginner",
+      "question_type": "single_choice",
+      "answer_mode": "single",
+      "tags": [
+        "html",
+        "html-tables-media"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "text": "It evaluates the source elements from top to bottom and selects the first one whose MIME type and codec it supports."
+        },
+        {
+          "key": "B",
+          "text": "It downloads all source files simultaneously and plays whichever finishes first."
+        },
+        {
+          "key": "C",
+          "text": "It always selects the last source element listed in the markup."
+        },
+        {
+          "key": "D",
+          "text": "It prompts the user with a popup menu to pick their preferred audio codec."
+        }
+      ],
+      "correct_answers": [
+        "A"
+      ],
+      "explanation": "The media resource selection algorithm checks source elements sequentially in DOM order and uses the first source with a supported type attribute.",
+      "code_snippet": "<audio controls>\n  <source src=\"podcast.ogg\" type=\"audio/ogg\">\n  <source src=\"podcast.mp3\" type=\"audio/mpeg\">\n  Your browser does not support the audio element.\n</audio>",
+      "code_language": "html"
+    }
+  ]
+}
