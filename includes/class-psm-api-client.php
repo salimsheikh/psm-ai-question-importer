@@ -428,7 +428,8 @@ class PSM_API_Client {
 		}
 		$lines[] = '- Every tag in "tags" must be skill-prefixed using "' . $skill_slug . '-" without repeating the prefix (e.g., "' . ( $sample_tags[0] ?? $skill_slug . '-topic' ) . '", never "' . $skill_slug . '-' . $skill_slug . '-...").';
 		$lines[] = '- Never produce double-prefixed or unprefixed slugs.';
-		$lines[] = '- Allowed tag slugs (use ONLY values from this list): ' . $tag_list;
+		$lines[] = '- Allowed tag slugs (prefer values from this list): ' . $tag_list;
+		$lines[] = '- If no listed tag fits a question, you may use a new topic slug in the form "' . $skill_slug . '-<topic>"; new tags are created automatically on import.';
 		$lines[] = '';
 		$lines[] = 'COUNT, DIFFICULTY & QUESTION TYPE RULES:';
 		$lines[] = '- Total count: ' . $count . ' (default 50). "generation.total_questions" MUST equal ' . $count . ' and "questions" MUST have exactly ' . $count . ' items.';

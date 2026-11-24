@@ -1022,9 +1022,14 @@ class PSM_Admin_UI {
 				}
 			}
 
+			$created = is_array( $import_res['created_tags'] ) ? $import_res['created_tags'] : array();
+			if ( ! empty( $created ) ) {
+				$msg .= ' New tags created for this skill: ' . implode( ', ', array_slice( $created, 0, 10 ) ) . ( count( $created ) > 10 ? ', ...' : '' ) . '.';
+			}
+
 			$rejected = is_array( $import_res['rejected_tags'] ) ? $import_res['rejected_tags'] : array();
 			if ( ! empty( $rejected ) ) {
-				$msg .= ' Rejected tag slugs: ' . implode( ', ', array_slice( $rejected, 0, 10 ) ) . '.';
+				$msg .= ' Rejected tag slugs (inactive, owned by another skill, or could not be created): ' . implode( ', ', array_slice( $rejected, 0, 10 ) ) . '.';
 			}
 
 			$notice_type = ( 0 === (int) $import_res['inserted'] ) ? 'warning' : 'success';
@@ -1680,15 +1685,27 @@ class PSM_Admin_UI {
     $total_rows = count( $preview_data['questions'] );
 
     $preview_tag_slugs = array();
+    $preview_existing_tag_slugs = array();
     if ( ! empty( $preview_data['skill_id'] ) ) {
-        $preview_tag_slugs = $wpdb->get_col(
-            $wpdb->prepare(
-                "SELECT slug FROM {$wpdb->prefix}psm_tags WHERE skill_id = %d AND status = 'active'",
-                (int) $preview_data['skill_id']
-            )
-        );
-        $preview_tag_slugs = array_flip( array_map( 'strval', (array) $preview_tag_slugs ) );
+        $preview_tag_rows = $wpdb->get_results( "SELECT slug, skill_id, status FROM {$wpdb->prefix}psm_tags" );
+        foreach ( (array) $preview_tag_rows as $preview_tag_row ) {
+            $preview_slug = (string) $preview_tag_row->slug;
+            $preview_existing_tag_slugs[ $preview_slug ] = true;
+            if ( (int) $preview_tag_row->skill_id === (int) $preview_data['skill_id'] && 'active' === $preview_tag_row->status ) {
+                $preview_tag_slugs[ $preview_slug ] = true;
+            }
+        }
     }
+    $preview_new_tags = array();
+    foreach ( $preview_data['questions'] as $p_q ) {
+        foreach ( (array) ( $p_q['tags'] ?? array() ) as $tslug ) {
+            $tslug = (string) $tslug;
+            if ( '' !== $tslug && ! isset( $preview_tag_slugs[ $tslug ] ) && ! isset( $preview_existing_tag_slugs[ $tslug ] ) ) {
+                $preview_new_tags[] = $tslug;
+            }
+        }
+    }
+    $preview_new_tags = array_values( array_unique( $preview_new_tags ) );
 					?>
 					<div class="psm-table-card" style="margin-top: 20px;">
 						<h2>Review &amp; Check Generated Data Before Database Import</h2>
@@ -1703,6 +1720,10 @@ class PSM_Admin_UI {
 								<span style="color:<?php echo $valid_count === $total_rows ? '#166534' : '#b45309'; ?>;font-weight:700;">
 									<?php echo esc_html( $valid_count . ' / ' . $total_rows . ' rows importable' ); ?>
 								</span>
+								<?php if ( ! empty( $preview_new_tags ) ) : ?>
+									<br><strong style="color:#b45309;">New tags (auto-created for this skill on import):</strong>
+									<?php foreach ( $preview_new_tags as $new_tslug ) : ?><code><?php echo esc_html( $new_tslug ); ?></code> <?php endforeach; ?>
+								<?php endif; ?>
 						</p>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<?php wp_nonce_field( 'psm_confirm_import_nonce' ); ?>
@@ -1769,7 +1790,7 @@ class PSM_Admin_UI {
 											<td>Diff: <?php echo esc_html( $q_diff ); ?><br><code><?php echo esc_html( $q_type ); ?></code></td>
 											<td>
 												<?php foreach ( (array) ( $q['tags'] ?? array() ) as $tslug ) : ?>
-													<div><code><?php echo esc_html( $tslug ); ?></code><?php if ( ! isset( $preview_tag_slugs[ (string) $tslug ] ) ) : ?> <span style="color:#dc2626;font-weight:600;">(not found for this skill)</span><?php endif; ?></div>
+													<div><code><?php echo esc_html( $tslug ); ?></code><?php if ( ! isset( $preview_tag_slugs[ (string) $tslug ] ) ) : ?> <span style="color:#b45309;font-weight:600;"><?php echo isset( $preview_existing_tag_slugs[ (string) $tslug ] ) ? '(tag unavailable for this skill)' : '(new tag - will be created on import)'; ?></span><?php endif; ?></div>
 												<?php endforeach; ?>
 											</td>
 										</tr>
@@ -1965,6 +1986,7 @@ class PSM_Admin_UI {
 				<p class="description" style="margin-top:0;">
 					Upload a <code>.json</code> file produced by the Create Prompt output. The file is validated against the plugin schema,
 					tags are normalized to this skill's slugs, and everything is shown in the preview below before anything is written to the database.
+					Missing tag slugs are created automatically for the selected skill on import; inactive tags and slugs owned by another skill are rejected.
 				</p>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
 					<?php wp_nonce_field( 'psm_import_json_file_nonce' ); ?>

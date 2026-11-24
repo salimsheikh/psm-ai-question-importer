@@ -570,6 +570,7 @@ class PSM_Importer {
 			'inserted'          => 0,
 			'skipped_duplicate' => 0,
 			'skipped_invalid'   => 0,
+			'created_tags'      => array(),
 			'rejected_tags'     => array(),
 			'messages'          => array(),
 		);
@@ -621,21 +622,16 @@ class PSM_Importer {
 				}
 			}
 
-			$resolved_tag_ids = $sanitized_forced_tags;
+			$item_tag_slugs = array();
 			if ( ! empty( $item['tags'] ) && is_array( $item['tags'] ) ) {
 				foreach ( $item['tags'] as $raw_tag ) {
 					$tag_slug = self::normalize_tag_slug( $raw_tag, $skill->slug, $skill->name );
-					if ( '' === $tag_slug ) {
-						continue;
-					}
-					if ( isset( $slug_to_tag_id[ $tag_slug ] ) ) {
-						$resolved_tag_ids[] = $slug_to_tag_id[ $tag_slug ];
-					} else {
-						$result['rejected_tags'][] = $tag_slug;
+					if ( '' !== $tag_slug ) {
+						$item_tag_slugs[] = $tag_slug;
 					}
 				}
 			}
-			$resolved_tag_ids = array_values( array_unique( $resolved_tag_ids ) );
+			$item_tag_slugs = array_values( array_unique( $item_tag_slugs ) );
 
 			$inserted = $wpdb->insert(
 				$questions_table,
@@ -667,7 +663,26 @@ class PSM_Importer {
 				continue;
 			}
 
-			$question_id = (int) $wpdb->insert_id;
+			$question_id      = (int) $wpdb->insert_id;
+			$resolved_tag_ids = $sanitized_forced_tags;
+
+			foreach ( $item_tag_slugs as $tag_slug ) {
+				$tag_id = isset( $slug_to_tag_id[ $tag_slug ] ) ? (int) $slug_to_tag_id[ $tag_slug ] : 0;
+
+				if ( ! $tag_id ) {
+					$tag_id = self::resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, $result['created_tags'] );
+					if ( $tag_id ) {
+						$slug_to_tag_id[ $tag_slug ] = $tag_id;
+					} else {
+						$result['rejected_tags'][] = $tag_slug;
+					}
+				}
+
+				if ( $tag_id ) {
+					$resolved_tag_ids[] = $tag_id;
+				}
+			}
+			$resolved_tag_ids = array_values( array_unique( array_map( 'intval', $resolved_tag_ids ) ) );
 
 			foreach ( $resolved_tag_ids as $tid ) {
 				$wpdb->replace(
@@ -712,7 +727,70 @@ class PSM_Importer {
 			);
 		}
 
+		$result['created_tags']  = array_values( array_unique( $result['created_tags'] ) );
 		$result['rejected_tags'] = array_values( array_unique( $result['rejected_tags'] ) );
 		return $result;
+	}
+
+	/**
+	 * Return the id of an existing skill-owned tag, or create it on demand.
+	 *
+	 * New tags keep the PSM_Seeder "<skill-slug>-<topic>" convention. A slug
+	 * already owned by another skill or an inactive tag is never reassigned or reused.
+	 *
+	 * @param string   $tag_slug Normalized tag slug.
+	 * @param object   $skill    Skill row (id, name, slug).
+	 * @param string   $tags_table Tags table name.
+	 * @param string   $now      UTC timestamp.
+	 * @param string[] $created  Collector for newly created slugs.
+	 */
+	private static function resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, &$created ) {
+		global $wpdb;
+
+		$tag_slug = sanitize_title( (string) $tag_slug );
+		if ( '' === $tag_slug ) {
+			return 0;
+		}
+
+		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ) );
+		if ( $existing ) {
+			return ( (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) ? (int) $existing->id : 0;
+		}
+
+		$topic = (string) $tag_slug;
+		$prefix = $skill->slug . '-';
+		if ( '' !== (string) $skill->slug && 0 === strpos( $topic, $prefix ) ) {
+			$topic = substr( $topic, strlen( $prefix ) );
+		}
+		$name = ucwords( trim( str_replace( array( '-', '_' ), ' ', $topic ) ) );
+		if ( '' === $name ) {
+			$name = $tag_slug;
+		}
+
+		$max_sort = (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(sort_order) FROM $tags_table WHERE skill_id = %d", (int) $skill->id ) );
+
+		$ok = $wpdb->insert(
+			$tags_table,
+			array(
+				'skill_id'    => (int) $skill->id,
+				'name'        => $name,
+				'slug'        => $tag_slug,
+				'description' => 'Auto-created from imported questions for ' . $skill->name . '.',
+				'sort_order'  => $max_sort + 10,
+				'status'      => 'active',
+				'created_at'  => $now,
+				'updated_at'  => $now,
+			),
+			array( '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
+		);
+
+		if ( ! $ok ) {
+			// Unique slug race: another request may have just inserted it.
+			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ) );
+			return ( $existing && (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) ? (int) $existing->id : 0;
+		}
+
+		$created[] = $tag_slug;
+		return (int) $wpdb->insert_id;
 	}
 }
