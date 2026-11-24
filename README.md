@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.5.0  
+**Version:** 1.6.0  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -8,8 +8,14 @@ Generate structured AI questions, review them before import, and manage question
 
 ## Features
 
-- Four admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, and AI Providers.
+- Five admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, AI Providers, and Backup & Restore.
+- Modular master classes, controller dispatch, shared list rendering, and reusable UI component traits.
+- Versioned external admin CSS and JavaScript assets.
 - AJAX filters and pagination for every master table, with related domain, status, skill-type, and skill filters.
+- Domain-aware skill selectors in filters, question/tag/skill editors, prompt generation, and JSON import, with server-side ownership validation.
+- Fixed-square pagination controls with centered numbers/icons and an administrator-configurable page size (5–100).
+- Portable JSON Backup & Restore for the configured `psm_*` tables, with validated uploads, merge/replace modes, transactions, and no executable SQL.
+- Provider credentials and WordPress options are excluded from backups.
 - Strict JSON prompt builder with copy and download actions.
 - Import JSON popup with pasted JSON or optional file upload, target skill, optional tag focus, import status, and preview-before-import.
 - Question master with add, edit, list, and delete.
@@ -45,13 +51,15 @@ Generate structured AI questions, review them before import, and manage question
 6. Use the modal’s previous/next arrows to move through the exact filtered question order without skipping non-contiguous IDs.
 7. Use the question filters to narrow the list by text, skill, tag, or status; filtering and pagination run through AJAX without reloading the page.
 
-All master tables include AJAX search and pagination. Skill Types can be filtered by domain, Question Types and Difficulties by status, Skills by domain/type/status, and Tags by wildcard name/slug and skill.
+All master tables include AJAX search and pagination. Skill Types can be filtered by domain, Question Types and Difficulties by status, Skills by domain/type/status, and Tags by wildcard name/slug, domain, and skill. Question, tag, and skill editors limit skill choices to the selected domain.
+
+The default page size is 25. Under **Master Tables**, administrators can select 5, 10, 15, 25, 50, 75, or 100 rows per page; the server clamps invalid saved values to the supported range.
 
 The **Tags** tab supports `*` for any sequence and `?` for one character. Examples include `csharp-*` and `*oop`.
 
 ## JSON Import Workflow
 
-1. Select a skill and optional tag focus in **Prompt, Preview & Import**.
+1. Select a domain, then select a skill and optional tag focus in **Prompt, Preview & Import**.
 2. Create the prompt and copy or download it.
 3. Save the AI output as a `.json` file, or copy the JSON code directly.
 4. Choose **Import JSON** to open the popup.
@@ -60,6 +68,15 @@ The **Tags** tab supports `*` for any sequence and `?` for one character. Exampl
 7. Review validation results and confirm the import. Batch labels are created automatically when omitted.
 
 Pasted JSON and uploads are limited to 5 MB and validated before import. Both actions open the preview; no question, tag, or batch rows are written until the confirmed import step. Missing tags are created only for the selected skill. Inactive tags and tags owned by another skill are rejected. Duplicate questions reuse the existing row and receive missing valid tags.
+
+## Backup & Restore
+
+Open **Backup & Restore** to download a portable JSON snapshot of the configured prefix's domains, skill types, question types, difficulties, skills, tags, questions, question-tag links, batches, and batch-question links.
+
+- Backups never include `wp_options`, provider settings, or API credentials.
+- Restore accepts only supported `.json` files up to 24 MB and validates their format, version, tables, rows, and current-schema columns.
+- **Merge** inserts new records and updates matching records. **Replace all** requires a complete backup, clears the included tables, and restores it in dependency order.
+- Writes run in a transaction and roll back on failure. SQL contained in a backup is never executed.
 
 ## Security and Data Handling
 
@@ -71,6 +88,18 @@ Pasted JSON and uploads are limited to 5 MB and validated before import. Both ac
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.6.0
+
+- Split each master into a focused class with shared UI/list traits and controller dispatch.
+- Moved admin CSS and JavaScript into versioned external assets.
+- Centered dropdown text and made all pagination controls centered 36-by-36 squares.
+- Fixed the Questions Skill column and restored query results for all master lists.
+- Limited skills to the selected domain in filters, question/tag/skill editors, prompt generation, and JSON import, with backend ownership checks.
+- Fixed valid pasted JSON being unslashed twice before validation.
+- Added validated, transactional JSON Backup & Restore with merge/replace modes.
+- Centralized the shared table prefix and default page size in the plugin root; added a validated page-size setting.
+- Applied additional WordPress escaping, nonce, capability, and coding-standard fixes without rewriting existing master data.
 
 ### 1.5.0
 
@@ -107,4 +136,4 @@ Pasted JSON and uploads are limited to 5 MB and validated before import. Both ac
 
 ## Upgrade Notes
 
-Version 1.5.0 does not require a database schema change. Existing questions, tags, batches, settings, and provider credentials are preserved.
+Version 1.6.0 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. A backup is recommended before using Replace-all restore.

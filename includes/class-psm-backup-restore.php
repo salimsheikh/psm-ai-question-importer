@@ -1,11 +1,13 @@
 <?php
 /**
- * Backup and restore for the plugin-owned question tables.
+ * Backup and restore for the configured shared question tables.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table and column identifiers come from fixed whitelists; all restored values are prepared.
 
 class PSM_Backup_Restore {
 
@@ -36,7 +38,7 @@ class PSM_Backup_Restore {
 			<div class="psm-backup-grid">
 				<section class="psm-backup-card">
 					<h3>Create Backup</h3>
-					<p>Includes table structure for reference and all rows from the plugin-owned master, question, tag, and batch tables.</p>
+					<p>Includes table structure for reference and all rows from the configured shared master, question, tag, and batch tables.</p>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'psm_export_backup' ); ?>
 						<input type="hidden" name="action" value="psm_export_backup">
@@ -92,11 +94,11 @@ class PSM_Backup_Restore {
 
 		global $wpdb;
 		$payload = array(
-			'format'        => 'psm-ai-question-importer-backup',
-			'format_version'=> self::FORMAT_VERSION,
-			'created_at'    => gmdate( 'c' ),
-			'source_prefix' => PSM_AI_TABLE_PREFIX,
-			'tables'        => array(),
+			'format'         => 'psm-ai-question-importer-backup',
+			'format_version' => self::FORMAT_VERSION,
+			'created_at'     => gmdate( 'c' ),
+			'source_prefix'  => PSM_AI_TABLE_PREFIX,
+			'tables'         => array(),
 		);
 
 		foreach ( $this->get_table_order() as $suffix ) {
@@ -104,19 +106,25 @@ class PSM_Backup_Restore {
 			if ( ! $this->table_exists( $table ) ) {
 				continue;
 			}
-			$create = $wpdb->get_row( 'SHOW CREATE TABLE `' . $table . '`', ARRAY_A );
+			$create                       = $wpdb->get_row( 'SHOW CREATE TABLE `' . $table . '`', ARRAY_A );
 			$payload['tables'][ $suffix ] = array(
 				'schema' => isset( $create['Create Table'] ) ? $create['Create Table'] : '',
 				'rows'   => $wpdb->get_results( 'SELECT * FROM `' . $table . '`', ARRAY_A ),
 			);
 		}
 
+		$json = wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		if ( false === $json ) {
+			$this->redirect_with_notice( 'The backup could not be encoded as JSON.', true );
+		}
+
 		$filename = 'psm-backup-' . gmdate( 'Ymd-His' ) . '.json';
 		nocache_headers();
 		header( 'Content-Type: application/json; charset=' . get_option( 'blog_charset' ) );
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
-		header( 'Content-Length: ' . strlen( wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) ) );
-		echo wp_json_encode( $payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		header( 'Content-Length: ' . strlen( $json ) );
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- This is a JSON attachment, not HTML output.
+		echo $json;
 		exit;
 	}
 
@@ -124,15 +132,16 @@ class PSM_Backup_Restore {
 		$this->authorize( 'psm_restore_backup' );
 
 		global $wpdb;
-		$file = isset( $_FILES['backup_file'] ) ? $_FILES['backup_file'] : array();
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- authorize() verifies the nonce; upload fields are validated below.
+		$file  = isset( $_FILES['backup_file'] ) ? $_FILES['backup_file'] : array();
 		$error = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
 		if ( UPLOAD_ERR_OK !== $error ) {
 			$this->redirect_with_notice( 'Please choose a valid backup file to restore.', true );
 		}
 
-		$tmp_name = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
-		$size     = isset( $file['size'] ) ? (int) $file['size'] : 0;
-		$name     = isset( $file['name'] ) ? (string) $file['name'] : '';
+		$tmp_name  = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
+		$size      = isset( $file['size'] ) ? (int) $file['size'] : 0;
+		$name      = isset( $file['name'] ) ? (string) $file['name'] : '';
 		$extension = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
 		if ( '' === $tmp_name || ! is_uploaded_file( $tmp_name ) ) {
 			$this->redirect_with_notice( 'The backup upload could not be verified.', true );
@@ -144,6 +153,7 @@ class PSM_Backup_Restore {
 			$this->redirect_with_notice( 'Only JSON backup files downloaded from this plugin are supported.', true );
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions -- Reads a verified local upload, not a remote URL.
 		$raw = file_get_contents( $tmp_name );
 		if ( false === $raw ) {
 			$this->redirect_with_notice( 'The backup file could not be read.', true );
@@ -159,6 +169,7 @@ class PSM_Backup_Restore {
 			$this->redirect_with_notice( 'The backup does not contain any table data.', true );
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- authorize() verifies the nonce before restore processing.
 		$mode = sanitize_key( wp_unslash( $_POST['restore_mode'] ?? 'merge' ) );
 		if ( ! in_array( $mode, array( 'merge', 'replace' ), true ) ) {
 			$this->redirect_with_notice( 'Invalid restore mode.', true );
@@ -196,15 +207,22 @@ class PSM_Backup_Restore {
 						$this->redirect_with_notice( 'The backup contains an unsupported column in ' . $table . '.', true );
 					}
 				}
+				foreach ( $row as $value ) {
+					if ( ! is_scalar( $value ) && null !== $value ) {
+						$this->redirect_with_notice( 'The backup contains a non-scalar value in ' . $table . '.', true );
+					}
+				}
 			}
 			$plan[ $suffix ] = $table_data['rows'];
 		}
 
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			$this->redirect_with_notice( 'The restore transaction could not be started.', true );
+		}
 		try {
 			if ( 'replace' === $mode ) {
 				foreach ( array_reverse( $order ) as $suffix ) {
-					$table = PSM_AI_TABLE_PREFIX . $suffix;
+					$table  = PSM_AI_TABLE_PREFIX . $suffix;
 					$result = $wpdb->query( 'DELETE FROM `' . $table . '`' );
 					if ( false === $result ) {
 						throw new RuntimeException( 'Could not clear ' . $table . '.' );
@@ -226,7 +244,9 @@ class PSM_Backup_Restore {
 					$affected += (int) $result;
 				}
 			}
-			$wpdb->query( 'COMMIT' );
+			if ( false === $wpdb->query( 'COMMIT' ) ) {
+				throw new RuntimeException( 'Could not commit the restore.' );
+			}
 		} catch ( Throwable $error ) {
 			$wpdb->query( 'ROLLBACK' );
 			$this->redirect_with_notice( 'Restore failed and was rolled back. ' . $error->getMessage(), true );
@@ -256,7 +276,15 @@ class PSM_Backup_Restore {
 			$updates[] = $quoted_column . '=VALUES(' . $quoted_column . ')';
 		}
 
-		$column_sql = implode( ', ', array_map( static function ( $column ) { return '`' . $column . '`'; }, $columns ) );
+		$column_sql = implode(
+			', ',
+			array_map(
+				static function ( $column ) {
+					return '`' . $column . '`';
+				},
+				$columns
+			)
+		);
 		$sql        = 'INSERT INTO `' . $table . '` (' . $column_sql . ') VALUES (' . implode( ', ', $placeholders ) . ') ON DUPLICATE KEY UPDATE ' . implode( ', ', $updates );
 		if ( empty( $values ) ) {
 			return $wpdb->query( $sql );
@@ -276,7 +304,7 @@ class PSM_Backup_Restore {
 	private function authorize( $action ) {
 		check_admin_referer( $action );
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_die( esc_html__( 'Unauthorized', 'psm-ai-importer' ) );
+			wp_die( esc_html__( 'Unauthorized', 'psm-ai-question-importer' ) );
 		}
 	}
 
@@ -289,7 +317,15 @@ class PSM_Backup_Restore {
 			),
 			60
 		);
-		wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'backup' ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page' => 'psm-ai-importer',
+					'tab'  => 'backup',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 }

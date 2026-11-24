@@ -140,9 +140,18 @@
 			function syncSkillOptions(domainSelect, skillSelect) {
 				if (!domainSelect || !skillSelect) return;
 				const domainId = parseInt(domainSelect.value || '0', 10);
+				const domainRequired = domainSelect.required && !domainId;
+				skillSelect.disabled = domainRequired;
+				if (domainRequired) skillSelect.value = '';
 				Array.from(skillSelect.options).forEach(function(option) {
 					if (!option.value) return;
-					option.hidden = !!domainId && parseInt(option.dataset.domainId || '0', 10) !== domainId;
+					const mismatch = domainRequired || (!!domainId && parseInt(option.dataset.domainId || '0', 10) !== domainId);
+					option.hidden = mismatch;
+					option.disabled = mismatch;
+				});
+				Array.from(skillSelect.querySelectorAll('optgroup')).forEach(function(group) {
+					const options = Array.from(group.querySelectorAll('option[value]'));
+					group.hidden = options.length > 0 && options.every(option => option.hidden);
 				});
 				const selected = skillSelect.selectedOptions[0];
 				if (selected && selected.value && selected.hidden) skillSelect.value = '';
@@ -384,20 +393,27 @@
 
 			// Skill -> Tag dynamic loader on Tab 1
 			const skillSelect = document.getElementById('psm_skill_select');
+			const generateDomainSelect = document.getElementById('psm_generate_domain');
 			const tagBox      = document.getElementById('psm_tag_box');
-			skillSelect?.addEventListener('change', function() {
-				const skillId = parseInt(this.value, 10);
+			function loadGenerateSkillTags() {
+				if (!tagBox) return;
+				const skillId = parseInt(skillSelect ? skillSelect.value : '0', 10);
 				const list    = tagsBySkill[skillId] || [];
 				if (!skillId || list.length === 0) {
 					tagBox.innerHTML = '<em>No tags found for this skill.</em>';
 				} else {
 					let html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px;">';
 					list.forEach(function(t) {
-						html += '<label style="display:block;"><input type="checkbox" name="tag_ids[]" value="' + t.id + '" title="' + t.slug + '"> <code>' + t.name + '</code></label>';
+						html += '<label style="display:block;"><input type="checkbox" name="tag_ids[]" value="' + t.id + '" title="' + escapeHtml(t.slug) + '"> <code>' + escapeHtml(t.name) + '</code></label>';
 					});
 					html += '</div>';
 					tagBox.innerHTML = html;
 				}
+			}
+			skillSelect?.addEventListener('change', loadGenerateSkillTags);
+			generateDomainSelect?.addEventListener('change', function() {
+				syncSkillOptions(this, skillSelect);
+				loadGenerateSkillTags();
 			});
 
 			// Create Prompt modal (Copy / Download)
@@ -413,10 +429,22 @@
 				const form = document.getElementById('psm_generate_form');
 				if (!form) return;
 				const skillSel = document.getElementById('psm_skill_select');
+				const domainSel = document.getElementById('psm_generate_domain');
 				setActionNotice('');
 
+				if (!domainSel || !domainSel.value) {
+					const msg = 'Select a Domain in step 1 first, then select a Skill.';
+					setActionNotice(msg, true);
+					showToast(msg, false);
+					domainSel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					domainSel?.classList.add('psm-field-error');
+					setTimeout(() => domainSel?.classList.remove('psm-field-error'), 2600);
+					domainSel?.focus();
+					return;
+				}
+
 				if (!skillSel || !skillSel.value) {
-					const msg = 'Select a Skill in step 1 first, then click Create Prompt again.';
+					const msg = 'Select a Skill in step 2 first, then click Create Prompt again.';
 					setActionNotice(msg, true);
 					showToast(msg, false);
 					skillSel?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -515,13 +543,17 @@
 				if (!jsonImportModal) return true;
 				if (e && e.preventDefault) e.preventDefault();
 				const srcSkill = document.getElementById('psm_skill_select');
+				const srcDomain = document.getElementById('psm_generate_domain');
 				const dstSkill = document.getElementById('psm_json_skill_select');
+				const dstDomain = document.getElementById('psm_json_domain');
+				if (srcDomain && dstDomain) dstDomain.value = srcDomain.value;
+				syncSkillOptions(dstDomain, dstSkill);
 				if (srcSkill && dstSkill && srcSkill.value) dstSkill.value = srcSkill.value;
 				if (dstSkill) loadJsonFocusTags();
 				const srcTags = document.querySelectorAll('#psm_tag_box input[name="tag_ids[]"]:checked');
 				if (jsonFocusTag && srcTags.length === 1) jsonFocusTag.value = srcTags[0].value;
 				jsonImportModal.classList.add('open');
-				setTimeout(() => dstSkill?.focus(), 50);
+				setTimeout(() => (srcSkill?.value ? dstSkill : dstDomain)?.focus(), 50);
 				return false;
 			}
 			document.getElementById('psm_import_json_close')?.addEventListener('click', closeJsonImportModal);
@@ -549,6 +581,7 @@
 
 			// Import card: populate Tag Focus from the selected skill, then sync from the main form.
 			const jsonSkillSelect = document.getElementById('psm_json_skill_select');
+			const jsonDomainSelect = document.getElementById('psm_json_domain');
 			const jsonFocusTag    = document.getElementById('psm_json_focus_tag');
 
 			function loadJsonFocusTags() {
@@ -563,6 +596,12 @@
 			}
 
 			jsonSkillSelect?.addEventListener('change', loadJsonFocusTags);
+			jsonDomainSelect?.addEventListener('change', function() {
+				syncSkillOptions(this, jsonSkillSelect);
+				loadJsonFocusTags();
+			});
+			syncSkillOptions(generateDomainSelect, skillSelect);
+			syncSkillOptions(jsonDomainSelect, jsonSkillSelect);
 			loadJsonFocusTags();
 			syncMasterSkillFilters();
 

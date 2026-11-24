@@ -1,5 +1,11 @@
 <?php
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table suffixes come from the fixed master map; all query values are prepared.
+
 class PSM_Master_Controller {
 
 	private $masters;
@@ -67,14 +73,14 @@ class PSM_Master_Controller {
 		$data = $master->get_list_data( $_POST );
 		wp_send_json_success(
 			array(
-				'html'            => $master->render_list_html( $data ),
-				'counts'          => $this->get_counts(),
-				'filters'         => $data['filters'],
-				'page'            => $data['page'],
-				'total_pages'     => $data['total_pages'],
-				'question_order'  => $data['question_order'],
-				'tags'            => $data['tags'],
-				'skills'          => $data['skills'],
+				'html'           => $master->render_list_html( $data ),
+				'counts'         => $this->get_counts(),
+				'filters'        => $data['filters'],
+				'page'           => $data['page'],
+				'total_pages'    => $data['total_pages'],
+				'question_order' => $data['question_order'],
+				'tags'           => $data['tags'],
+				'skills'         => $data['skills'],
 			)
 		);
 	}
@@ -87,6 +93,11 @@ class PSM_Master_Controller {
 		$per_page = absint( $_POST['per_page'] ?? PSM_AI_DEFAULT_PER_PAGE );
 		$per_page = min( 100, max( 5, $per_page ) );
 		update_option( 'psm_ai_master_per_page', $per_page, false );
-		wp_send_json_success( array( 'per_page' => $per_page, 'message' => 'Pagination setting saved.' ) );
+		wp_send_json_success(
+			array(
+				'per_page' => $per_page,
+				'message'  => 'Pagination setting saved.',
+			)
+		);
 	}
 }

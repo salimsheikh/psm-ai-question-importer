@@ -26,7 +26,7 @@ class PSM_Master_Question_Type extends PSM_Master_Abstract {
 			$where .= ' AND m.status = %s';
 			$args[] = $data['filters']['status'];
 		}
-		$this->run_list_query( $data, $source, 'SELECT m.* ', 'FROM ' . $table . ' m ', $where, $args, ' ORDER BY m.sort_order ASC, m.name ASC' );
+		return $this->run_list_query( $data, $source, 'SELECT m.* ', 'FROM ' . $table . ' m ', $where, $args, ' ORDER BY m.sort_order ASC, m.name ASC' );
 	}
 
 	protected function render_related_filters_html( $data ) {
@@ -39,9 +39,18 @@ class PSM_Master_Question_Type extends PSM_Master_Abstract {
 				'name'     => $this->entity . '_status',
 				'selected' => $status,
 				'options'  => array(
-					array( 'value' => '', 'label' => 'All statuses' ),
-					array( 'value' => 'active', 'label' => 'Active' ),
-					array( 'value' => 'inactive', 'label' => 'Inactive' ),
+					array(
+						'value' => '',
+						'label' => 'All statuses',
+					),
+					array(
+						'value' => 'active',
+						'label' => 'Active',
+					),
+					array(
+						'value' => 'inactive',
+						'label' => 'Inactive',
+					),
 				),
 				'tooltip'  => 'Filter by status',
 			)

@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PSM_Languages {
 	public static function languages(): array {
 		return array(
-			''           => __( 'Plain text', 'psm-ai-importer' ),
+			''           => __( 'Plain text', 'psm-ai-question-importer' ),
 			'php'        => 'PHP',
 			'csharp'     => 'C#',
 			'java'       => 'Java',

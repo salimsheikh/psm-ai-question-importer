@@ -39,17 +39,33 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'domains d ON s.domain_id = d.id'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skill_types st ON s.skill_type_id = st.id'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills p ON s.parent_id = p.id ';
-		$this->run_list_query( $data, $source, 'SELECT s.*, d.name AS domain_name, st.name AS master_type_name, p.name AS parent_skill_name ', $from, $where, $args, ' ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC' );
+		return $this->run_list_query( $data, $source, 'SELECT s.*, d.name AS domain_name, st.name AS master_type_name, p.name AS parent_skill_name ', $from, $where, $args, ' ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC' );
 	}
 
 	protected function render_related_filters_html( $data ) {
-		$domain_options = array( array( 'value' => '', 'label' => 'All domains' ) );
+		$domain_options = array(
+			array(
+				'value' => '',
+				'label' => 'All domains',
+			),
+		);
 		foreach ( $data['domains'] as $domain ) {
-			$domain_options[] = array( 'value' => $domain->id, 'label' => $domain->name );
+			$domain_options[] = array(
+				'value' => $domain->id,
+				'label' => $domain->name,
+			);
 		}
-		$type_options = array( array( 'value' => '', 'label' => 'All skill types' ) );
+		$type_options = array(
+			array(
+				'value' => '',
+				'label' => 'All skill types',
+			),
+		);
 		foreach ( $data['skill_types'] as $type ) {
-			$type_options[] = array( 'value' => $type->id, 'label' => $type->name );
+			$type_options[] = array(
+				'value' => $type->id,
+				'label' => $type->name,
+			);
 		}
 		$html  = '<label class="psm-filter-field"><span>Domain</span>' . $this->psm_select_html(
 			array(
@@ -72,9 +88,18 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 				'name'     => 'skill_status',
 				'selected' => $data['filters']['status'],
 				'options'  => array(
-					array( 'value' => '', 'label' => 'All statuses' ),
-					array( 'value' => 'active', 'label' => 'Active' ),
-					array( 'value' => 'inactive', 'label' => 'Inactive' ),
+					array(
+						'value' => '',
+						'label' => 'All statuses',
+					),
+					array(
+						'value' => 'active',
+						'label' => 'Active',
+					),
+					array(
+						'value' => 'inactive',
+						'label' => 'Inactive',
+					),
 				),
 				'tooltip'  => 'Filter skills by status',
 			)
@@ -84,15 +109,24 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 
 	protected function get_table_headers() {
 		return array(
-			array( 'label' => 'ID', 'width' => '65px' ),
+			array(
+				'label' => 'ID',
+				'width' => '65px',
+			),
 			array( 'label' => 'Name' ),
 			array( 'label' => 'Slug' ),
 			array( 'label' => 'Domain' ),
 			array( 'label' => 'Skill Type' ),
 			array( 'label' => 'Parent Skill' ),
 			array( 'label' => 'Description' ),
-			array( 'label' => 'Status', 'width' => '90px' ),
-			array( 'label' => 'Actions', 'width' => '110px' ),
+			array(
+				'label' => 'Status',
+				'width' => '90px',
+			),
+			array(
+				'label' => 'Actions',
+				'width' => '110px',
+			),
 		);
 	}
 

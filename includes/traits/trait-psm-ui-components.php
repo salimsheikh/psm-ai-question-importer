@@ -26,7 +26,7 @@ trait PSM_UI_Components_Trait {
 		}
 		$page_numbers = array_values( array_unique( $page_numbers ) );
 		sort( $page_numbers );
-		$last_number  = 0;
+		$last_number = 0;
 		foreach ( $page_numbers as $number ) {
 			if ( $last_number && $number - $last_number > 1 ) {
 				$html .= '<span class="psm-page-ellipsis">&hellip;</span>';
@@ -43,7 +43,7 @@ trait PSM_UI_Components_Trait {
 
 	public function psm_button_html( $label, $classes = '', $attributes = array(), $icon = '' ) {
 		$attrs = $this->psm_attributes_html( $attributes );
-		$html = '<button type="button" class="' . esc_attr( trim( 'psm-btn ' . $classes ) ) . '"' . $attrs . '>';
+		$html  = '<button type="button" class="' . esc_attr( trim( 'psm-btn ' . $classes ) ) . '"' . $attrs . '>';
 		if ( '' !== $icon ) {
 			$html .= '<span class="dashicons ' . esc_attr( $icon ) . '" aria-hidden="true"></span>';
 		}
@@ -72,13 +72,13 @@ trait PSM_UI_Components_Trait {
 		);
 		$args     = wp_parse_args( $args, $defaults );
 		$attrs    = array(
-			'name'          => $args['name'],
-			'id'            => $args['id'],
-			'type'          => $args['type'],
-			'class'         => $args['class'],
-			'value'         => $args['value'],
-			'placeholder'   => $args['placeholder'],
-			'data-tooltip'  => $args['tooltip'],
+			'name'         => $args['name'],
+			'id'           => $args['id'],
+			'type'         => $args['type'],
+			'class'        => $args['class'],
+			'value'        => $args['value'],
+			'placeholder'  => $args['placeholder'],
+			'data-tooltip' => $args['tooltip'],
 		);
 		if ( $args['required'] ) {
 			$attrs['required'] = 'required';
@@ -108,7 +108,7 @@ trait PSM_UI_Components_Trait {
 		}
 		$html = '<select' . $this->psm_attributes_html( $attrs ) . '>';
 		foreach ( $args['options'] as $option ) {
-			$option = wp_parse_args(
+			$option       = wp_parse_args(
 				$option,
 				array(
 					'value'    => '',

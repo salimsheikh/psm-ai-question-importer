@@ -3,6 +3,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers use fixed constants; all query values are prepared.
+
 /**
  * Validates and stores generated questions.
  *
@@ -178,9 +180,9 @@ class PSM_Importer {
 
 		$value = preg_replace_callback(
 			'#</?(?:code|strong|em|b|i|pre|br|ul|ol|li|p)\s*/?>#i',
-			static function ( $match ) use ( &$tokens ) {
+			static function ( $matches ) use ( &$tokens ) {
 				$token            = "\x01" . count( $tokens ) . "\x02";
-				$tokens[ $token ] = $match[0];
+				$tokens[ $token ] = $matches[0];
 				return $token;
 			},
 			$value
@@ -240,7 +242,7 @@ class PSM_Importer {
 	public static function normalize_options( $raw_options, $type ) {
 		$errors = array();
 
-		if ( $type === 'true_false' ) {
+		if ( 'true_false' === $type ) {
 			return array(
 				array(
 					'A' => 'True',
@@ -250,7 +252,7 @@ class PSM_Importer {
 			);
 		}
 
-		$required = ( $type === 'two_option' ) ? array( 'A', 'B' ) : array( 'A', 'B', 'C', 'D' );
+		$required = ( 'two_option' === $type ) ? array( 'A', 'B' ) : array( 'A', 'B', 'C', 'D' );
 		$items    = is_array( $raw_options ) ? $raw_options : array();
 
 		if ( empty( $items ) ) {
@@ -277,7 +279,7 @@ class PSM_Importer {
 				$text = (string) $opt_val;
 			}
 
-			$index++;
+			++$index;
 			if ( '' === $key || ! in_array( $key, $required, true ) ) {
 				continue;
 			}
@@ -436,20 +438,20 @@ class PSM_Importer {
 		list( $options, $option_errors ) = self::normalize_options( $item['options'] ?? array(), $question_type );
 		$errors                          = array_merge( $errors, $option_errors );
 
-		$raw_correct = $item['correct_keys'] ?? ( $item['correct_answers'] ?? array() );
+		$raw_correct                      = $item['correct_keys'] ?? ( $item['correct_answers'] ?? array() );
 		list( $correct, $correct_errors ) = self::normalize_correct( $raw_correct, $options );
-		$errors                          = array_merge( $errors, $correct_errors );
+		$errors                           = array_merge( $errors, $correct_errors );
 
 		$answer_mode = strtolower( trim( (string) ( $item['answer_mode'] ?? '' ) ) );
-		$is_multiple = ( $question_type === 'four_option' && count( $correct ) > 1 ) ? 1 : 0;
+		$is_multiple = ( 'four_option' === $question_type && count( $correct ) > 1 ) ? 1 : 0;
 
-		if ( $answer_mode === 'multiple' && $question_type === 'four_option' ) {
+		if ( 'multiple' === $answer_mode && 'four_option' === $question_type ) {
 			$is_multiple = 1;
 		}
-		if ( $answer_mode === 'multiple' && count( $correct ) < 2 ) {
+		if ( 'multiple' === $answer_mode && count( $correct ) < 2 ) {
 			$errors[] = 'A multiple-answer question needs at least two correct answers.';
 		}
-		if ( $question_type === 'four_option' ) {
+		if ( 'four_option' === $question_type ) {
 			if ( ! $is_multiple && 1 !== count( $correct ) ) {
 				$errors[] = 'A single-choice question must have exactly one correct answer.';
 			}
@@ -587,7 +589,7 @@ class PSM_Importer {
 			$inspect   = self::inspect_question( $item, $default_status, $default_difficulty );
 
 			if ( empty( $inspect['data'] ) ) {
-				$result['skipped_invalid']++;
+				++$result['skipped_invalid'];
 				$result['messages'][] = $row_label . ': ' . implode( ' ', $inspect['errors'] );
 				continue;
 			}
@@ -625,7 +627,7 @@ class PSM_Importer {
 			$item_tag_slugs = array_values( array_unique( $item_tag_slugs ) );
 
 			if ( $duplicate_question_id ) {
-				$result['skipped_duplicate']++;
+				++$result['skipped_duplicate'];
 				$question_id = $duplicate_question_id;
 			} else {
 				$inserted = $wpdb->insert(
@@ -653,7 +655,7 @@ class PSM_Importer {
 				);
 
 				if ( ! $inserted ) {
-					$result['skipped_invalid']++;
+					++$result['skipped_invalid'];
 					$result['messages'][] = $row_label . ': Database insert error: ' . $wpdb->last_error;
 					continue;
 				}
@@ -710,7 +712,7 @@ class PSM_Importer {
 				);
 			}
 
-			$result['inserted']++;
+			++$result['inserted'];
 		}
 
 		if ( $batch_id > 0 ) {
@@ -758,7 +760,7 @@ class PSM_Importer {
 			return ( (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) ? (int) $existing->id : 0;
 		}
 
-		$topic = (string) $tag_slug;
+		$topic  = (string) $tag_slug;
 		$prefix = $skill->slug . '-';
 		if ( '' !== (string) $skill->slug && 0 === strpos( $topic, $prefix ) ) {
 			$topic = substr( $topic, strlen( $prefix ) );

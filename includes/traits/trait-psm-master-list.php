@@ -3,6 +3,12 @@
  * Shared master-list data and rendering workflow.
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers use fixed constants; all query values are prepared.
+
 trait PSM_Master_List_Trait {
 
 	public function get_list_data( $source ) {
@@ -22,7 +28,7 @@ trait PSM_Master_List_Trait {
 			'skill_types'    => $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' ),
 			'tags'           => $wpdb->get_results( 'SELECT id, name, slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags ORDER BY name ASC' ),
 		);
-		$this->build_list_query( $data, $source );
+		$data = $this->build_list_query( $data, $source );
 		return $data;
 	}
 
@@ -34,10 +40,10 @@ trait PSM_Master_List_Trait {
 	public function render_filters_html( $data ) {
 		$filters = $data['filters'];
 		$compact = in_array( $this->entity, array( 'question', 'tag' ), true );
-		$html   = '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="psm-filter-bar' . ( $compact ? ' psm-filter-compact' : '' ) . '" id="psm_master_filters" data-entity="' . esc_attr( $this->entity ) . '">';
-		$html  .= '<input type="hidden" name="page" value="psm-ai-importer"><input type="hidden" name="tab" value="masters"><input type="hidden" name="entity" value="' . esc_attr( $this->entity ) . '">';
-		$html  .= '<label class="psm-filter-field psm-filter-search"><span>' . esc_html( 'tag' === $this->entity ? 'Tag name or slug' : 'Search' ) . '</span>';
-		$html  .= $this->psm_text_input_html(
+		$html    = '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="psm-filter-bar' . ( $compact ? ' psm-filter-compact' : '' ) . '" id="psm_master_filters" data-entity="' . esc_attr( $this->entity ) . '">';
+		$html   .= '<input type="hidden" name="page" value="psm-ai-importer"><input type="hidden" name="tab" value="masters"><input type="hidden" name="entity" value="' . esc_attr( $this->entity ) . '">';
+		$html   .= '<label class="psm-filter-field psm-filter-search"><span>' . esc_html( 'tag' === $this->entity ? 'Tag name or slug' : 'Search' ) . '</span>';
+		$html   .= $this->psm_text_input_html(
 			array(
 				'name'        => $this->entity . '_search',
 				'value'       => $filters['search'],
@@ -46,8 +52,8 @@ trait PSM_Master_List_Trait {
 				'tooltip'     => 'tag' === $this->entity ? 'Use * for any characters and ? for one character' : 'Search by name',
 			)
 		);
-		$html .= '</label>' . $this->render_related_filters_html( $data );
-		$html .= '<div class="psm-filter-actions"><button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Apply filters"><span class="dashicons dashicons-filter" aria-hidden="true"></span> Filter</button><button type="button" class="psm-btn psm-btn-secondary" data-psm-reset-filters data-tooltip="Clear all filters">Reset</button></div></form>';
+		$html   .= '</label>' . $this->render_related_filters_html( $data );
+		$html   .= '<div class="psm-filter-actions"><button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Apply filters"><span class="dashicons dashicons-filter" aria-hidden="true"></span> Filter</button><button type="button" class="psm-btn psm-btn-secondary" data-psm-reset-filters data-tooltip="Clear all filters">Reset</button></div></form>';
 		return $html;
 	}
 

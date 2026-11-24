@@ -26,13 +26,21 @@ class PSM_Master_Skill_Type extends PSM_Master_Abstract {
 			$where .= ' AND EXISTS (SELECT 1 FROM ' . PSM_AI_TABLE_PREFIX . 'skills s WHERE s.skill_type_id = m.id AND s.domain_id = %d)';
 			$args[] = $data['filters']['domain_id'];
 		}
-		$this->run_list_query( $data, $source, 'SELECT m.* ', 'FROM ' . $table . ' m ', $where, $args, ' ORDER BY m.sort_order ASC, m.name ASC' );
+		return $this->run_list_query( $data, $source, 'SELECT m.* ', 'FROM ' . $table . ' m ', $where, $args, ' ORDER BY m.sort_order ASC, m.name ASC' );
 	}
 
 	protected function render_related_filters_html( $data ) {
-		$options = array( array( 'value' => '', 'label' => 'All domains' ) );
+		$options = array(
+			array(
+				'value' => '',
+				'label' => 'All domains',
+			),
+		);
 		foreach ( $data['domains'] as $domain ) {
-			$options[] = array( 'value' => $domain->id, 'label' => $domain->name );
+			$options[] = array(
+				'value' => $domain->id,
+				'label' => $domain->name,
+			);
 		}
 		return '<label class="psm-filter-field"><span>Domain</span>' . $this->psm_select_html(
 			array(

@@ -19,7 +19,7 @@ class PSM_Master_Domain extends PSM_Master_Abstract {
 			$where .= ' AND m.name LIKE %s';
 			$args[] = '%' . $wpdb->esc_like( $data['filters']['search'] ) . '%';
 		}
-		$this->run_list_query( $data, $source, 'SELECT m.* ', 'FROM ' . $table . ' m ', $where, $args, ' ORDER BY m.sort_order ASC, m.name ASC' );
+		return $this->run_list_query( $data, $source, 'SELECT m.* ', 'FROM ' . $table . ' m ', $where, $args, ' ORDER BY m.sort_order ASC, m.name ASC' );
 	}
 
 	protected function get_search_placeholder() {

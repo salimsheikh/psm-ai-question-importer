@@ -1,5 +1,11 @@
 <?php
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table identifiers use fixed constants; all filter values are prepared.
+
 class PSM_Master_Tag extends PSM_Master_Abstract {
 
 	public function __construct() {
@@ -32,25 +38,39 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 			$where .= ' AND t.skill_id = %d';
 			$args[] = $data['filters']['skill_id'];
 		}
-		$from = 'FROM ' . PSM_AI_TABLE_PREFIX . 'tags t'
+		$from                   = 'FROM ' . PSM_AI_TABLE_PREFIX . 'tags t'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = t.skill_id'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'question_tags qt ON qt.tag_id = t.id ';
-		$count_sql = 'SELECT COUNT(DISTINCT t.id) ' . $from . $where;
-		$data['total_count'] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $this->get_table_name() );
+		$count_sql              = 'SELECT COUNT(DISTINCT t.id) ' . $from . $where;
+		$data['total_count']    = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $this->get_table_name() );
 		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
-		$data['total_pages'] = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
-		$data['page'] = min( $data['total_pages'], max( 1, absint( $source['tag_page'] ?? 1 ) ) );
-		$offset = ( $data['page'] - 1 ) * $data['per_page'];
-		$query = 'SELECT t.*, s.name AS skill_name, s.domain_id, COUNT(qt.question_id) AS question_count ' . $from . $where . ' GROUP BY t.id ORDER BY t.sort_order ASC, t.name ASC LIMIT %d, %d';
-		$data['rows'] = $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+		$data['total_pages']    = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
+		$data['page']           = min( $data['total_pages'], max( 1, absint( $source['tag_page'] ?? 1 ) ) );
+		$offset                 = ( $data['page'] - 1 ) * $data['per_page'];
+		$query                  = 'SELECT t.*, s.name AS skill_name, s.domain_id, COUNT(qt.question_id) AS question_count ' . $from . $where . ' GROUP BY t.id ORDER BY t.sort_order ASC, t.name ASC LIMIT %d, %d';
+		$data['rows']           = $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+		return $data;
 	}
 
 	protected function render_related_filters_html( $data ) {
-		$domain_options = array( array( 'value' => '', 'label' => 'All domains' ) );
+		$domain_options = array(
+			array(
+				'value' => '',
+				'label' => 'All domains',
+			),
+		);
 		foreach ( $data['domains'] as $domain ) {
-			$domain_options[] = array( 'value' => $domain->id, 'label' => $domain->name );
+			$domain_options[] = array(
+				'value' => $domain->id,
+				'label' => $domain->name,
+			);
 		}
-		$options = array( array( 'value' => '', 'label' => 'All skills' ) );
+		$options = array(
+			array(
+				'value' => '',
+				'label' => 'All skills',
+			),
+		);
 		foreach ( $data['skills'] as $skill ) {
 			$options[] = array(
 				'value' => $skill->id,
@@ -81,13 +101,22 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 
 	protected function get_table_headers() {
 		return array(
-			array( 'label' => 'ID', 'width' => '65px' ),
+			array(
+				'label' => 'ID',
+				'width' => '65px',
+			),
 			array( 'label' => 'Name' ),
 			array( 'label' => 'Slug' ),
 			array( 'label' => 'Skill' ),
 			array( 'label' => 'Description' ),
-			array( 'label' => 'Status', 'width' => '90px' ),
-			array( 'label' => 'Actions', 'width' => '110px' ),
+			array(
+				'label' => 'Status',
+				'width' => '90px',
+			),
+			array(
+				'label' => 'Actions',
+				'width' => '110px',
+			),
 		);
 	}
 

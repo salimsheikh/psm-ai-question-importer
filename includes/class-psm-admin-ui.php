@@ -3,6 +3,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers use fixed constants; all query values are prepared.
+// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- State-changing entry points verify nonces before dispatch; render_page only reads display filters.
+// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Raw JSON, uploads, and question fields are explicitly parsed or sanitized by their dedicated validators.
+
 class PSM_Admin_UI {
 
 	use PSM_UI_Components_Trait;
@@ -62,14 +66,14 @@ class PSM_Admin_UI {
 			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
 		}
 
-		$provider     = sanitize_key( $_POST['provider'] ?? '' );
-		$valid_provs  = PSM_API_Client::get_providers();
+		$provider    = sanitize_key( wp_unslash( $_POST['provider'] ?? '' ) );
+		$valid_provs = PSM_API_Client::get_providers();
 		if ( ! isset( $valid_provs[ $provider ] ) ) {
 			wp_send_json_error( array( 'message' => 'Invalid AI provider.' ) );
 		}
 
-		$model        = sanitize_text_field( $_POST['model'] ?? '' );
-		$endpoint     = esc_url_raw( $_POST['endpoint_url'] ?? '' );
+		$model        = sanitize_text_field( wp_unslash( $_POST['model'] ?? '' ) );
+		$endpoint     = esc_url_raw( wp_unslash( $_POST['endpoint_url'] ?? '' ) );
 		$daily_limit  = max( 1, absint( $_POST['daily_limit'] ?? 200 ) );
 		$weekly_limit = max( 1, absint( $_POST['weekly_limit'] ?? 1000 ) );
 		$set_default  = ! empty( $_POST['set_as_default'] );
@@ -89,10 +93,10 @@ class PSM_Admin_UI {
 
 		$settings['providers'][ $provider ] = array(
 			'api_key'      => $api_key,
-			'model'        => $model ?: ( PSM_API_Client::get_default_models()[ $provider ] ?? '' ),
+			'model'        => $model ? $model : ( PSM_API_Client::get_default_models()[ $provider ] ?? '' ),
 			'endpoint_url' => $endpoint,
 		);
-		$settings['limits'][ $provider ] = array(
+		$settings['limits'][ $provider ]    = array(
 			'daily_limit'  => $daily_limit,
 			'weekly_limit' => $weekly_limit,
 		);
@@ -107,12 +111,14 @@ class PSM_Admin_UI {
 		update_option( 'psm_ai_api_settings', $settings, false );
 		$usage = PSM_API_Client::get_usage_status( $provider );
 
-		wp_send_json_success( array(
-			'message' => $valid_provs[ $provider ] . ' settings saved successfully.',
-			'usage'   => $usage,
-			'default' => $settings['provider'],
-			'has_key' => '' !== $api_key,
-		) );
+		wp_send_json_success(
+			array(
+				'message' => $valid_provs[ $provider ] . ' settings saved successfully.',
+				'usage'   => $usage,
+				'default' => $settings['provider'],
+				'has_key' => '' !== $api_key,
+			)
+		);
 	}
 
 	/**
@@ -125,7 +131,7 @@ class PSM_Admin_UI {
 		}
 
 		global $wpdb;
-		$entity    = sanitize_key( $_POST['entity'] ?? '' );
+		$entity    = sanitize_key( wp_unslash( $_POST['entity'] ?? '' ) );
 		$record_id = absint( $_POST['record_id'] ?? 0 );
 		$now       = current_time( 'mysql', true );
 
@@ -133,22 +139,27 @@ class PSM_Admin_UI {
 			$this->save_question_master( $record_id, $now );
 		}
 
-		$name        = sanitize_text_field( $_POST['name'] ?? '' );
-		$raw_slug    = sanitize_text_field( $_POST['slug'] ?? '' );
-		$description = sanitize_textarea_field( $_POST['description'] ?? '' );
+		$name        = sanitize_text_field( wp_unslash( $_POST['name'] ?? '' ) );
+		$raw_slug    = sanitize_text_field( wp_unslash( $_POST['slug'] ?? '' ) );
+		$description = sanitize_textarea_field( wp_unslash( $_POST['description'] ?? '' ) );
 		$sort_order  = absint( $_POST['sort_order'] ?? 10 );
-		$status      = in_array( $_POST['status'] ?? 'active', array( 'active', 'inactive' ), true ) ? $_POST['status'] : 'active';
+		$status      = sanitize_key( wp_unslash( $_POST['status'] ?? 'active' ) );
+		$status      = in_array( $status, array( 'active', 'inactive' ), true ) ? $status : 'active';
 
-		if ( $entity === 'batch' ) {
-			$label_name = sanitize_text_field( $_POST['label_name'] ?? '' );
-			$b_status   = sanitize_key( $_POST['status'] ?? 'completed' );
+		if ( 'batch' === $entity ) {
+			$label_name = sanitize_text_field( wp_unslash( $_POST['label_name'] ?? '' ) );
+			$b_status   = sanitize_key( wp_unslash( $_POST['status'] ?? 'completed' ) );
 			$b_status   = in_array( $b_status, array( 'completed', 'processing', 'failed' ), true ) ? $b_status : 'completed';
 			if ( ! $record_id || empty( $label_name ) ) {
 				wp_send_json_error( array( 'message' => 'Batch ID and Label Name are required.' ) );
 			}
 			$wpdb->update(
 				PSM_AI_TABLE_PREFIX . 'batches',
-				array( 'label_name' => $label_name, 'status' => $b_status, 'updated_at' => $now ),
+				array(
+					'label_name' => $label_name,
+					'status'     => $b_status,
+					'updated_at' => $now,
+				),
 				array( 'id' => $record_id )
 			);
 			wp_send_json_success( array( 'message' => 'Batch updated.' ) );
@@ -158,8 +169,8 @@ class PSM_Admin_UI {
 			wp_send_json_error( array( 'message' => 'Name is required.' ) );
 		}
 
-		$slug = ( $entity === 'question_type' )
-			? sanitize_key( $raw_slug ?: $name )
+		$slug = ( 'question_type' === $entity )
+			? sanitize_key( $raw_slug ? $raw_slug : $name )
 			: PSM_Seeder::make_slug( $raw_slug, $name );
 
 		if ( empty( $slug ) ) {
@@ -197,13 +208,24 @@ class PSM_Admin_UI {
 			'updated_at'  => $now,
 		);
 
-		if ( $entity === 'domain' ) {
-			$data['icon'] = sanitize_text_field( $_POST['icon'] ?? 'dashicons-category' );
-		} elseif ( $entity === 'skill' ) {
+		if ( 'domain' === $entity ) {
+			$data['icon'] = sanitize_text_field( wp_unslash( $_POST['icon'] ?? 'dashicons-category' ) );
+		} elseif ( 'skill' === $entity ) {
 			$domain_id = absint( $_POST['domain_id'] ?? 0 );
 			$parent_id = absint( $_POST['parent_skill_id'] ?? 0 );
 			$type_id   = absint( $_POST['skill_type_id'] ?? 0 );
-			$type_name = $type_id ? (string) $wpdb->get_var( $wpdb->prepare( "SELECT name FROM " . PSM_AI_TABLE_PREFIX . "skill_types WHERE id = %d", $type_id ) ) : 'Subject';
+			$domain    = $wpdb->get_row( $wpdb->prepare( 'SELECT id FROM ' . PSM_AI_TABLE_PREFIX . 'domains WHERE id = %d', $domain_id ) );
+			if ( ! $domain ) {
+				wp_send_json_error( array( 'message' => 'Select a valid Domain for the Skill.' ) );
+			}
+			$type_name = 'Subject';
+			if ( $type_id ) {
+				$skill_type = $wpdb->get_row( $wpdb->prepare( 'SELECT name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types WHERE id = %d', $type_id ) );
+				if ( ! $skill_type ) {
+					wp_send_json_error( array( 'message' => 'Select a valid Skill Type.' ) );
+				}
+				$type_name = (string) $skill_type->name;
+			}
 
 			if ( $record_id && $parent_id === $record_id ) {
 				wp_send_json_error( array( 'message' => 'A skill cannot be its own parent.' ) );
@@ -217,20 +239,32 @@ class PSM_Admin_UI {
 
 			$data['domain_id']       = $domain_id;
 			$data['parent_id']       = $parent_id;
-			$data['parent_skill_id'] = $parent_id ?: null;
+			$data['parent_skill_id'] = $parent_id ? $parent_id : null;
 			$data['skill_type_id']   = $type_id;
-			$data['skill_type']      = $type_name ?: 'Subject';
-		} elseif ( $entity === 'tag' ) {
+			$data['skill_type']      = $type_name;
+		} elseif ( 'tag' === $entity ) {
 			$skill_id  = absint( $_POST['skill_id'] ?? 0 );
 			$domain_id = absint( $_POST['tag_domain_id'] ?? 0 );
-			if ( ! $skill_id ) {
-				wp_send_json_error( array( 'message' => 'Parent Skill is required for a Tag.' ) );
+			$skill     = $wpdb->get_row( $wpdb->prepare( 'SELECT id, domain_id, slug, name FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
+			if ( ! $skill ) {
+				wp_send_json_error( array( 'message' => 'Select a valid parent Skill for the Tag.' ) );
 			}
-			if ( $domain_id ) {
-				$skill_domain = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
-				if ( $skill_domain !== $domain_id ) {
-					wp_send_json_error( array( 'message' => 'The parent Skill does not belong to the selected Domain.' ) );
+			if ( ! $domain_id ) {
+				wp_send_json_error( array( 'message' => 'Select a Domain for the Tag.' ) );
+			}
+			if ( (int) $skill->domain_id !== $domain_id ) {
+				wp_send_json_error( array( 'message' => 'The parent Skill does not belong to the selected Domain.' ) );
+			}
+			$slug = PSM_Importer::normalize_tag_slug( $raw_slug ? $raw_slug : $name, $skill->slug, $skill->name );
+			if ( '' === $slug ) {
+				wp_send_json_error( array( 'message' => 'Valid tag name is required.' ) );
+			}
+			if ( $slug !== $data['slug'] ) {
+				$dup_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE slug = %s AND id != %d", $slug, $record_id ) );
+				if ( $dup_id ) {
+					wp_send_json_error( array( 'message' => "Slug '{$slug}' already exists. Slugs must be unique." ) );
 				}
+				$data['slug'] = $slug;
 			}
 			$data['skill_id'] = $skill_id;
 		}
@@ -254,50 +288,55 @@ class PSM_Admin_UI {
 	private function save_question_master( $record_id, $now ) {
 		global $wpdb;
 
-		$skill_id = absint( $_POST['skill_id'] ?? 0 );
+		$skill_id  = absint( $_POST['skill_id'] ?? 0 );
 		$domain_id = absint( $_POST['question_domain_id'] ?? 0 );
-		$skill    = $skill_id ? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE id = %d", $skill_id ) ) : null;
+		$skill     = $skill_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) ) : null;
 		if ( ! $skill ) {
 			wp_send_json_error( array( 'message' => 'Select a valid Skill for the question.' ) );
 		}
-		if ( $domain_id && (int) $skill->domain_id !== $domain_id ) {
+		if ( ! $domain_id ) {
+			wp_send_json_error( array( 'message' => 'Select a Domain for the question.' ) );
+		}
+		if ( (int) $skill->domain_id !== $domain_id ) {
 			wp_send_json_error( array( 'message' => 'The selected Skill does not belong to the selected Domain.' ) );
 		}
 
 		$existing = null;
 		if ( $record_id ) {
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "questions WHERE id = %d", $record_id ) );
+			$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE id = %d', $record_id ) );
 			if ( ! $existing ) {
 				wp_send_json_error( array( 'message' => 'Question not found.' ) );
 			}
 		}
 
-		$status      = sanitize_key( $_POST['question_status'] ?? 'draft' );
-		$difficulty  = PSM_Importer::normalize_difficulty_id( $_POST['difficulty'] ?? 1 );
-		$raw_correct = array_map( 'sanitize_key', (array) ( $_POST['correct_keys'] ?? array() ) );
+		$status      = sanitize_key( wp_unslash( $_POST['question_status'] ?? 'draft' ) );
+		$difficulty  = PSM_Importer::normalize_difficulty_id( wp_unslash( $_POST['difficulty'] ?? 1 ) );
+		$raw_correct = array_map( 'sanitize_key', (array) wp_unslash( $_POST['correct_keys'] ?? array() ) );
 		$item        = array(
-			'question_text'  => wp_unslash( $_POST['question_text'] ?? '' ),
-			'question_type'  => wp_unslash( $_POST['question_type'] ?? 'four_option' ),
-			'difficulty'     => $difficulty,
-			'code_snippet'   => wp_unslash( $_POST['code_snippet'] ?? '' ),
-			'code_language'  => wp_unslash( $_POST['code_language'] ?? '' ),
-			'options'        => array(
+			'question_text' => wp_unslash( $_POST['question_text'] ?? '' ),
+			'question_type' => wp_unslash( $_POST['question_type'] ?? 'four_option' ),
+			'difficulty'    => $difficulty,
+			'code_snippet'  => wp_unslash( $_POST['code_snippet'] ?? '' ),
+			'code_language' => wp_unslash( $_POST['code_language'] ?? '' ),
+			'options'       => array(
 				'A' => wp_unslash( $_POST['option_a'] ?? '' ),
 				'B' => wp_unslash( $_POST['option_b'] ?? '' ),
 				'C' => wp_unslash( $_POST['option_c'] ?? '' ),
 				'D' => wp_unslash( $_POST['option_d'] ?? '' ),
 			),
-			'correct_keys'   => $raw_correct,
-			'explanation'    => wp_unslash( $_POST['explanation'] ?? '' ),
-			'status'         => $status,
-			'external_id'    => wp_unslash( $_POST['external_id'] ?? '' ),
+			'correct_keys'  => $raw_correct,
+			'explanation'   => wp_unslash( $_POST['explanation'] ?? '' ),
+			'status'        => $status,
+			'external_id'   => wp_unslash( $_POST['external_id'] ?? '' ),
 		);
-		$inspected = PSM_Importer::inspect_question( $item, $status, $difficulty );
+		$inspected   = PSM_Importer::inspect_question( $item, $status, $difficulty );
 		if ( empty( $inspected['data'] ) ) {
-			wp_send_json_error( array(
-				'message' => implode( ' ', $inspected['errors'] ),
-				'errors'  => $inspected['errors'],
-			) );
+			wp_send_json_error(
+				array(
+					'message' => implode( ' ', $inspected['errors'] ),
+					'errors'  => $inspected['errors'],
+				)
+			);
 		}
 		$data = $inspected['data'];
 
@@ -357,7 +396,9 @@ class PSM_Admin_UI {
 			'updated_at'    => $now,
 		);
 
-		$wpdb->query( 'START TRANSACTION' );
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not start the question transaction.' ) );
+		}
 
 		foreach ( $tag_slugs as $tag_slug ) {
 			$tag_id = PSM_Importer::resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, $created_tags );
@@ -377,35 +418,47 @@ class PSM_Admin_UI {
 		} else {
 			$stored['created_by'] = get_current_user_id();
 			$stored['created_at'] = $now;
-			$saved = $wpdb->insert( $questions_table, $stored );
+			$saved                = $wpdb->insert( $questions_table, $stored );
 		}
 		if ( false === $saved ) {
 			$wpdb->query( 'ROLLBACK' );
-			wp_send_json_error( array( 'message' => $wpdb->last_error ?: 'Could not save the question.' ) );
+			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not save the question.' ) );
 		}
 
 		$question_id = $existing ? $record_id : (int) $wpdb->insert_id;
 		if ( false === $wpdb->delete( $question_tags_table, array( 'question_id' => $question_id ), array( '%d' ) ) ) {
 			$wpdb->query( 'ROLLBACK' );
-			wp_send_json_error( array( 'message' => $wpdb->last_error ?: 'Could not update question tags.' ) );
+			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not update question tags.' ) );
 		}
 		foreach ( array_values( array_unique( $tag_ids ) ) as $tag_id ) {
-			if ( ! $wpdb->insert( $question_tags_table, array( 'question_id' => $question_id, 'tag_id' => $tag_id ), array( '%d', '%d' ) ) ) {
+			if ( ! $wpdb->insert(
+				$question_tags_table,
+				array(
+					'question_id' => $question_id,
+					'tag_id'      => $tag_id,
+				),
+				array( '%d', '%d' )
+			) ) {
 				$wpdb->query( 'ROLLBACK' );
-				wp_send_json_error( array( 'message' => $wpdb->last_error ?: 'Could not link question tags.' ) );
+				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not link question tags.' ) );
 			}
 		}
 
 		if ( false === $wpdb->query( 'COMMIT' ) ) {
 			$wpdb->query( 'ROLLBACK' );
-			wp_send_json_error( array( 'message' => $wpdb->last_error ?: 'Could not commit the question.' ) );
+			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not commit the question.' ) );
 		}
 
 		$message = $existing ? 'Question updated successfully.' : 'Question added successfully.';
 		if ( ! empty( $created_tags ) ) {
 			$message .= ' Created tag(s): ' . implode( ', ', $created_tags ) . '.';
 		}
-		wp_send_json_success( array( 'message' => $message, 'question_id' => $question_id ) );
+		wp_send_json_success(
+			array(
+				'message'     => $message,
+				'question_id' => $question_id,
+			)
+		);
 	}
 
 	public function ajax_get_question_master() {
@@ -465,30 +518,30 @@ class PSM_Admin_UI {
 			}
 
 			$wpdb->query( 'START TRANSACTION' );
-			$unlinked_tags = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'question_tags', array( 'question_id' => $record_id ), array( '%d' ) );
+			$unlinked_tags    = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'question_tags', array( 'question_id' => $record_id ), array( '%d' ) );
 			$unlinked_batches = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'batch_questions', array( 'question_id' => $record_id ), array( '%d' ) );
-			$deleted = $wpdb->delete( $questions_table, array( 'id' => $record_id ), array( '%d' ) );
+			$deleted          = $wpdb->delete( $questions_table, array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $unlinked_tags || false === $unlinked_batches || false === $deleted || $wpdb->last_error ) {
 				$wpdb->query( 'ROLLBACK' );
-				wp_send_json_error( array( 'message' => $wpdb->last_error ?: 'Could not delete the question.' ) );
+				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the question.' ) );
 			}
 			if ( false === $wpdb->query( 'COMMIT' ) ) {
 				$wpdb->query( 'ROLLBACK' );
-				wp_send_json_error( array( 'message' => $wpdb->last_error ?: 'Could not commit the deletion.' ) );
+				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not commit the deletion.' ) );
 			}
 			wp_send_json_success( array( 'message' => 'Question and its tag and batch links deleted.' ) );
 		}
 
-		if ( $entity === 'skill' ) {
-			$q_count = (int) $wpdb->get_var(
-				$wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "questions WHERE skill_id = %d", $record_id )
+		if ( 'skill' === $entity ) {
+			$q_count     = (int) $wpdb->get_var(
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE skill_id = %d', $record_id )
 			);
-			$t_count = (int) $wpdb->get_var(
-				$wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d", $record_id )
+			$t_count     = (int) $wpdb->get_var(
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'tags WHERE skill_id = %d', $record_id )
 			);
 			$child_count = (int) $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE parent_id = %d OR parent_skill_id = %d",
+					'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE parent_id = %d OR parent_skill_id = %d',
 					$record_id,
 					$record_id
 				)
@@ -505,31 +558,35 @@ class PSM_Admin_UI {
 				if ( $child_count > 0 ) {
 					$reasons[] = "{$child_count} child skill(s)";
 				}
-				wp_send_json_error( array(
-					'message' => 'Cannot delete Skill because it is linked to ' . implode( ', ', $reasons ) . '. Remove or reassign them first.',
-				) );
+				wp_send_json_error(
+					array(
+						'message' => 'Cannot delete Skill because it is linked to ' . implode( ', ', $reasons ) . '. Remove or reassign them first.',
+					)
+				);
 			}
 
 			$wpdb->delete( PSM_AI_TABLE_PREFIX . 'skills', array( 'id' => $record_id ), array( '%d' ) );
 			wp_send_json_success( array( 'message' => 'Skill deleted successfully.' ) );
 		}
 
-		if ( $entity === 'tag' ) {
+		if ( 'tag' === $entity ) {
 			$q_count = (int) $wpdb->get_var(
-				$wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "question_tags WHERE tag_id = %d", $record_id )
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags WHERE tag_id = %d', $record_id )
 			);
 			if ( $q_count > 0 ) {
-				wp_send_json_error( array(
-					'message' => "Cannot delete Tag because {$q_count} question(s) are assigned to it. Unlink those questions first.",
-				) );
+				wp_send_json_error(
+					array(
+						'message' => "Cannot delete Tag because {$q_count} question(s) are assigned to it. Unlink those questions first.",
+					)
+				);
 			}
 
 			$wpdb->delete( PSM_AI_TABLE_PREFIX . 'tags', array( 'id' => $record_id ), array( '%d' ) );
 			wp_send_json_success( array( 'message' => 'Tag deleted successfully.' ) );
 		}
 
-		if ( $entity === 'domain' ) {
-			$s_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE domain_id = %d", $record_id ) );
+		if ( 'domain' === $entity ) {
+			$s_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE domain_id = %d', $record_id ) );
 			if ( $s_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Domain because {$s_count} skill(s) belong to it." ) );
 			}
@@ -537,8 +594,8 @@ class PSM_Admin_UI {
 			wp_send_json_success( array( 'message' => 'Domain deleted successfully.' ) );
 		}
 
-		if ( $entity === 'skill_type' ) {
-			$s_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE skill_type_id = %d", $record_id ) );
+		if ( 'skill_type' === $entity ) {
+			$s_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE skill_type_id = %d', $record_id ) );
 			if ( $s_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Skill Type because {$s_count} skill(s) use it." ) );
 			}
@@ -546,9 +603,9 @@ class PSM_Admin_UI {
 			wp_send_json_success( array( 'message' => 'Skill Type deleted successfully.' ) );
 		}
 
-		if ( $entity === 'question_type' ) {
-			$slug = (string) $wpdb->get_var( $wpdb->prepare( "SELECT slug FROM " . PSM_AI_TABLE_PREFIX . "question_types WHERE id = %d", $record_id ) );
-			$q_count = $slug ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "questions WHERE question_type = %s", $slug ) ) : 0;
+		if ( 'question_type' === $entity ) {
+			$slug    = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_types WHERE id = %d', $record_id ) );
+			$q_count = $slug ? (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE question_type = %s', $slug ) ) : 0;
 			if ( $q_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Question Type because {$q_count} question(s) use slug '{$slug}'." ) );
 			}
@@ -556,8 +613,8 @@ class PSM_Admin_UI {
 			wp_send_json_success( array( 'message' => 'Question Type deleted successfully.' ) );
 		}
 
-		if ( $entity === 'difficulty' ) {
-			$q_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "questions WHERE difficulty = %d", $record_id ) );
+		if ( 'difficulty' === $entity ) {
+			$q_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE difficulty = %d', $record_id ) );
 			if ( $q_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Difficulty because {$q_count} question(s) reference ID {$record_id}." ) );
 			}
@@ -565,7 +622,7 @@ class PSM_Admin_UI {
 			wp_send_json_success( array( 'message' => 'Difficulty deleted successfully.' ) );
 		}
 
-		if ( $entity === 'batch' ) {
+		if ( 'batch' === $entity ) {
 			$wpdb->delete( PSM_AI_TABLE_PREFIX . 'batch_questions', array( 'batch_id' => $record_id ), array( '%d' ) );
 			$wpdb->delete( PSM_AI_TABLE_PREFIX . 'batches', array( 'id' => $record_id ), array( '%d' ) );
 			wp_send_json_success( array( 'message' => 'Batch and its question links deleted.' ) );
@@ -581,17 +638,29 @@ class PSM_Admin_UI {
 		}
 
 		$summary = PSM_Seeder::run_seed();
-		set_transient( 'psm_admin_notice_' . get_current_user_id(), array(
-			'type' => 'success',
-			'text' => sprintf(
-				'Idempotent seed completed with descriptions & fixed slugs: %d new domains, %d new skills, %d new tags added. Existing records preserved.',
-				$summary['domains'],
-				$summary['skills'],
-				$summary['tags']
+		set_transient(
+			'psm_admin_notice_' . get_current_user_id(),
+			array(
+				'type' => 'success',
+				'text' => sprintf(
+					'Idempotent seed completed with descriptions & fixed slugs: %d new domains, %d new skills, %d new tags added. Existing records preserved.',
+					$summary['domains'],
+					$summary['skills'],
+					$summary['tags']
+				),
 			),
-		), 60 );
+			60
+		);
 
-		wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'masters' ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page' => 'psm-ai-importer',
+					'tab'  => 'masters',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
@@ -607,6 +676,7 @@ class PSM_Admin_UI {
 		global $wpdb;
 
 		$skill_id       = absint( $source['skill_id'] ?? 0 );
+		$domain_id      = absint( $source['domain_id'] ?? 0 );
 		$tag_ids        = array_map( 'absint', (array) ( $source['tag_ids'] ?? array() ) );
 		$difficulty_raw = sanitize_text_field( wp_unslash( $source['difficulty'] ?? 'all' ) );
 		$difficulty_id  = is_numeric( $difficulty_raw ) ? min( 3, max( 1, absint( $difficulty_raw ) ) ) : 1;
@@ -639,17 +709,20 @@ class PSM_Admin_UI {
 		}
 		$focus_tag_slug = sanitize_title( (string) ( $source['focus_tag_slug'] ?? '' ) );
 
-		$skill = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE id = %d", $skill_id ) );
+		$skill = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
 		if ( ! $skill ) {
 			return new WP_Error( 'invalid_skill', 'Please select a valid Skill.' );
+		}
+		if ( ! $domain_id || (int) $skill->domain_id !== $domain_id ) {
+			return new WP_Error( 'invalid_domain', 'The selected Skill does not belong to the selected Domain.' );
 		}
 
 		if ( 'all' === $difficulty_raw || 'mixed' === $difficulty_raw ) {
 			$diff_label = 'All Levels (beginner, intermediate, advanced)';
 		} else {
 			$diff_row = is_numeric( $difficulty_raw )
-				? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "difficulties WHERE id = %d", $difficulty_id ) )
-				: $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "difficulties WHERE slug = %s", $difficulty_raw ) );
+				? $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties WHERE id = %d', $difficulty_id ) )
+				: $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties WHERE slug = %s', $difficulty_raw ) );
 			if ( $diff_row && ! is_numeric( $difficulty_raw ) ) {
 				$difficulty_id = (int) $diff_row->id;
 			}
@@ -657,7 +730,7 @@ class PSM_Admin_UI {
 		}
 
 		$skill_tags = $wpdb->get_results(
-			$wpdb->prepare( "SELECT id, name, slug FROM " . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id )
+			$wpdb->prepare( 'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id )
 		);
 
 		$allowed_tag_slugs   = array();
@@ -742,12 +815,13 @@ class PSM_Admin_UI {
 		}
 
 		return array(
+			'domain_id'          => $domain_id,
 			'skill_id'           => $skill_id,
 			'skill_name'         => $skill->name,
 			'tag_ids'            => $tag_ids,
 			'default_status'     => $default_status,
 			'default_difficulty' => $difficulty_id,
-			'label_name'         => $label_name ?: ( $skill->name . ' - ' . wp_date( 'Y-m-d H:i' ) ),
+			'label_name'         => $label_name ? $label_name : ( $skill->name . ' - ' . wp_date( 'Y-m-d H:i' ) ),
 			'provider'           => $used_provider,
 			'model'              => $used_model,
 			'prompt_text'        => $user_prompt,
@@ -766,14 +840,38 @@ class PSM_Admin_UI {
 
 		$preview = $this->collect_preview( $_POST );
 		if ( is_wp_error( $preview ) ) {
-			set_transient( 'psm_admin_notice_' . get_current_user_id(), array( 'type' => 'error', 'text' => $preview->get_error_message() ), 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
+			set_transient(
+				'psm_admin_notice_' . get_current_user_id(),
+				array(
+					'type' => 'error',
+					'text' => $preview->get_error_message(),
+				),
+				60
+			);
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page' => 'psm-ai-importer',
+						'tab'  => 'generate',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
 			exit;
 		}
 
 		set_transient( 'psm_preview_data_' . get_current_user_id(), $preview, 1800 );
 
-		wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate', 'preview' => '1' ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'psm-ai-importer',
+					'tab'     => 'generate',
+					'preview' => '1',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
@@ -791,17 +889,20 @@ class PSM_Admin_UI {
 
 			set_transient( 'psm_preview_data_' . get_current_user_id(), $preview, 1800 );
 
-			wp_send_json_success( array(
-				'redirect_url' => add_query_arg(
-					array( 'page' => 'psm-ai-importer', 'tab' => 'generate', 'preview' => '1' ),
-					admin_url( 'admin.php' )
-				),
-			) );
+			wp_send_json_success(
+				array(
+					'redirect_url' => add_query_arg(
+						array(
+							'page'    => 'psm-ai-importer',
+							'tab'     => 'generate',
+							'preview' => '1',
+						),
+						admin_url( 'admin.php' )
+					),
+				)
+			);
 		} catch ( \Throwable $e ) {
-			error_log( '[PSM AI Importer] ajax_fetch_preview fatal error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
-			wp_send_json_error( array(
-				'message' => 'Server Error (' . get_class( $e ) . '): ' . $e->getMessage() . ' in ' . basename( $e->getFile() ) . ':' . $e->getLine(),
-			) );
+			wp_send_json_error( array( 'message' => 'The preview could not be generated. Please try again.' ) );
 		}
 	}
 
@@ -815,15 +916,19 @@ class PSM_Admin_UI {
 		}
 
 		global $wpdb;
-		$skill_id = absint( $_POST['skill_id'] ?? 0 );
-		$skill    = $wpdb->get_row( $wpdb->prepare( "SELECT id, name, slug FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE id = %d", $skill_id ) );
+		$skill_id  = absint( $_POST['skill_id'] ?? 0 );
+		$domain_id = absint( $_POST['domain_id'] ?? 0 );
+		$skill     = $wpdb->get_row( $wpdb->prepare( 'SELECT id, name, slug, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
 		if ( ! $skill ) {
 			wp_send_json_error( array( 'message' => 'Please select a valid Skill first.' ) );
 		}
+		if ( ! $domain_id || (int) $skill->domain_id !== $domain_id ) {
+			wp_send_json_error( array( 'message' => 'The selected Skill does not belong to the selected Domain.' ) );
+		}
 
-		$tag_rows   = $wpdb->get_results( $wpdb->prepare( "SELECT id, name, slug FROM " . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id ) );
-		$tags_all   = array();
-		$slug_by_id = array();
+		$tag_rows    = $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id ) );
+		$tags_all    = array();
+		$slug_by_id  = array();
 		$label_by_id = array();
 		foreach ( $tag_rows as $row ) {
 			$tags_all[]                    = $row->slug;
@@ -835,7 +940,7 @@ class PSM_Admin_UI {
 		$tag_labels    = array();
 		foreach ( array_map( 'absint', (array) ( $_POST['tag_ids'] ?? array() ) ) as $tid ) {
 			if ( isset( $slug_by_id[ $tid ] ) ) {
-				$tags_selected[]             = $slug_by_id[ $tid ];
+				$tags_selected[]                   = $slug_by_id[ $tid ];
 				$tag_labels[ $slug_by_id[ $tid ] ] = $label_by_id[ $tid ];
 			}
 		}
@@ -845,7 +950,11 @@ class PSM_Admin_UI {
 			$difficulty = 'all';
 		} else {
 			$diff_id    = PSM_Importer::normalize_difficulty_id( $difficulty_raw );
-			$difficulty = array( 1 => 'beginner', 2 => 'intermediate', 3 => 'advanced' )[ $diff_id ];
+			$difficulty = array(
+				1 => 'beginner',
+				2 => 'intermediate',
+				3 => 'advanced',
+			)[ $diff_id ];
 		}
 
 		$types = array_map( 'sanitize_key', (array) ( $_POST['question_types'] ?? array() ) );
@@ -895,10 +1004,14 @@ class PSM_Admin_UI {
 		}
 
 		global $wpdb;
-		$skill_id = absint( $_POST['skill_id'] ?? 0 );
-		$skill    = $wpdb->get_row( $wpdb->prepare( "SELECT id, name, slug FROM " . PSM_AI_TABLE_PREFIX . "skills WHERE id = %d", $skill_id ) );
+		$skill_id  = absint( $_POST['skill_id'] ?? 0 );
+		$domain_id = absint( $_POST['domain_id'] ?? 0 );
+		$skill     = $wpdb->get_row( $wpdb->prepare( 'SELECT id, name, slug, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
 		if ( ! $skill ) {
 			$this->redirect_with_notice( 'Please select a valid Skill for the JSON import.' );
+		}
+		if ( ! $domain_id || (int) $skill->domain_id !== $domain_id ) {
+			$this->redirect_with_notice( 'The selected Skill does not belong to the selected Domain.' );
 		}
 
 		$focus_tag_id = absint( $_POST['focus_tag_id'] ?? 0 );
@@ -906,7 +1019,7 @@ class PSM_Admin_UI {
 		if ( $focus_tag_id ) {
 			$focus_tag = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT id, name, slug FROM " . PSM_AI_TABLE_PREFIX . "tags WHERE id = %d AND skill_id = %d AND status = 'active'",
+					'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE id = %d AND skill_id = %d AND status = 'active'",
 					$focus_tag_id,
 					$skill_id
 				)
@@ -950,6 +1063,7 @@ class PSM_Admin_UI {
 				$this->redirect_with_notice( 'Only .json files are supported.' );
 			}
 
+			// phpcs:ignore WordPress.WP.AlternativeFunctions -- Reads a verified local upload, not a remote URL.
 			$raw = file_get_contents( $tmp_name );
 			if ( false === $raw || '' === trim( $raw ) ) {
 				$this->redirect_with_notice( 'The uploaded JSON file is empty or unreadable.' );
@@ -995,13 +1109,14 @@ class PSM_Admin_UI {
 			$this->redirect_with_notice( 'Import Status must be Draft or Published.' );
 		}
 
-		$envelope      = json_decode( $raw, true );
-		$file_diff     = ( is_array( $envelope ) && isset( $envelope['generation']['difficulty'] ) )
+		$envelope  = json_decode( $raw, true );
+		$file_diff = ( is_array( $envelope ) && isset( $envelope['generation']['difficulty'] ) )
 			? sanitize_text_field( (string) $envelope['generation']['difficulty'] )
 			: 'all';
 
 		$preview = $this->collect_preview(
 			array(
+				'domain_id'           => $domain_id,
 				'skill_id'            => $skill_id,
 				'tag_ids'             => array(),
 				'difficulty'          => '' !== $file_diff ? $file_diff : 'all',
@@ -1067,7 +1182,7 @@ class PSM_Admin_UI {
 
 		if ( isset( $decoded['generation']['total_questions'] ) ) {
 			$declared = $decoded['generation']['total_questions'];
-			if ( ! is_numeric( $declared ) || (int) $declared !== count( $questions ) ) {
+			if ( ! is_numeric( $declared ) || count( $questions ) !== (int) $declared ) {
 				return new WP_Error(
 					'count_mismatch',
 					'generation.total_questions must equal the number of questions in the file (' . count( $questions ) . ').'
@@ -1118,7 +1233,7 @@ class PSM_Admin_UI {
 				);
 			}
 
-			$answer_mode = strtolower( trim( (string) ( $q['answer_mode'] ?? '' ) ) );
+			$answer_mode   = strtolower( trim( (string) ( $q['answer_mode'] ?? '' ) ) );
 			$expected_mode = ( 'multiple_choice' === $q_type ) ? 'multiple' : 'single';
 			if ( $answer_mode !== $expected_mode ) {
 				return new WP_Error(
@@ -1127,8 +1242,8 @@ class PSM_Admin_UI {
 				);
 			}
 
-			$options   = $q['options'] ?? array();
-			$opt_count = is_array( $options ) ? count( $options ) : 0;
+			$options          = $q['options'] ?? array();
+			$opt_count        = is_array( $options ) ? count( $options ) : 0;
 			$expected_options = ( 'two_option' === $q_type || 'true_false' === $q_type ) ? 2 : 4;
 			if ( $opt_count !== $expected_options ) {
 				return new WP_Error(
@@ -1141,7 +1256,7 @@ class PSM_Admin_UI {
 			if ( is_string( $correct_raw ) ) {
 				$correct_raw = preg_split( '/[,;|]/', $correct_raw, -1, PREG_SPLIT_NO_EMPTY );
 			}
-			$correct = is_array( $correct_raw )
+			$correct       = is_array( $correct_raw )
 				? array_values( array_filter( array_map( 'trim', array_map( 'strval', $correct_raw ) ), 'strlen' ) )
 				: array();
 			$correct_count = count( $correct );
@@ -1168,9 +1283,21 @@ class PSM_Admin_UI {
 		}
 
 		if ( count( $parsed_ids ) === count( $questions ) ) {
-			$prefixes = array_unique( array_map( static function ( $pair ) { return $pair[0]; }, $parsed_ids ) );
+			$prefixes = array_unique(
+				array_map(
+					static function ( $pair ) {
+						return $pair[0];
+					},
+					$parsed_ids
+				)
+			);
 			if ( 1 === count( $prefixes ) ) {
-				$sequence = array_map( static function ( $pair ) { return $pair[1]; }, array_values( $parsed_ids ) );
+				$sequence = array_map(
+					static function ( $pair ) {
+						return $pair[1];
+					},
+					array_values( $parsed_ids )
+				);
 				sort( $sequence );
 				if ( range( 1, count( $questions ) ) !== $sequence ) {
 					return new WP_Error( 'external_id_sequence', 'external_id values must increment sequentially from 001 to ' . str_pad( (string) count( $questions ), 3, '0', STR_PAD_LEFT ) . ' within the same prefix.' );
@@ -1225,15 +1352,45 @@ class PSM_Admin_UI {
 		$preview = get_transient( 'psm_preview_data_' . $user_id );
 
 		if ( empty( $preview ) || empty( $preview['questions'] ) ) {
-			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => 'error', 'text' => 'Preview expired or not found.' ), 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
+			set_transient(
+				'psm_admin_notice_' . $user_id,
+				array(
+					'type' => 'error',
+					'text' => 'Preview expired or not found.',
+				),
+				60
+			);
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page' => 'psm-ai-importer',
+						'tab'  => 'generate',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
 			exit;
 		}
 
 		if ( ! empty( $_POST['cancel_preview'] ) ) {
 			delete_transient( 'psm_preview_data_' . $user_id );
-			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => 'info', 'text' => 'Preview discarded.' ), 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
+			set_transient(
+				'psm_admin_notice_' . $user_id,
+				array(
+					'type' => 'info',
+					'text' => 'Preview discarded.',
+				),
+				60
+			);
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page' => 'psm-ai-importer',
+						'tab'  => 'generate',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
 			exit;
 		}
 
@@ -1246,8 +1403,24 @@ class PSM_Admin_UI {
 		}
 
 		if ( empty( $chosen_questions ) ) {
-			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => 'error', 'text' => 'Select at least one row to import.' ), 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate', 'preview' => '1' ), admin_url( 'admin.php' ) ) );
+			set_transient(
+				'psm_admin_notice_' . $user_id,
+				array(
+					'type' => 'error',
+					'text' => 'Select at least one row to import.',
+				),
+				60
+			);
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'    => 'psm-ai-importer',
+						'tab'     => 'generate',
+						'preview' => '1',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
 			exit;
 		}
 
@@ -1269,7 +1442,14 @@ class PSM_Admin_UI {
 		delete_transient( 'psm_preview_data_' . $user_id );
 
 		if ( is_wp_error( $import_res ) ) {
-			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => 'error', 'text' => $import_res->get_error_message() ), 60 );
+			set_transient(
+				'psm_admin_notice_' . $user_id,
+				array(
+					'type' => 'error',
+					'text' => $import_res->get_error_message(),
+				),
+				60
+			);
 		} else {
 			$msg = sprintf(
 				'Batch [%s] imported for %s: %d inserted, %d duplicates skipped, %d invalid skipped.',
@@ -1286,8 +1466,8 @@ class PSM_Admin_UI {
 
 			$messages = is_array( $import_res['messages'] ) ? $import_res['messages'] : array();
 			if ( ! empty( $messages ) ) {
-				$shown  = array_slice( $messages, 0, 5 );
-				$msg   .= ' Details: ' . implode( ' | ', $shown );
+				$shown = array_slice( $messages, 0, 5 );
+				$msg  .= ' Details: ' . implode( ' | ', $shown );
 				if ( count( $messages ) > count( $shown ) ) {
 					$msg .= ' | ...';
 				}
@@ -1304,10 +1484,25 @@ class PSM_Admin_UI {
 			}
 
 			$notice_type = ( 0 === (int) $import_res['inserted'] ) ? 'warning' : 'success';
-			set_transient( 'psm_admin_notice_' . $user_id, array( 'type' => $notice_type, 'text' => $msg ), 60 );
+			set_transient(
+				'psm_admin_notice_' . $user_id,
+				array(
+					'type' => $notice_type,
+					'text' => $msg,
+				),
+				60
+			);
 		}
 
-		wp_safe_redirect( add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page' => 'psm-ai-importer',
+					'tab'  => 'generate',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
@@ -1333,7 +1528,7 @@ class PSM_Admin_UI {
 			if ( ! $batch ) {
 				wp_die( 'Batch not found.' );
 			}
-			$rows = $wpdb->get_results(
+			$rows     = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT q.id AS question_id, q.difficulty, df.name AS difficulty_name, q.question_type, q.question_text, q.status,
 					        s.name AS skill_name, b.batch_code, b.label_name
@@ -1349,7 +1544,7 @@ class PSM_Admin_UI {
 			);
 			$filename = sanitize_file_name( $batch->batch_code . '-labels.csv' );
 		} else {
-			$rows = $wpdb->get_results(
+			$rows     = $wpdb->get_results(
 				"SELECT q.id AS question_id, q.difficulty, df.name AS difficulty_name, q.question_type, q.question_text, q.status,
 				        s.name AS skill_name,
 				        COALESCE((SELECT b.batch_code FROM $bq_table bq INNER JOIN $b_table b ON bq.batch_id = b.id WHERE bq.question_id = q.id ORDER BY bq.batch_id DESC LIMIT 1), '') AS batch_code,
@@ -1377,20 +1572,24 @@ class PSM_Admin_UI {
 					$r->question_id
 				)
 			);
-			fputcsv( $out, array(
-				$this->csv_cell( $r->label_name ?: ( $r->skill_name . ' #' . $r->question_id ) ),
-				$this->csv_cell( $r->batch_code ),
-				$this->csv_cell( $r->question_id ),
-				$this->csv_cell( $r->skill_name ),
-				$this->csv_cell( $r->difficulty ),
-				$this->csv_cell( $r->difficulty_name ?: $r->difficulty ),
-				$this->csv_cell( $r->question_type ),
-				$this->csv_cell( implode( '|', $tag_slugs ) ),
-				$this->csv_cell( $r->status ),
-				$this->csv_cell( wp_strip_all_tags( $r->question_text ) ),
-			) );
+			fputcsv(
+				$out,
+				array(
+					$this->csv_cell( $r->label_name ? $r->label_name : ( $r->skill_name . ' #' . $r->question_id ) ),
+					$this->csv_cell( $r->batch_code ),
+					$this->csv_cell( $r->question_id ),
+					$this->csv_cell( $r->skill_name ),
+					$this->csv_cell( $r->difficulty ),
+					$this->csv_cell( $r->difficulty_name ? $r->difficulty_name : $r->difficulty ),
+					$this->csv_cell( $r->question_type ),
+					$this->csv_cell( implode( '|', $tag_slugs ) ),
+					$this->csv_cell( $r->status ),
+					$this->csv_cell( wp_strip_all_tags( $r->question_text ) ),
+				)
+			);
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- WP_Filesystem cannot manage the php://output stream.
 		fclose( $out );
 		exit;
 	}
@@ -1422,53 +1621,53 @@ class PSM_Admin_UI {
 		$user_id = get_current_user_id();
 		$tab     = sanitize_key( $_GET['tab'] ?? 'generate' );
 		$entity  = sanitize_key( $_GET['entity'] ?? 'domain' );
-		$is_prev = isset( $_GET['preview'] ) && $_GET['preview'] === '1';
+		$is_prev = isset( $_GET['preview'] ) && '1' === $_GET['preview'];
 
 		$notice = get_transient( 'psm_admin_notice_' . $user_id );
 		if ( $notice ) {
 			delete_transient( 'psm_admin_notice_' . $user_id );
 		}
 
-		$domains        = $wpdb->get_results( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "domains ORDER BY sort_order ASC, name ASC" );
+		$domains        = $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC' );
 		$skill_types    = PSM_Seeder::get_skill_types();
 		$question_types = PSM_Seeder::get_question_types();
 		$difficulties   = PSM_Seeder::get_difficulties();
 		$languages      = PSM_Languages::languages();
 
 		$skills = $wpdb->get_results(
-			"SELECT s.*, d.name AS domain_name, st.name AS master_type_name, p.name AS parent_skill_name
-			 FROM " . PSM_AI_TABLE_PREFIX . "skills s
-			 LEFT JOIN " . PSM_AI_TABLE_PREFIX . "domains d ON s.domain_id = d.id
-			 LEFT JOIN " . PSM_AI_TABLE_PREFIX . "skill_types st ON s.skill_type_id = st.id
-			 LEFT JOIN " . PSM_AI_TABLE_PREFIX . "skills p ON s.parent_id = p.id
-			 ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC"
+			'SELECT s.*, d.name AS domain_name, st.name AS master_type_name, p.name AS parent_skill_name
+			 FROM ' . PSM_AI_TABLE_PREFIX . 'skills s
+			 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'domains d ON s.domain_id = d.id
+			 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skill_types st ON s.skill_type_id = st.id
+			 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills p ON s.parent_id = p.id
+			 ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC'
 		);
 
 		// $tags = $wpdb->get_results(
-		// 	"SELECT t.*, s.name AS skill_name
-		// 	 FROM " . PSM_AI_TABLE_PREFIX . "tags t
-		// 	 LEFT JOIN " . PSM_AI_TABLE_PREFIX . "skills s ON t.skill_id = s.id
-		// 	 ORDER BY t.sort_order ASC, t.name ASC"
+		// "SELECT t.*, s.name AS skill_name
+		// FROM " . PSM_AI_TABLE_PREFIX . "tags t
+		// LEFT JOIN " . PSM_AI_TABLE_PREFIX . "skills s ON t.skill_id = s.id
+		// ORDER BY t.sort_order ASC, t.name ASC"
 		// );
 
 		$tags_all = $wpdb->get_results(
-			"SELECT
+			'SELECT
 				t.*,
 				s.name AS skill_name,
 				COUNT(qt.question_id) AS question_count
-			FROM " . PSM_AI_TABLE_PREFIX . "tags t
-			LEFT JOIN " . PSM_AI_TABLE_PREFIX . "skills s ON s.id = t.skill_id
-			LEFT JOIN " . PSM_AI_TABLE_PREFIX . "question_tags qt ON qt.tag_id = t.id
+			FROM ' . PSM_AI_TABLE_PREFIX . 'tags t
+			LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = t.skill_id
+			LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'question_tags qt ON qt.tag_id = t.id
 			GROUP BY t.id
-			ORDER BY t.sort_order ASC, t.name ASC"
+			ORDER BY t.sort_order ASC, t.name ASC'
 		);
 
 		$batches = $wpdb->get_results(
-			"SELECT b.*, s.name AS skill_name,
-			        (SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
-			 FROM " . PSM_AI_TABLE_PREFIX . "batches b
-			 LEFT JOIN " . PSM_AI_TABLE_PREFIX . "skills s ON b.skill_id = s.id
-			 ORDER BY b.id DESC LIMIT 100"
+			'SELECT b.*, s.name AS skill_name,
+			        (SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
+			 FROM ' . PSM_AI_TABLE_PREFIX . 'batches b
+			 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON b.skill_id = s.id
+			 ORDER BY b.id DESC LIMIT 100'
 		);
 
 		$settings        = get_option( 'psm_ai_api_settings', array() );
@@ -1503,12 +1702,12 @@ class PSM_Admin_UI {
 			'two_option'  => 'Two Options',
 			'true_false'  => 'True / False',
 		);
-		$master_counts    = $this->master_controller->get_counts();
-		$master_list_data = array();
-		if ( $tab === 'masters' ) {
+		$master_counts        = $this->master_controller->get_counts();
+		$master_list_data     = array();
+		if ( 'masters' === $tab ) {
 			$master_list_data = $this->master_controller->get_list_data( $entity, $_GET );
 		}
-		$question_filters    = ( $tab === 'masters' && $entity === 'question' )
+		$question_filters     = ( 'masters' === $tab && 'question' === $entity )
 			? ( $master_list_data['filters'] ?? $this->get_question_filters( array() ) )
 			: $this->get_question_filters( $_GET );
 		$question_ordered_ids = $master_list_data['question_order'] ?? array();
@@ -1526,7 +1725,7 @@ class PSM_Admin_UI {
 			'two_option'      => 'Two Options',
 			'true_false'      => 'True / False',
 		);
-		$generation_qtypes = array();
+		$generation_qtypes          = array();
 		foreach ( $supported_generation_types as $qt_slug => $qt_fallback ) {
 			if ( isset( $master_qtype_labels[ $qt_slug ] ) ) {
 				$generation_qtypes[ $qt_slug ] = $master_qtype_labels[ $qt_slug ];
@@ -1540,34 +1739,36 @@ class PSM_Admin_UI {
 		$initial_skill_name      = 'Git';
 		$initial_skill_slug      = 'git';
 		foreach ( $skills as $sk_item ) {
-			if ( $sk_item->slug === 'git' ) {
+			if ( 'git' === $sk_item->slug ) {
 				$initial_skill_name = $sk_item->name;
 				$initial_skill_slug = $sk_item->slug;
 				break;
 			}
 		}
-		$initial_prompt_text = PSM_API_Client::build_prompt_text( array(
-			'skill_name'      => $initial_skill_name,
-			'skill_slug'      => $initial_skill_slug,
-			'difficulty'      => 'all',
-			'difficulty_slug' => 'all',
-			'question_types'  => $default_qtypes_selected,
-			'count'           => 50,
-		) );
+		$initial_prompt_text = PSM_API_Client::build_prompt_text(
+			array(
+				'skill_name'      => $initial_skill_name,
+				'skill_slug'      => $initial_skill_slug,
+				'difficulty'      => 'all',
+				'difficulty_slug' => 'all',
+				'question_types'  => $default_qtypes_selected,
+				'count'           => 50,
+			)
+		);
 
 		$ajax_nonce = wp_create_nonce( 'psm_ajax_nonce' );
 		wp_localize_script(
 			'psm-ai-admin',
 			'psmAdmin',
 			array(
-				'ajaxUrl'          => admin_url( 'admin-ajax.php' ),
-				'adminPageUrl'     => admin_url( 'admin.php' ),
-				'ajaxNonce'        => $ajax_nonce,
-				'tagsBySkill'      => $tags_by_skill,
-				'skillMeta'        => $skill_meta,
-				'questionFilters'  => $question_filters,
-				'questionOrder'    => $question_ordered_ids,
-				'masterState'      => 'masters' === $tab ? array(
+				'ajaxUrl'         => admin_url( 'admin-ajax.php' ),
+				'adminPageUrl'    => admin_url( 'admin.php' ),
+				'ajaxNonce'       => $ajax_nonce,
+				'tagsBySkill'     => $tags_by_skill,
+				'skillMeta'       => $skill_meta,
+				'questionFilters' => $question_filters,
+				'questionOrder'   => $question_ordered_ids,
+				'masterState'     => 'masters' === $tab ? array(
 					'entity' => $entity,
 					'page'   => $master_list_data['page'],
 				) : null,
@@ -1586,37 +1787,72 @@ class PSM_Admin_UI {
 			$tabs = array(
 				'generate' => array(
 					'label' => '1. Prompt, Preview & Import',
-					'url'   => add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'generate' ), admin_url( 'admin.php' ) ),
+					'url'   => add_query_arg(
+						array(
+							'page' => 'psm-ai-importer',
+							'tab'  => 'generate',
+						),
+						admin_url( 'admin.php' )
+					),
 				),
 				'masters'  => array(
 					'label' => '2. Master Tables',
-					'url'   => add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'masters', 'entity' => $entity ), admin_url( 'admin.php' ) ),
+					'url'   => add_query_arg(
+						array(
+							'page'   => 'psm-ai-importer',
+							'tab'    => 'masters',
+							'entity' => $entity,
+						),
+						admin_url( 'admin.php' )
+					),
 				),
 				'batches'  => array(
 					'label' => '3. Batches & Label Download',
-					'url'   => add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'batches' ), admin_url( 'admin.php' ) ),
+					'url'   => add_query_arg(
+						array(
+							'page' => 'psm-ai-importer',
+							'tab'  => 'batches',
+						),
+						admin_url( 'admin.php' )
+					),
 				),
 				'settings' => array(
 					'label' => '4. AI Providers',
-					'url'   => add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'settings' ), admin_url( 'admin.php' ) ),
+					'url'   => add_query_arg(
+						array(
+							'page' => 'psm-ai-importer',
+							'tab'  => 'settings',
+						),
+						admin_url( 'admin.php' )
+					),
 				),
 				'backup'   => array(
 					'label' => '5. Backup & Restore',
-					'url'   => add_query_arg( array( 'page' => 'psm-ai-importer', 'tab' => 'backup' ), admin_url( 'admin.php' ) ),
+					'url'   => add_query_arg(
+						array(
+							'page' => 'psm-ai-importer',
+							'tab'  => 'backup',
+						),
+						admin_url( 'admin.php' )
+					),
 				),
 			);
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_tabs_html() escapes every URL, class, and label.
 			echo $this->psm_tabs_html( $tabs, $tab );
 			?>
 
 			<div id="psm_toast" class="psm-toast" role="status" aria-live="polite"></div>
 
 			<?php if ( $notice ) : ?>
-				<?php echo $this->psm_notice_html( $notice ); ?>
+				<?php
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_notice_html() escapes the notice type and message.
+				echo $this->psm_notice_html( $notice );
+				?>
 			<?php endif; ?>
 
-			<?php if ( $tab === 'backup' ) : ?>
+			<?php if ( 'backup' === $tab ) : ?>
 				<?php $this->backup_restore->render(); ?>
-			<?php elseif ( $tab === 'settings' ) : ?>
+			<?php elseif ( 'settings' === $tab ) : ?>
 				<!-- TAB 4: THREE SEPARATE AJAX FORMS FOR GEMINI, OPENAI, AND CUSTOM -->
 				<div class="psm-ai-grid">
 					<?php
@@ -1633,7 +1869,7 @@ class PSM_Admin_UI {
 						<div class="psm-ai-card psm-ai-<?php echo esc_attr( $pkey ); ?>">
 							<div class="psm-ai-card-head">
 								<span><?php echo esc_html( $plabel ); ?> <?php echo $is_def ? '<small style="background:rgba(255,255,255,0.25);padding:2px 7px;border-radius:10px;margin-left:5px;">DEFAULT</small>' : ''; ?></span>
-								<?php echo $provider_links[ $pkey ]; ?>
+								<?php echo wp_kses_post( $provider_links[ $pkey ] ); ?>
 							</div>
 							<div class="psm-ai-card-body">
 								<div class="psm-quota-box" id="psm_quota_box_<?php echo esc_attr( $pkey ); ?>">
@@ -1687,7 +1923,7 @@ class PSM_Admin_UI {
 					<?php endforeach; ?>
 				</div>
 
-			<?php elseif ( $tab === 'batches' ) : ?>
+			<?php elseif ( 'batches' === $tab ) : ?>
 				<!-- TAB 3: BATCHES & LABEL DOWNLOAD -->
 				<div class="psm-table-card" style="margin-top: 20px;">
 					<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
@@ -1713,12 +1949,15 @@ class PSM_Admin_UI {
 						<tbody>
 							<?php if ( empty( $batches ) ) : ?>
 								<tr><td colspan="9">No batches recorded yet.</td></tr>
-							<?php else : foreach ( $batches as $b ) : ?>
+								<?php
+							else :
+								foreach ( $batches as $b ) :
+									?>
 								<tr id="psm-row-batch-<?php echo esc_attr( $b->id ); ?>">
 									<td><?php echo esc_html( $b->id ); ?></td>
 									<td><code><?php echo esc_html( $b->batch_code ); ?></code></td>
 									<td><strong><?php echo esc_html( $b->label_name ); ?></strong></td>
-									<td><span class="psm-badge psm-badge-type"><?php echo esc_html( $b->skill_name ?: '—' ); ?></span></td>
+									<td><span class="psm-badge psm-badge-type"><?php echo esc_html( $b->skill_name ? $b->skill_name : '—' ); ?></span></td>
 									<td><?php echo esc_html( $b->provider . ( $b->model ? ' (' . $b->model . ')' : '' ) ); ?></td>
 									<td><?php echo esc_html( $b->total_imported . ' / ' . $b->linked_questions_count ); ?></td>
 									<td><?php echo esc_html( $b->total_skipped ); ?></td>
@@ -1740,12 +1979,15 @@ class PSM_Admin_UI {
 										</button>
 									</td>
 								</tr>
-							<?php endforeach; endif; ?>
+															<?php
+							endforeach;
+endif;
+							?>
 						</tbody>
 					</table>
 				</div>
 
-			<?php elseif ( $tab === 'masters' ) : ?>
+			<?php elseif ( 'masters' === $tab ) : ?>
 				<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin: 16px 0;">
 					<div class="psm-pill-nav" style="margin:0;">
 						<?php
@@ -1794,20 +2036,25 @@ class PSM_Admin_UI {
 							'selected' => (int) $per_page_value === $this->psm_get_per_page(),
 						);
 					}
-					echo $this->psm_select_html(
+					$per_page_select_html = $this->psm_select_html(
 						array(
-							'name'     => 'per_page',
-							'id'       => 'psm_per_page',
-							'options'  => $per_page_options,
-							'tooltip'  => 'Choose how many rows each master table displays',
+							'name'    => 'per_page',
+							'id'      => 'psm_per_page',
+							'options' => $per_page_options,
+							'tooltip' => 'Choose how many rows each master table displays',
 						)
 					);
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_select_html() escapes the select attributes and option labels.
+					echo $per_page_select_html;
 					?>
 					<button type="button" class="psm-btn psm-btn-primary" id="psm_save_per_page">Save Pagination</button>
 				</div>
 
 				<div class="psm-table-card">
-					<?php echo $this->master_controller->render_list_html( $master_list_data ); ?>
+					<?php
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Master renderers escape all table, filter, and pagination output.
+					echo $this->master_controller->render_list_html( $master_list_data );
+					?>
 				</div>
 
 			<?php else : ?>
@@ -1815,42 +2062,42 @@ class PSM_Admin_UI {
 				<?php
 				$preview_data = $is_prev ? get_transient( 'psm_preview_data_' . $user_id ) : false;
 				if ( $is_prev && ! empty( $preview_data ) && ! empty( $preview_data['questions'] ) ) :
-    $inspected_rows = array();
-    $valid_count    = 0;
-    foreach ( $preview_data['questions'] as $p_idx => $p_q ) {
-        $inspected_rows[ $p_idx ] = PSM_Importer::inspect_question(
-            $p_q,
-            $preview_data['default_status'] ?? 'draft',
-            $preview_data['default_difficulty'] ?? 1
-        );
-        if ( empty( $inspected_rows[ $p_idx ]['errors'] ) ) {
-            $valid_count++;
-        }
-    }
-    $total_rows = count( $preview_data['questions'] );
+					$inspected_rows = array();
+					$valid_count    = 0;
+					foreach ( $preview_data['questions'] as $p_idx => $p_q ) {
+						$inspected_rows[ $p_idx ] = PSM_Importer::inspect_question(
+							$p_q,
+							$preview_data['default_status'] ?? 'draft',
+							$preview_data['default_difficulty'] ?? 1
+						);
+						if ( empty( $inspected_rows[ $p_idx ]['errors'] ) ) {
+							++$valid_count;
+						}
+					}
+					$total_rows = count( $preview_data['questions'] );
 
-    $preview_tag_slugs = array();
-    $preview_existing_tag_slugs = array();
-    if ( ! empty( $preview_data['skill_id'] ) ) {
-        $preview_tag_rows = $wpdb->get_results( "SELECT slug, skill_id, status FROM " . PSM_AI_TABLE_PREFIX . "tags" );
-        foreach ( (array) $preview_tag_rows as $preview_tag_row ) {
-            $preview_slug = (string) $preview_tag_row->slug;
-            $preview_existing_tag_slugs[ $preview_slug ] = true;
-            if ( (int) $preview_tag_row->skill_id === (int) $preview_data['skill_id'] && 'active' === $preview_tag_row->status ) {
-                $preview_tag_slugs[ $preview_slug ] = true;
-            }
-        }
-    }
-    $preview_new_tags = array();
-    foreach ( $preview_data['questions'] as $p_q ) {
-        foreach ( (array) ( $p_q['tags'] ?? array() ) as $tslug ) {
-            $tslug = (string) $tslug;
-            if ( '' !== $tslug && ! isset( $preview_tag_slugs[ $tslug ] ) && ! isset( $preview_existing_tag_slugs[ $tslug ] ) ) {
-                $preview_new_tags[] = $tslug;
-            }
-        }
-    }
-    $preview_new_tags = array_values( array_unique( $preview_new_tags ) );
+					$preview_tag_slugs          = array();
+					$preview_existing_tag_slugs = array();
+					if ( ! empty( $preview_data['skill_id'] ) ) {
+						$preview_tag_rows = $wpdb->get_results( 'SELECT slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags' );
+						foreach ( (array) $preview_tag_rows as $preview_tag_row ) {
+							$preview_slug                                = (string) $preview_tag_row->slug;
+							$preview_existing_tag_slugs[ $preview_slug ] = true;
+							if ( (int) $preview_tag_row->skill_id === (int) $preview_data['skill_id'] && 'active' === $preview_tag_row->status ) {
+								$preview_tag_slugs[ $preview_slug ] = true;
+							}
+						}
+					}
+					$preview_new_tags = array();
+					foreach ( $preview_data['questions'] as $p_q ) {
+						foreach ( (array) ( $p_q['tags'] ?? array() ) as $tslug ) {
+							$tslug = (string) $tslug;
+							if ( '' !== $tslug && ! isset( $preview_tag_slugs[ $tslug ] ) && ! isset( $preview_existing_tag_slugs[ $tslug ] ) ) {
+								$preview_new_tags[] = $tslug;
+							}
+						}
+					}
+					$preview_new_tags = array_values( array_unique( $preview_new_tags ) );
 					?>
 					<div class="psm-table-card" style="margin-top: 20px;">
 						<h2>Review &amp; Check Generated Data Before Database Import</h2>
@@ -1867,7 +2114,10 @@ class PSM_Admin_UI {
 								</span>
 								<?php if ( ! empty( $preview_new_tags ) ) : ?>
 									<br><strong style="color:#b45309;">New tags (auto-created for this skill on import):</strong>
-									<?php foreach ( $preview_new_tags as $new_tslug ) : ?><code><?php echo esc_html( $new_tslug ); ?></code> <?php endforeach; ?>
+									<?php
+									foreach ( $preview_new_tags as $new_tslug ) :
+										?>
+										<code><?php echo esc_html( $new_tslug ); ?></code> <?php endforeach; ?>
 								<?php endif; ?>
 						</p>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -1886,17 +2136,21 @@ class PSM_Admin_UI {
 									</tr>
 								</thead>
 								<tbody>
-									<?php foreach ( $preview_data['questions'] as $idx => $q ) :
-    $inspect    = $inspected_rows[ $idx ] ?? array( 'data' => null, 'errors' => array( 'Row was not validated.' ) );
-    $row_errors = $inspect['errors'];
-    $row_valid  = empty( $row_errors );
-    $norm       = $row_valid ? $inspect['data'] : null;
-    $q_type     = $row_valid ? $norm['question_type'] : ( $q['question_type'] ?? 'four_option' );
-    $q_diff     = $row_valid ? $norm['difficulty'] : ( $q['difficulty'] ?? 1 );
-										$q_stem    = $row_valid ? $norm['question_text'] : ( $q['question_text'] ?? ( $q['question'] ?? '' ) );
-										$q_opts    = $row_valid ? $norm['options'] : ( $q['options'] ?? array() );
-										$q_correct = $row_valid ? $norm['correct_keys'] : ( $q['correct_keys'] ?? ( $q['correct_answers'] ?? array() ) );
-										$q_lang    = $row_valid ? $norm['code_language'] : ( $q['code_language'] ?? '' );
+									<?php
+									foreach ( $preview_data['questions'] as $idx => $q ) :
+										$inspect    = $inspected_rows[ $idx ] ?? array(
+											'data'   => null,
+											'errors' => array( 'Row was not validated.' ),
+										);
+										$row_errors = $inspect['errors'];
+										$row_valid  = empty( $row_errors );
+										$norm       = $row_valid ? $inspect['data'] : null;
+										$q_type     = $row_valid ? $norm['question_type'] : ( $q['question_type'] ?? 'four_option' );
+										$q_diff     = $row_valid ? $norm['difficulty'] : ( $q['difficulty'] ?? 1 );
+										$q_stem     = $row_valid ? $norm['question_text'] : ( $q['question_text'] ?? ( $q['question'] ?? '' ) );
+										$q_opts     = $row_valid ? $norm['options'] : ( $q['options'] ?? array() );
+										$q_correct  = $row_valid ? $norm['correct_keys'] : ( $q['correct_keys'] ?? ( $q['correct_answers'] ?? array() ) );
+										$q_lang     = $row_valid ? $norm['code_language'] : ( $q['code_language'] ?? '' );
 										?>
 										<tr>
 											<td><input type="checkbox" class="psm-row-cb" name="selected_rows[]" value="<?php echo esc_attr( $idx ); ?>" <?php echo $row_valid ? 'checked' : 'disabled title="This row has validation errors and will be skipped."'; ?>></td>
@@ -1910,7 +2164,7 @@ class PSM_Admin_UI {
 <strong><?php echo esc_html( $q_stem ); ?></strong>
 												<?php if ( ! empty( $q['code_snippet'] ) ) : ?>
 													<div style="font-size:11px; color:#334155; margin-top:4px;">
-														<strong>Language:</strong> <code><?php echo esc_html( $q_lang ?: 'plain' ); ?></code>
+														<strong>Language:</strong> <code><?php echo esc_html( $q_lang ? $q_lang : 'plain' ); ?></code>
 													</div>
 													<pre style="background:#f6f7f7; padding:6px; margin:4px 0 6px; overflow:auto;"><?php echo esc_html( $q['code_snippet'] ); ?></pre>
 												<?php endif; ?>
@@ -1919,7 +2173,8 @@ class PSM_Admin_UI {
 												<?php endif; ?>
 											</td>
 											<td>
-												<?php foreach ( (array) $q_opts as $ok => $ov ) :
+												<?php
+												foreach ( (array) $q_opts as $ok => $ov ) :
 													if ( is_array( $ov ) && isset( $ov['key'] ) ) {
 														$disp_k = $ov['key'];
 														$disp_v = $ov['text'] ?? '';
@@ -1935,7 +2190,11 @@ class PSM_Admin_UI {
 											<td>Diff: <?php echo esc_html( $q_diff ); ?><br><code><?php echo esc_html( $q_type ); ?></code></td>
 											<td>
 												<?php foreach ( (array) ( $q['tags'] ?? array() ) as $tslug ) : ?>
-													<div><code><?php echo esc_html( $tslug ); ?></code><?php if ( ! isset( $preview_tag_slugs[ (string) $tslug ] ) ) : ?> <span style="color:#b45309;font-weight:600;"><?php echo isset( $preview_existing_tag_slugs[ (string) $tslug ] ) ? '(tag unavailable for this skill)' : '(new tag - will be created on import)'; ?></span><?php endif; ?></div>
+													<div><code><?php echo esc_html( $tslug ); ?></code>
+													<?php
+													if ( ! isset( $preview_tag_slugs[ (string) $tslug ] ) ) :
+														?>
+														<span style="color:#b45309;font-weight:600;"><?php echo isset( $preview_existing_tag_slugs[ (string) $tslug ] ) ? '(tag unavailable for this skill)' : '(new tag - will be created on import)'; ?></span><?php endif; ?></div>
 												<?php endforeach; ?>
 											</td>
 										</tr>
@@ -1967,7 +2226,8 @@ class PSM_Admin_UI {
 									<th><label for="ai_provider_select">AI Provider (Switch if Limit Finished)</label></th>
 									<td>
 										<select name="ai_provider_select" id="ai_provider_select" class="psm-full-width-control">
-											<?php foreach ( $providers_list as $pkey => $plabel ) :
+											<?php
+											foreach ( $providers_list as $pkey => $plabel ) :
 												$pu = PSM_API_Client::get_usage_status( $pkey );
 												?>
 												<option value="<?php echo esc_attr( $pkey ); ?>" <?php selected( $active_provider, $pkey ); ?>>
@@ -1979,21 +2239,33 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label for="psm_skill_select">1. Select Skill *</label></th>
+									<th><label for="psm_generate_domain">1. Select Domain *</label></th>
+									<td>
+										<select name="domain_id" id="psm_generate_domain" class="regular-text" required>
+											<option value="">&mdash; Select Domain &mdash;</option>
+											<?php foreach ( $domains as $d ) : ?>
+												<option value="<?php echo esc_attr( $d->id ); ?>"><?php echo esc_html( $d->name ); ?></option>
+											<?php endforeach; ?>
+										</select>
+									</td>
+								</tr>
+
+								<tr>
+									<th><label for="psm_skill_select">2. Select Skill *</label></th>
 									<td>
 										<select name="skill_id" id="psm_skill_select" class="regular-text" required>
 											<option value="">&mdash; Select Skill &mdash;</option>
 											<?php
 											$grouped = array();
 											foreach ( $skills as $s ) {
-												$grouped[ $s->domain_name ?: 'Other' ][] = $s;
+												$grouped[ $s->domain_name ? $s->domain_name : 'Other' ][] = $s;
 											}
 											foreach ( $grouped as $dom_name => $dom_skills ) :
 												?>
 												<optgroup label="<?php echo esc_attr( $dom_name ); ?>">
 													<?php foreach ( $dom_skills as $s ) : ?>
-														<option value="<?php echo esc_attr( $s->id ); ?>" data-name="<?php echo esc_attr( $s->name ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
-															<?php echo esc_html( $s->name . ' [' . $s->slug . '] (' . ( $s->master_type_name ?: $s->skill_type ) . ')' ); ?>
+														<option value="<?php echo esc_attr( $s->id ); ?>" data-domain-id="<?php echo esc_attr( $s->domain_id ); ?>" data-name="<?php echo esc_attr( $s->name ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
+															<?php echo esc_html( $s->name . ' [' . $s->slug . '] (' . ( $s->master_type_name ? $s->master_type_name : $s->skill_type ) . ')' ); ?>
 														</option>
 													<?php endforeach; ?>
 												</optgroup>
@@ -2003,7 +2275,7 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label>2. Select Tags (Skill-Filtered)</label></th>
+									<th><label>3. Select Tags (Skill-Filtered)</label></th>
 									<td>
 										<div id="psm_tag_box" style="max-height: 180px; overflow-y: auto; border: 1px solid #ccd0d4; padding: 10px; background: #f9f9f9; border-radius:6px;">
 											<em>Select a Skill above to load its valid tags.</em>
@@ -2012,12 +2284,12 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label for="label_name">3. Batch Label Name</label></th>
+									<th><label for="label_name">4. Batch Label Name</label></th>
 									<td><input type="text" name="label_name" id="label_name" class="regular-text" placeholder="e.g. C# LINQ Set 01"></td>
 								</tr>
 
 								<tr>
-									<th><label>4. Difficulty (ID), Question Type (Slug) &amp; Count</label></th>
+									<th><label>5. Difficulty (ID), Question Type (Slug) &amp; Count</label></th>
 									<td>
 										<div class="psm-break-box">
 											<div class="psm-break-item">
@@ -2025,7 +2297,10 @@ class PSM_Admin_UI {
 												<select name="difficulty" id="difficulty" class="psm-full-width-control">
 													<option value="all">All Levels (beginner, intermediate, advanced)</option>
 													<?php foreach ( $difficulties as $df ) : ?>
-														<?php if ( (int) $df->id > 3 ) { continue; } ?>
+														<?php
+														if ( (int) $df->id > 3 ) {
+															continue; }
+														?>
 														<option value="<?php echo esc_attr( $df->id ); ?>" data-slug="<?php echo esc_attr( $df->slug ); ?>">
 															<?php echo esc_html( $df->id . ' - ' . $df->name . ' (' . $df->slug . ')' ); ?>
 														</option>
@@ -2067,7 +2342,7 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label for="psm_code_language_master">Code Language (Master for Code Snippet - Optional)</label></th>
+									<th><label for="psm_code_language_master">6. Code Language (Master for Code Snippet - Optional)</label></th>
 									<td>
 										<select name="code_language_master" id="psm_code_language_master" class="regular-text">
 											<?php foreach ( $languages as $lang_slug => $lang_name ) : ?>
@@ -2079,7 +2354,7 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label for="generation_rules">5. Current Skill &amp; Prompt Rules</label></th>
+									<th><label for="generation_rules">7. Current Skill &amp; Prompt Rules</label></th>
 									<td>
 										<textarea name="generation_rules" id="generation_rules" rows="4" class="large-text">1. Every question must be completely unique-never repeat scenarios, variable names, or reworded versions of existing questions.
 2. Distractors (wrong options) must be plausible technical misconceptions, not obvious throwaways.
@@ -2089,7 +2364,7 @@ class PSM_Admin_UI {
 								</tr>
 
 								<tr>
-									<th><label for="user_prompt">6. Custom Focus Instructions (Optional)</label></th>
+									<th><label for="user_prompt">8. Custom Focus Instructions (Optional)</label></th>
 									<td>
 										<textarea name="user_prompt" id="user_prompt" rows="6" class="large-text code" placeholder="Optional: narrow the topics, e.g. &quot;focus on async/await and exception filters&quot;. Leave blank to use the full default prompt."></textarea>
 										<details style="margin-top:8px;">
@@ -2119,7 +2394,7 @@ class PSM_Admin_UI {
 				<?php endif; ?>
 			<?php endif; ?>
 
-			<?php if ( $tab === 'generate' && ! $is_prev ) : ?>
+			<?php if ( 'generate' === $tab && ! $is_prev ) : ?>
 						<div class="psm-modal-backdrop" id="psm_import_json_modal" role="dialog" aria-modal="true" aria-labelledby="psm_import_json_title">
 				<div class="psm-modal psm-json-import-modal">
 					<div class="psm-modal-header">
@@ -2136,6 +2411,17 @@ class PSM_Admin_UI {
 							<input type="hidden" name="action" value="psm_import_json_file">
 							<table class="form-table">
 								<tr>
+									<th><label for="psm_json_domain">Target Domain *</label></th>
+									<td>
+										<select name="domain_id" id="psm_json_domain" required>
+											<option value="">&mdash; Select Domain &mdash;</option>
+											<?php foreach ( $domains as $d ) : ?>
+												<option value="<?php echo esc_attr( $d->id ); ?>"><?php echo esc_html( $d->name ); ?></option>
+											<?php endforeach; ?>
+										</select>
+									</td>
+								</tr>
+								<tr>
 									<th><label for="psm_json_skill_select">Target Skill *</label></th>
 									<td>
 										<select name="skill_id" id="psm_json_skill_select" required>
@@ -2143,13 +2429,13 @@ class PSM_Admin_UI {
 										<?php
 										$json_grouped = array();
 										foreach ( $skills as $s ) {
-											$json_grouped[ $s->domain_name ?: 'Other' ][] = $s;
+											$json_grouped[ $s->domain_name ? $s->domain_name : 'Other' ][] = $s;
 										}
 										foreach ( $json_grouped as $dom_name => $dom_skills ) :
 											?>
 											<optgroup label="<?php echo esc_attr( $dom_name ); ?>">
 												<?php foreach ( $dom_skills as $s ) : ?>
-													<option value="<?php echo esc_attr( $s->id ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
+													<option value="<?php echo esc_attr( $s->id ); ?>" data-domain-id="<?php echo esc_attr( $s->domain_id ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
 														<?php echo esc_html( $s->name . ' [' . $s->slug . ']' ); ?>
 												</option>
 											<?php endforeach; ?>
@@ -2325,7 +2611,10 @@ class PSM_Admin_UI {
 											<select name="code_language" id="psm_m_code_language">
 												<option value="">None / Plain Text</option>
 												<?php foreach ( $languages as $language_slug => $language_name ) : ?>
-													<?php if ( '' === $language_slug ) { continue; } ?>
+													<?php
+													if ( '' === $language_slug ) {
+														continue; }
+													?>
 													<option value="<?php echo esc_attr( $language_slug ); ?>"><?php echo esc_html( $language_name ); ?></option>
 												<?php endforeach; ?>
 											</select>

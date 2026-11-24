@@ -37,7 +37,7 @@ class PSM_API_Client {
 
 	public static function get_usage_status( $provider = '' ) {
 		$settings = get_option( 'psm_ai_api_settings', array() );
-		$provider = $provider ?: ( ! empty( $settings['provider'] ) ? $settings['provider'] : 'gemini' );
+		$provider = $provider ? $provider : ( ! empty( $settings['provider'] ) ? $settings['provider'] : 'gemini' );
 		$cfg      = self::get_provider_config( $provider );
 
 		$tz       = wp_timezone();
@@ -52,7 +52,7 @@ class PSM_API_Client {
 
 		$next_daily_dt  = $now_dt->modify( '+1 day' )->setTime( 0, 0, 0 );
 		$days_until_mon = ( 8 - (int) $now_dt->format( 'N' ) ) % 7;
-		if ( $days_until_mon === 0 ) {
+		if ( 0 === $days_until_mon ) {
 			$days_until_mon = 7;
 		}
 		$next_weekly_dt = $now_dt->modify( '+' . $days_until_mon . ' days' )->setTime( 0, 0, 0 );
@@ -147,24 +147,24 @@ class PSM_API_Client {
 			$d_num = (int) $d_str;
 			$d_str = ( $d_num <= 1 ) ? 'beginner' : ( ( $d_num >= 3 ) ? 'advanced' : 'intermediate' );
 		}
-		if ( $d_str === 'beg' || $d_str === 'easy' ) {
+		if ( 'beg' === $d_str || 'easy' === $d_str ) {
 			$d_str = 'beginner';
-		} elseif ( $d_str === 'medium' || $d_str === 'mid' ) {
+		} elseif ( 'medium' === $d_str || 'mid' === $d_str ) {
 			$d_str = 'intermediate';
-		} elseif ( $d_str === 'hard' || $d_str === 'expert' ) {
+		} elseif ( 'hard' === $d_str || 'expert' === $d_str ) {
 			$d_str = 'advanced';
 		}
-		if ( $d_str === 'beginner' ) {
+		if ( 'beginner' === $d_str ) {
 			$lines[] = '- Difficulty: beginner (fundamental concepts, basic syntax and common beginner mistakes). Every question must have "difficulty": "beginner".';
-		} elseif ( $d_str === 'intermediate' ) {
+		} elseif ( 'intermediate' === $d_str ) {
 			$lines[] = '- Difficulty: intermediate (practical application, edge cases, idiomatic patterns and debugging). Every question must have "difficulty": "intermediate".';
-		} elseif ( $d_str === 'advanced' ) {
+		} elseif ( 'advanced' === $d_str ) {
 			$lines[] = '- Difficulty: advanced (internals, performance trade-offs, concurrency/architecture and subtle pitfalls). Every question must have "difficulty": "advanced".';
 		} else {
 			$lines[] = '- Difficulty: all levels. Spread the questions evenly across "beginner", "intermediate" and "advanced" and set each question\'s "difficulty" to the level it belongs to.';
 		}
 
-		if ( $diff_label !== '' ) {
+		if ( '' !== $diff_label ) {
 			$lines[] = '- Difficulty Reference: ' . $diff_label;
 		}
 		if ( ! empty( $selected_tags ) ) {
@@ -174,8 +174,8 @@ class PSM_API_Client {
 			foreach ( $selected_tags as $selected_slug ) {
 				$label = trim( (string) ( $tag_labels[ $selected_slug ] ?? '' ) );
 				if ( '' === $label ) {
-					$derived         = preg_replace( '/^' . preg_quote( $skill_slug . '-', '/' ) . '/', '', (string) $selected_slug );
-					$label           = ucwords( str_replace( '-', ' ', (string) $derived ) );
+					$derived = preg_replace( '/^' . preg_quote( $skill_slug . '-', '/' ) . '/', '', (string) $selected_slug );
+					$label   = ucwords( str_replace( '-', ' ', (string) $derived ) );
 				}
 				$selected_labels[] = $label;
 			}
@@ -190,27 +190,27 @@ class PSM_API_Client {
 		if ( ! empty( $allowed_tags ) ) {
 			$lines[] = '- Allowed Tag Slugs (STRICT - only use valid tag slugs belonging strictly to the chosen skill): ' . implode( ', ', $allowed_tags );
 		}
-		if ( $user_prompt !== '' ) {
+		if ( '' !== $user_prompt ) {
 			$lines[] = '- Focus / Topic Instructions: ' . $user_prompt;
 		}
-		if ( $code_language !== '' ) {
+		if ( '' !== $code_language ) {
 			$lines[] = '- Code Language Preference: whenever a question includes code, write "code_snippet" in ' . $code_language . ' and set "code_language": "' . $code_language . '".';
 		}
 
 		$lines[] = '';
 		$lines[] = 'QUESTION TYPES AND DISTRIBUTION';
-		$dist = self::calculate_distribution( $count, $types );
+		$dist    = self::calculate_distribution( $count, $types );
 		foreach ( $dist as $t_slug => $t_cnt ) {
 			if ( (int) $t_cnt <= 0 ) {
 				continue;
 			}
-			if ( $t_slug === 'single_choice' || $t_slug === 'four_option' ) {
+			if ( 'single_choice' === $t_slug || 'four_option' === $t_slug ) {
 				$lines[] = sprintf( '- %s: %d questions, exactly four options (keys A, B, C, D) and exactly one correct answer; "answer_mode": "single".', $t_slug, $t_cnt );
-			} elseif ( $t_slug === 'multiple_choice' || $t_slug === 'multiple_select' ) {
+			} elseif ( 'multiple_choice' === $t_slug || 'multiple_select' === $t_slug ) {
 				$lines[] = sprintf( '- %s: %d questions, exactly four options (keys A, B, C, D) and two or three correct answers; "answer_mode": "multiple".', $t_slug, $t_cnt );
-			} elseif ( $t_slug === 'two_option' ) {
+			} elseif ( 'two_option' === $t_slug ) {
 				$lines[] = sprintf( '- two_option: %d questions, exactly two options (keys A, B) and exactly one correct answer; "answer_mode": "single".', $t_cnt );
-			} elseif ( $t_slug === 'true_false' ) {
+			} elseif ( 'true_false' === $t_slug ) {
 				$lines[] = sprintf( '- true_false: %d questions, exactly two options: A = "True" and B = "False", and exactly one correct answer; "answer_mode": "single".', $t_cnt );
 			} else {
 				$lines[] = sprintf( '- %s: %d questions.', $t_slug, $t_cnt );
@@ -219,7 +219,7 @@ class PSM_API_Client {
 
 		$lines[] = '';
 		$lines[] = 'CURRENT SKILL & PROMPT RULES';
-		if ( $rules_text !== '' ) {
+		if ( '' !== $rules_text ) {
 			$lines[] = $rules_text;
 		} else {
 			$lines[] = '1. Every question must be completely unique-never repeat scenarios, variable names, or reworded versions of existing questions.';
@@ -274,7 +274,11 @@ class PSM_API_Client {
 
 		$difficulty_raw = strtolower( trim( (string) ( $params['difficulty'] ?? 'all' ) ) );
 		if ( ctype_digit( $difficulty_raw ) ) {
-			$difficulty_raw = array( 1 => 'beginner', 2 => 'intermediate', 3 => 'advanced' )[ min( 3, max( 1, (int) $difficulty_raw ) ) ];
+			$difficulty_raw = array(
+				1 => 'beginner',
+				2 => 'intermediate',
+				3 => 'advanced',
+			)[ min( 3, max( 1, (int) $difficulty_raw ) ) ];
 		}
 		$difficulty = in_array( $difficulty_raw, array( 'beginner', 'intermediate', 'advanced' ), true ) ? $difficulty_raw : 'all';
 
@@ -326,7 +330,7 @@ class PSM_API_Client {
 
 		$focus_labels = array();
 		foreach ( $tags_selected as $selected_slug ) {
-			$derived = preg_replace( '/^' . preg_quote( $skill_slug . '-', '/' ) . '/', '', $selected_slug );
+			$derived        = preg_replace( '/^' . preg_quote( $skill_slug . '-', '/' ) . '/', '', $selected_slug );
 			$focus_labels[] = '' !== ( $tag_labels[ $selected_slug ] ?? '' )
 				? $tag_labels[ $selected_slug ]
 				: ucwords( str_replace( '-', ' ', (string) $derived ) );
@@ -348,22 +352,46 @@ class PSM_API_Client {
 
 		if ( 'true_false' === $sample_type ) {
 			$sample_options = array(
-				array( 'key' => 'A', 'text' => 'True' ),
-				array( 'key' => 'B', 'text' => 'False' ),
+				array(
+					'key'  => 'A',
+					'text' => 'True',
+				),
+				array(
+					'key'  => 'B',
+					'text' => 'False',
+				),
 			);
 			$sample_correct = array( 'A' );
 		} elseif ( 'two_option' === $sample_type ) {
 			$sample_options = array(
-				array( 'key' => 'A', 'text' => 'First plausible statement' ),
-				array( 'key' => 'B', 'text' => 'Second plausible statement' ),
+				array(
+					'key'  => 'A',
+					'text' => 'First plausible statement',
+				),
+				array(
+					'key'  => 'B',
+					'text' => 'Second plausible statement',
+				),
 			);
 			$sample_correct = array( 'B' );
 		} else {
 			$sample_options = array(
-				array( 'key' => 'A', 'text' => 'First plausible option' ),
-				array( 'key' => 'B', 'text' => 'Second plausible option' ),
-				array( 'key' => 'C', 'text' => 'Third plausible option' ),
-				array( 'key' => 'D', 'text' => 'Fourth plausible option' ),
+				array(
+					'key'  => 'A',
+					'text' => 'First plausible option',
+				),
+				array(
+					'key'  => 'B',
+					'text' => 'Second plausible option',
+				),
+				array(
+					'key'  => 'C',
+					'text' => 'Third plausible option',
+				),
+				array(
+					'key'  => 'D',
+					'text' => 'Fourth plausible option',
+				),
 			);
 			$sample_correct = ( 'multiple' === $sample_mode ) ? array( 'A', 'C' ) : array( 'B' );
 		}
@@ -416,8 +444,24 @@ class PSM_API_Client {
 		$lines[] = '- Skill Name: "' . $skill_name . '"';
 		$lines[] = '- Skill Slug: "' . $skill_slug . '"';
 		if ( ! empty( $tags_selected ) ) {
-			$lines[] = '- Selected Tag Focus: ' . implode( ', ', array_map( static function ( $slug ) { return '"' . $slug . '"'; }, $tags_selected ) ) . ' (topic: ' . implode( ', ', $focus_labels ) . ')';
-			$lines[] = '- CRITICAL: Every single question MUST be specifically about ' . implode( ' or ', array_map( static function ( $label ) { return '"' . $label . '"'; }, $focus_labels ) ) . ' for skill "' . $skill_name . '". Do not drift into unrelated topics.';
+			$lines[] = '- Selected Tag Focus: ' . implode(
+				', ',
+				array_map(
+					static function ( $slug ) {
+						return '"' . $slug . '"';
+					},
+					$tags_selected
+				)
+			) . ' (topic: ' . implode( ', ', $focus_labels ) . ')';
+			$lines[] = '- CRITICAL: Every single question MUST be specifically about ' . implode(
+				' or ',
+				array_map(
+					static function ( $label ) {
+						return '"' . $label . '"';
+					},
+					$focus_labels
+				)
+			) . ' for skill "' . $skill_name . '". Do not drift into unrelated topics.';
 			if ( count( $tags_selected ) === 1 ) {
 				$lines[] = '- Every question\'s "tags" array MUST include "' . $tags_selected[0] . '".';
 			} else {
@@ -480,7 +524,7 @@ class PSM_API_Client {
 
 	public static function generate_questions( $params, $override_provider = '' ) {
 		$settings = get_option( 'psm_ai_api_settings', array() );
-		$provider = $override_provider ?: ( ! empty( $settings['provider'] ) ? $settings['provider'] : 'gemini' );
+		$provider = $override_provider ? $override_provider : ( ! empty( $settings['provider'] ) ? $settings['provider'] : 'gemini' );
 
 		$usage = self::get_usage_status( $provider );
 		if ( $usage['is_exhausted'] ) {
@@ -501,21 +545,21 @@ class PSM_API_Client {
 		$model    = trim( $cfg['model'] );
 		$endpoint = trim( $cfg['endpoint_url'] );
 
-		if ( empty( $api_key ) && $provider !== 'custom' ) {
+		if ( empty( $api_key ) && 'custom' !== $provider ) {
 			return new WP_Error( 'missing_api_key', "API Key for {$usage['provider_label']} is not configured. Save it in Tab 4." );
 		}
 
 		$full_prompt = self::build_structured_prompt( $params );
 
-		if ( $provider === 'gemini' ) {
+		if ( 'gemini' === $provider ) {
 			if ( empty( $endpoint ) ) {
 				$endpoint = sprintf(
 					'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
 					rawurlencode( $model )
 				);
 			}
-			$body = array(
-				'contents' => array(
+			$body    = array(
+				'contents'         => array(
 					array(
 						'parts' => array(
 							array( 'text' => $full_prompt ),
@@ -528,19 +572,25 @@ class PSM_API_Client {
 				),
 			);
 			$headers = array( 'Content-Type' => 'application/json' );
-			if ( $api_key !== '' ) {
+			if ( '' !== $api_key ) {
 				$headers['x-goog-api-key'] = $api_key;
 			}
-		} elseif ( $provider === 'openai' ) {
+		} elseif ( 'openai' === $provider ) {
 			if ( empty( $endpoint ) ) {
 				$endpoint = 'https://api.openai.com/v1/chat/completions';
 			}
-			$body = array(
-				'model'           => $model ?: 'gpt-4o-mini',
+			$body    = array(
+				'model'           => $model ? $model : 'gpt-4o-mini',
 				'response_format' => array( 'type' => 'json_object' ),
 				'messages'        => array(
-					array( 'role' => 'system', 'content' => 'You are an expert assessment author. Output strictly valid JSON matching the requested schema.' ),
-					array( 'role' => 'user', 'content' => $full_prompt ),
+					array(
+						'role'    => 'system',
+						'content' => 'You are an expert assessment author. Output strictly valid JSON matching the requested schema.',
+					),
+					array(
+						'role'    => 'user',
+						'content' => $full_prompt,
+					),
 				),
 			);
 			$headers = array(
@@ -551,7 +601,7 @@ class PSM_API_Client {
 			if ( empty( $endpoint ) ) {
 				return new WP_Error( 'missing_endpoint', 'Custom API Endpoint URL is required.' );
 			}
-			$body = array(
+			$body    = array(
 				'prompt'        => $full_prompt,
 				'skill_slug'    => $params['skill_slug'] ?? '',
 				'tag_slugs'     => $params['tag_slugs'] ?? array(),
@@ -600,7 +650,7 @@ class PSM_API_Client {
 		}
 
 		if ( $code < 200 || $code >= 300 ) {
-			if ( $code === 503 ) {
+			if ( 503 === $code ) {
 				return new WP_Error(
 					'api_http_503',
 					"{$usage['provider_label']} returned HTTP 503 (Model temporarily overloaded after {$max_attempts} attempts). Try again shortly, reduce question count, or switch AI provider from the dropdown."
@@ -628,9 +678,9 @@ class PSM_API_Client {
 		$base_prompt = self::build_prompt_text( $params );
 
 		return $base_prompt
-			. "
+			. '
 OUTPUT FORMAT (STRICT JSON):
-"
+'
 			. 'Return a JSON object with a single root key "questions" containing an array of objects. Each object has: "question", "question_type", "difficulty", "options" (array of {"key":"A","text":"..."}), "correct_answers" (array of option keys), "explanation" (clear explanation with example when helpful), "code_snippet" (string with \n or null), "code_language" (php|csharp|java|python|javascript|typescript|sql|html|css|json|bash or empty/null), and "tags" (array of valid tag slugs for the skill).'
 			. '
 Return ONLY that raw JSON document so it can be downloaded directly as questions-export.json and imported without edits (no Markdown fences, no prose before or after).';
@@ -642,7 +692,7 @@ Return ONLY that raw JSON document so it can be downloaded directly as questions
 
 		// Gemini and OpenAI wrap the model output inside their own envelope; gather every text part.
 		$content = '';
-		if ( $provider === 'gemini' ) {
+		if ( 'gemini' === $provider ) {
 			$parts = $envelope['candidates'][0]['content']['parts'] ?? array();
 			if ( is_array( $parts ) ) {
 				$chunks = array();
@@ -653,7 +703,7 @@ Return ONLY that raw JSON document so it can be downloaded directly as questions
 				}
 				$content = trim( implode( '', $chunks ) );
 			}
-		} elseif ( $provider === 'openai' ) {
+		} elseif ( 'openai' === $provider ) {
 			$message = $envelope['choices'][0]['message']['content'] ?? '';
 			if ( is_array( $message ) ) {
 				$chunks = array();
@@ -668,7 +718,7 @@ Return ONLY that raw JSON document so it can be downloaded directly as questions
 			}
 		}
 
-		if ( $content === '' ) {
+		if ( '' === $content ) {
 			$content = trim( $raw_body );
 		}
 
@@ -705,10 +755,13 @@ Return ONLY that raw JSON document so it can be downloaded directly as questions
 			return $parsed;
 		}
 
-		foreach ( array( '{' => '}', '[' => ']' ) as $open => $close ) {
+		foreach ( array(
+			'{' => '}',
+			'[' => ']',
+		) as $open => $close ) {
 			$start = strpos( $content, $open );
 			$end   = strrpos( $content, $close );
-			if ( $start === false || $end === false || $end <= $start ) {
+			if ( false === $start || false === $end || $end <= $start ) {
 				continue;
 			}
 			$parsed = json_decode( substr( $content, $start, $end - $start + 1 ), true );
