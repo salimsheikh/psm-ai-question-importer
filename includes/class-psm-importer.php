@@ -745,7 +745,7 @@ class PSM_Importer {
 	 * @param string   $now      UTC timestamp.
 	 * @param string[] $created  Collector for newly created slugs.
 	 */
-	private static function resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, &$created ) {
+	public static function resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, &$created ) {
 		global $wpdb;
 
 		$tag_slug = sanitize_title( (string) $tag_slug );
