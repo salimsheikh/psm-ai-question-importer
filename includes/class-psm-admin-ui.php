@@ -1013,6 +1013,10 @@ class PSM_Admin_UI {
 				$import_res['skipped_invalid']
 			);
 
+			if ( (int) $import_res['skipped_duplicate'] > 0 ) {
+				$msg .= ' Duplicate rows were not inserted again; their imported tags were synchronized onto the existing questions.';
+			}
+
 			$messages = is_array( $import_res['messages'] ) ? $import_res['messages'] : array();
 			if ( ! empty( $messages ) ) {
 				$shown  = array_slice( $messages, 0, 5 );
@@ -1987,6 +1991,7 @@ class PSM_Admin_UI {
 					Upload a <code>.json</code> file produced by the Create Prompt output. The file is validated against the plugin schema,
 					tags are normalized to this skill's slugs, and everything is shown in the preview below before anything is written to the database.
 					Missing tag slugs are created automatically for the selected skill on import; inactive tags and slugs owned by another skill are rejected.
+					For duplicate questions, missing tags are attached to the existing question instead of inserting another question row.
 				</p>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
 					<?php wp_nonce_field( 'psm_import_json_file_nonce' ); ?>

@@ -595,7 +595,7 @@ class PSM_Importer {
 			$data         = $inspect['data'];
 			$content_hash = $data['content_hash'];
 
-			$dup_by_hash = $wpdb->get_var(
+			$duplicate_question_id = (int) $wpdb->get_var(
 				$wpdb->prepare(
 					"SELECT id FROM $questions_table WHERE skill_id = %d AND content_hash = %s LIMIT 1",
 					$skill_id,
@@ -603,23 +603,14 @@ class PSM_Importer {
 				)
 			);
 
-			if ( $dup_by_hash ) {
-				$result['skipped_duplicate']++;
-				continue;
-			}
-
-			if ( ! empty( $data['external_id'] ) ) {
-				$dup_by_ext = $wpdb->get_var(
+			if ( ! $duplicate_question_id && ! empty( $data['external_id'] ) ) {
+				$duplicate_question_id = (int) $wpdb->get_var(
 					$wpdb->prepare(
 						"SELECT id FROM $questions_table WHERE skill_id = %d AND external_id = %s LIMIT 1",
 						$skill_id,
 						$data['external_id']
 					)
 				);
-				if ( $dup_by_ext ) {
-					$result['skipped_duplicate']++;
-					continue;
-				}
 			}
 
 			$item_tag_slugs = array();
@@ -633,37 +624,43 @@ class PSM_Importer {
 			}
 			$item_tag_slugs = array_values( array_unique( $item_tag_slugs ) );
 
-			$inserted = $wpdb->insert(
-				$questions_table,
-				array(
-					'skill_id'      => $skill_id,
-					'difficulty'    => $data['difficulty'],
-					'question_type' => $data['question_type'],
-					'question_text' => $data['question_text'],
-					'code_snippet'  => $data['code_snippet'],
-					'code_language' => $data['code_language'],
-					'image_id'      => 0,
-					'options'       => wp_json_encode( $data['options'] ),
-					'correct_keys'  => wp_json_encode( $data['correct_keys'] ),
-					'is_multiple'   => $data['is_multiple'],
-					'explanation'   => $data['explanation'],
-					'status'        => $data['status'],
-					'created_by'    => $user_id,
-					'created_at'    => $now,
-					'updated_at'    => $now,
-					'external_id'   => $data['external_id'],
-					'content_hash'  => $content_hash,
-				),
-				array( '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
-			);
+			if ( $duplicate_question_id ) {
+				$result['skipped_duplicate']++;
+				$question_id = $duplicate_question_id;
+			} else {
+				$inserted = $wpdb->insert(
+					$questions_table,
+					array(
+						'skill_id'      => $skill_id,
+						'difficulty'    => $data['difficulty'],
+						'question_type' => $data['question_type'],
+						'question_text' => $data['question_text'],
+						'code_snippet'  => $data['code_snippet'],
+						'code_language' => $data['code_language'],
+						'image_id'      => 0,
+						'options'       => wp_json_encode( $data['options'] ),
+						'correct_keys'  => wp_json_encode( $data['correct_keys'] ),
+						'is_multiple'   => $data['is_multiple'],
+						'explanation'   => $data['explanation'],
+						'status'        => $data['status'],
+						'created_by'    => $user_id,
+						'created_at'    => $now,
+						'updated_at'    => $now,
+						'external_id'   => $data['external_id'],
+						'content_hash'  => $content_hash,
+					),
+					array( '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s' )
+				);
 
-			if ( ! $inserted ) {
-				$result['skipped_invalid']++;
-				$result['messages'][] = $row_label . ': Database insert error: ' . $wpdb->last_error;
-				continue;
+				if ( ! $inserted ) {
+					$result['skipped_invalid']++;
+					$result['messages'][] = $row_label . ': Database insert error: ' . $wpdb->last_error;
+					continue;
+				}
+
+				$question_id = (int) $wpdb->insert_id;
 			}
 
-			$question_id      = (int) $wpdb->insert_id;
 			$resolved_tag_ids = $sanitized_forced_tags;
 
 			foreach ( $item_tag_slugs as $tag_slug ) {
@@ -693,6 +690,10 @@ class PSM_Importer {
 					),
 					array( '%d', '%d' )
 				);
+			}
+
+			if ( $duplicate_question_id ) {
+				continue;
 			}
 
 			if ( $batch_id > 0 ) {
