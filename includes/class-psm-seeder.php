@@ -42,8 +42,8 @@ class PSM_Seeder {
 	 */
 	public static function enforce_fixed_slugs_and_tags() {
 		global $wpdb;
-		$skills_table = $wpdb->prefix . 'psm_skills';
-		$tags_table   = $wpdb->prefix . 'psm_tags';
+		$skills_table = PSM_AI_TABLE_PREFIX . 'skills';
+		$tags_table   = PSM_AI_TABLE_PREFIX . 'tags';
 
 		$fixed_skills = array(
 			'Entity Framework Core' => 'efcore',
@@ -124,7 +124,7 @@ class PSM_Seeder {
 		$now = current_time( 'mysql', true );
 
 		// A. Skill Types Table
-		$types_table = $wpdb->prefix . 'psm_skill_types';
+		$types_table = PSM_AI_TABLE_PREFIX . 'skill_types';
 		$default_types = array(
 			array( 'name' => 'Programming Language', 'slug' => 'programming-language', 'desc' => 'Core programming languages (C#, PHP, Java, JavaScript, Python).' ),
 			array( 'name' => 'Framework',            'slug' => 'framework',            'desc' => 'Full-stack or application frameworks (Laravel, ASP.NET Core, Angular).' ),
@@ -170,7 +170,7 @@ class PSM_Seeder {
 		}
 
 		// B. Question Types Table (used by slug)
-		$qt_table = $wpdb->prefix . 'psm_question_types';
+		$qt_table = PSM_AI_TABLE_PREFIX . 'question_types';
 		$default_qtypes = array(
 			array( 'slug' => 'single_choice',   'name' => 'Single Choice (single_choice)',     'sort' => 5,  'desc' => 'Four options (keys A, B, C, D) with one correct answer; answer_mode: single.' ),
 			array( 'slug' => 'multiple_choice', 'name' => 'Multiple Choice (multiple_choice)', 'sort' => 15, 'desc' => 'Four options (keys A, B, C, D) with two or three correct answers; answer_mode: multiple.' ),
@@ -207,7 +207,7 @@ class PSM_Seeder {
 		}
 
 		// C. Difficulties Table (ID 1=Beginner, 2=Intermediate, 3=Advanced + slug column)
-		$diff_table = $wpdb->prefix . 'psm_difficulties';
+		$diff_table = PSM_AI_TABLE_PREFIX . 'difficulties';
 		$default_diffs = array(
 			array( 'id' => 1, 'name' => 'Beginner',     'slug' => 'beginner',     'sort' => 10, 'desc' => 'Foundational syntax, definitions, and core concepts.' ),
 			array( 'id' => 2, 'name' => 'Intermediate', 'slug' => 'intermediate', 'sort' => 20, 'desc' => 'Practical application, debugging, and multi-step scenarios.' ),
@@ -244,7 +244,7 @@ class PSM_Seeder {
 		self::enforce_fixed_slugs_and_tags();
 
 		// Sync skill_type_id
-		$skills_table = $wpdb->prefix . 'psm_skills';
+		$skills_table = PSM_AI_TABLE_PREFIX . 'skills';
 		foreach ( $wpdb->get_results( "SELECT id, name FROM $types_table" ) as $t ) {
 			$wpdb->query(
 				$wpdb->prepare(
@@ -258,17 +258,17 @@ class PSM_Seeder {
 
 	public static function get_skill_types() {
 		global $wpdb;
-		return $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}psm_skill_types ORDER BY sort_order ASC, name ASC" );
+		return $wpdb->get_results( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "skill_types ORDER BY sort_order ASC, name ASC" );
 	}
 
 	public static function get_question_types() {
 		global $wpdb;
-		return $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}psm_question_types ORDER BY sort_order ASC, id ASC" );
+		return $wpdb->get_results( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "question_types ORDER BY sort_order ASC, id ASC" );
 	}
 
 	public static function get_difficulties() {
 		global $wpdb;
-		return $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}psm_difficulties ORDER BY id ASC" );
+		return $wpdb->get_results( "SELECT * FROM " . PSM_AI_TABLE_PREFIX . "difficulties ORDER BY id ASC" );
 	}
 
 	/**
@@ -281,10 +281,10 @@ class PSM_Seeder {
 
 		self::init_default_masters();
 
-		$domains_table = $wpdb->prefix . 'psm_domains';
-		$types_table   = $wpdb->prefix . 'psm_skill_types';
-		$skills_table  = $wpdb->prefix . 'psm_skills';
-		$tags_table    = $wpdb->prefix . 'psm_tags';
+		$domains_table = PSM_AI_TABLE_PREFIX . 'domains';
+		$types_table   = PSM_AI_TABLE_PREFIX . 'skill_types';
+		$skills_table  = PSM_AI_TABLE_PREFIX . 'skills';
+		$tags_table    = PSM_AI_TABLE_PREFIX . 'tags';
 		$now           = current_time( 'mysql' );
 
 		$type_map = array();

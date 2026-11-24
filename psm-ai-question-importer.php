@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PSM AI Question Generator & Importer
  * Description: Generates structured MCQ/coding questions via AI APIs using Domain/Skill/Tag/Question/QuestionType/Difficulty masters, AJAX modal CRUD, 3 independent AI provider cards, batch tracking, preview-before-import, and label export.
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: PSM
  * Text Domain: psm-ai-importer
  */
@@ -11,8 +11,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PSM_AI_VERSION', '1.5.0' );
+global $wpdb;
+
+define( 'PSM_AI_VERSION', '1.6.0' );
 define( 'PSM_AI_DB_VERSION', '1.3.0' );
+define( 'PSM_AI_TABLE_PREFIX', $wpdb->prefix . 'psm_' );
+define( 'PSM_AI_DEFAULT_PER_PAGE', 25 );
 define( 'PSM_AI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PSM_AI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -20,6 +24,18 @@ require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-languages.php';
 require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-seeder.php';
 require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-api-client.php';
 require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-importer.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/traits/trait-psm-ui-components.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/traits/trait-psm-master-list.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-abstract.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-domain.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-skill-type.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-question-type.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-difficulty.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-skill.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-tag.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/masters/class-psm-master-question.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-master-controller.php';
+require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-backup-restore.php';
 require_once PSM_AI_PLUGIN_DIR . 'includes/class-psm-admin-ui.php';
 
 class PSM_AI_Question_Importer {
@@ -77,7 +93,7 @@ class PSM_AI_Question_Importer {
 
 		PSM_Seeder::init_default_masters();
 
-		$skill_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}psm_skills" );
+		$skill_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . PSM_AI_TABLE_PREFIX . "skills" );
 		if ( 0 === $skill_count ) {
 			PSM_Seeder::run_seed();
 		}
@@ -90,7 +106,7 @@ class PSM_AI_Question_Importer {
 		$charset_collate = $wpdb->get_charset_collate();
 
 		// 1. Domains Table
-		$sql_domains = "CREATE TABLE {$wpdb->prefix}psm_domains (
+		$sql_domains = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "domains (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			name varchar(190) NOT NULL,
 			slug varchar(190) NOT NULL,
@@ -106,7 +122,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 2. Skill Types Table
-		$sql_skill_types = "CREATE TABLE {$wpdb->prefix}psm_skill_types (
+		$sql_skill_types = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "skill_types (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			name varchar(120) NOT NULL,
 			slug varchar(120) NOT NULL,
@@ -121,7 +137,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 3. Question Types Table (slug-referenced)
-		$sql_question_types = "CREATE TABLE {$wpdb->prefix}psm_question_types (
+		$sql_question_types = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "question_types (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			name varchar(120) NOT NULL,
 			slug varchar(60) NOT NULL,
@@ -136,7 +152,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 4. Difficulties Table (ID-referenced + slug column)
-		$sql_difficulties = "CREATE TABLE {$wpdb->prefix}psm_difficulties (
+		$sql_difficulties = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "difficulties (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			name varchar(120) NOT NULL,
 			slug varchar(60) NOT NULL,
@@ -151,7 +167,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 5. Skills Table
-		$sql_skills = "CREATE TABLE {$wpdb->prefix}psm_skills (
+		$sql_skills = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "skills (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			domain_id bigint UNSIGNED NOT NULL DEFAULT '0',
 			parent_id bigint UNSIGNED NOT NULL DEFAULT '0',
@@ -175,7 +191,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 6. Tags Table
-		$sql_tags = "CREATE TABLE {$wpdb->prefix}psm_tags (
+		$sql_tags = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "tags (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			skill_id bigint UNSIGNED NOT NULL DEFAULT '0',
 			name varchar(190) NOT NULL,
@@ -192,7 +208,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 7. Questions Table (must match programming-skills-master Schema exactly)
-		$sql_questions = "CREATE TABLE {$wpdb->prefix}psm_questions (
+		$sql_questions = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "questions (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			skill_id bigint(20) unsigned NOT NULL,
 			difficulty tinyint(3) unsigned NOT NULL DEFAULT 1,
@@ -220,7 +236,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 8. Question Tags Pivot Table
-		$sql_question_tags = "CREATE TABLE {$wpdb->prefix}psm_question_tags (
+		$sql_question_tags = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "question_tags (
 			question_id bigint UNSIGNED NOT NULL,
 			tag_id bigint UNSIGNED NOT NULL,
 			PRIMARY KEY  (question_id,tag_id),
@@ -228,7 +244,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 9. Batches Table
-		$sql_batches = "CREATE TABLE {$wpdb->prefix}psm_batches (
+		$sql_batches = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "batches (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			batch_code varchar(60) NOT NULL,
 			label_name varchar(190) NOT NULL DEFAULT '',
@@ -250,7 +266,7 @@ class PSM_AI_Question_Importer {
 		) ENGINE=InnoDB $charset_collate;";
 
 		// 10. Batch Questions Table
-		$sql_batch_questions = "CREATE TABLE {$wpdb->prefix}psm_batch_questions (
+		$sql_batch_questions = "CREATE TABLE " . PSM_AI_TABLE_PREFIX . "batch_questions (
 			id bigint UNSIGNED NOT NULL AUTO_INCREMENT,
 			batch_id bigint UNSIGNED NOT NULL,
 			question_id bigint UNSIGNED NOT NULL,

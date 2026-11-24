@@ -13,7 +13,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 
 global $wpdb;
 
-foreach ( array( 'psm_ai_api_settings', 'psm_ai_usage_stats', 'psm_ai_db_version' ) as $option ) {
+foreach ( array( 'psm_ai_api_settings', 'psm_ai_usage_stats', 'psm_ai_db_version', 'psm_ai_master_per_page' ) as $option ) {
 	delete_option( $option );
 	delete_site_option( $option );
 }

@@ -495,12 +495,12 @@ class PSM_Importer {
 	public static function import_questions( $questions, $skill_id, $forced_tag_ids = array(), $default_status = 'draft', $batch_meta = array() ) {
 		global $wpdb;
 
-		$skills_table          = $wpdb->prefix . 'psm_skills';
-		$tags_table            = $wpdb->prefix . 'psm_tags';
-		$questions_table       = $wpdb->prefix . 'psm_questions';
-		$question_tags_table   = $wpdb->prefix . 'psm_question_tags';
-		$batches_table         = $wpdb->prefix . 'psm_batches';
-		$batch_questions_table = $wpdb->prefix . 'psm_batch_questions';
+		$skills_table          = PSM_AI_TABLE_PREFIX . 'skills';
+		$tags_table            = PSM_AI_TABLE_PREFIX . 'tags';
+		$questions_table       = PSM_AI_TABLE_PREFIX . 'questions';
+		$question_tags_table   = PSM_AI_TABLE_PREFIX . 'question_tags';
+		$batches_table         = PSM_AI_TABLE_PREFIX . 'batches';
+		$batch_questions_table = PSM_AI_TABLE_PREFIX . 'batch_questions';
 
 		$skill_id = absint( $skill_id );
 		$skill    = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE id = %d", $skill_id ) );
