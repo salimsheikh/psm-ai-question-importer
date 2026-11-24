@@ -8,6 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers use fixed constants; all query values are prepared.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 trait PSM_Master_List_Trait {
 
@@ -23,10 +24,38 @@ trait PSM_Master_List_Trait {
 			'total_pages'    => 1,
 			'per_page'       => $this->psm_get_per_page(),
 			'question_order' => array(),
-			'skills'         => $wpdb->get_results( 'SELECT id, name, slug, domain_id, skill_type_id, parent_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills ORDER BY name ASC' ),
-			'domains'        => $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC' ),
-			'skill_types'    => $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' ),
-			'tags'           => $wpdb->get_results( 'SELECT id, name, slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags ORDER BY name ASC' ),
+			'skills'         => PSM_Cache::get_or_create(
+				'psm_master_selector_skills',
+				array( 'table' => PSM_AI_TABLE_PREFIX . 'skills' ),
+				static function () use ( $wpdb ) {
+					return $wpdb->get_results( 'SELECT id, name, slug, domain_id, skill_type_id, parent_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills ORDER BY name ASC' );
+				},
+				PSM_Cache::EXPIRATION
+			),
+			'domains'        => PSM_Cache::get_or_create(
+				'psm_master_selector_domains',
+				array( 'table' => PSM_AI_TABLE_PREFIX . 'domains' ),
+				static function () use ( $wpdb ) {
+					return $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC' );
+				},
+				PSM_Cache::EXPIRATION
+			),
+			'skill_types'    => PSM_Cache::get_or_create(
+				'psm_master_selector_skill_types',
+				array( 'table' => PSM_AI_TABLE_PREFIX . 'skill_types' ),
+				static function () use ( $wpdb ) {
+					return $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' );
+				},
+				PSM_Cache::EXPIRATION
+			),
+			'tags'           => PSM_Cache::get_or_create(
+				'psm_master_selector_tags',
+				array( 'table' => PSM_AI_TABLE_PREFIX . 'tags' ),
+				static function () use ( $wpdb ) {
+					return $wpdb->get_results( 'SELECT id, name, slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags ORDER BY name ASC' );
+				},
+				PSM_Cache::EXPIRATION
+			),
 		);
 		$data = $this->build_list_query( $data, $source );
 		return $data;
@@ -75,7 +104,18 @@ trait PSM_Master_List_Trait {
 
 	public function get_record_count() {
 		global $wpdb;
-		return (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $this->get_table_name() );
+		$table = $this->get_table_name();
+		return (int) PSM_Cache::get_or_create(
+			'psm_master_record_count',
+			array(
+				'entity' => $this->entity,
+				'table'  => $table,
+			),
+			static function () use ( $wpdb, $table ) {
+				return $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
+			},
+			PSM_Cache::EXPIRATION
+		);
 	}
 
 	abstract protected function get_filters( $source );

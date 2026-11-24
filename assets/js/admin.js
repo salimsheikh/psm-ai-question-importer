@@ -212,10 +212,12 @@
 			document.addEventListener('input', function(e) {
 				if (!masterState || !e.target.matches('#psm_master_filters input[type="search"]')) return;
 				clearTimeout(filterTimer);
+				const query = e.target.value.trim();
+				if (query.length > 0 && query.length < 3) return;
 				filterTimer = setTimeout(function() {
 					masterState.page = 1;
 					loadMasterList();
-				}, 350);
+				}, 3000);
 			}, true);
 
 			document.addEventListener('change', function(e) {
@@ -232,6 +234,7 @@
 				if (reset && masterState) {
 					e.preventDefault();
 					const form = document.getElementById('psm_master_filters');
+					clearTimeout(filterTimer);
 					form.querySelectorAll('input[type="search"], select').forEach(control => { control.value = ''; });
 					syncMasterSkillFilters();
 					masterState.page = 1;
@@ -251,7 +254,7 @@
 						const result = await response.json();
 						if (!result.success) throw new Error(result.data?.message || 'Could not save pagination.');
 						showToast(result.data.message, true);
-						masterState.page = 1;
+					masterState.page = 1;
 						await loadMasterList();
 					} catch (error) {
 						showToast(error.message || 'Network error while saving pagination.', false);

@@ -4,6 +4,7 @@
  */
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers are fixed constants; schema statements contain no user values.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -15,6 +16,7 @@ class PSM_AI_Question_Importer {
 		self::create_and_upgrade_tables();
 		self::bootstrap_masters();
 		update_option( 'psm_ai_db_version', PSM_AI_DB_VERSION, false );
+		PSM_Cache::delete_all();
 	}
 
 	public static function maybe_upgrade() {
@@ -25,6 +27,7 @@ class PSM_AI_Question_Importer {
 			self::create_and_upgrade_tables();
 			self::bootstrap_masters();
 			update_option( 'psm_ai_db_version', PSM_AI_DB_VERSION, false );
+			PSM_Cache::delete_all();
 		}
 	}
 

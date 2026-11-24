@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table suffixes come from the fixed master map; all query values are prepared.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 class PSM_Master_Controller {
 
@@ -43,11 +44,18 @@ class PSM_Master_Controller {
 			'tag'           => 'tags',
 			'question'      => 'questions',
 		);
-		$counts = array();
-		foreach ( $tables as $entity => $suffix ) {
-			$counts[ $entity ] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . $suffix );
-		}
-		return $counts;
+		return PSM_Cache::get_or_create(
+			'psm_master_counts',
+			array( 'tables' => $tables ),
+			static function () use ( $wpdb, $tables ) {
+				$counts = array();
+				foreach ( $tables as $entity => $suffix ) {
+					$counts[ $entity ] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . $suffix );
+				}
+				return $counts;
+			},
+			PSM_Cache::EXPIRATION
+		);
 	}
 
 	public function get_list_data( $entity, $source ) {

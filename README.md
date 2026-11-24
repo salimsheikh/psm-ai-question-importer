@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.6.0  
+**Version:** 1.7.1  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -9,7 +9,8 @@ Generate structured AI questions, review them before import, and manage question
 ## Features
 
 - Five admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, AI Providers, and Backup & Restore.
-- Modular master classes, controller dispatch, shared list rendering, and reusable UI component traits.
+- Modular master classes, controller dispatch, shared list rendering, reusable UI component traits, and focused admin workflow traits.
+- Namespaced one-hour query caching for master lists, counts, selectors, question navigation, and common admin datasets, with automatic mutation invalidation and a manual admin clear control.
 - Versioned external admin CSS and JavaScript assets.
 - AJAX filters and pagination for every master table, with related domain, status, skill-type, and skill filters.
 - Domain-aware skill selectors in filters, question/tag/skill editors, prompt generation, and JSON import, with server-side ownership validation.
@@ -57,6 +58,12 @@ The default page size is 25. Under **Master Tables**, administrators can select 
 
 The **Tags** tab supports `*` for any sequence and `?` for one character. Examples include `csharp-*` and `*oop`.
 
+## Query Cache
+
+Frequently read master and selector data is stored for one hour in the `psm_ai_queries` WordPress object-cache group. Keys include the site ID, configured `psm_*` table prefix, dataset name, and normalized filters or pagination context. Successful question, tag, skill, master, batch, import, seed, restore, activation, and upgrade operations advance the cache generation so stale entries are no longer read.
+
+Use **Settings → Clear Plugin Cache** for a manual reset. Duplicate checks, write validation, exports, and schema inspection deliberately bypass the cache. If another plugin writes directly to the shared `psm_*` tables without invoking this plugin, those external changes can remain unseen until the one-hour cache expires or the cache is cleared.
+
 ## JSON Import Workflow
 
 1. Select a domain, then select a skill and optional tag focus in **Prompt, Preview & Import**.
@@ -88,6 +95,22 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.7.1
+
+- Restored clearly styled master-table edit icons and moved custom tooltips above their controls.
+- Centered numeric pagination labels independently of navigation icons.
+- Changed master text search to AJAX after three seconds of inactivity, with a three-character minimum for non-empty searches.
+- Cancelled pending debounced searches when filters reset or change.
+
+### 1.7.0
+
+- Added shared cache helpers for key generation, create/get/set, remember, one-hour creation, deletion, and generation-wide invalidation.
+- Cached master counts and rows, selector datasets, question records/navigation, generation and import lookups, and common admin data with normalized filter-aware keys.
+- Automatically invalidated plugin caches after successful master, question, tag, skill, batch, import, seed, restore, activation, and upgrade writes.
+- Added a protected **Clear Plugin Cache** action and cache details under Settings.
+- Extracted admin settings, master CRUD, generation, import, batches, and page rendering into focused traits, reducing `class-psm-admin-ui.php` to bootstrap and hook orchestration.
+- Kept duplicate checks, ownership validation, exports, and schema reads fresh.
 
 ### 1.6.0
 
@@ -136,4 +159,4 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 
 ## Upgrade Notes
 
-Version 1.6.0 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. A backup is recommended before using Replace-all restore.
+Version 1.7.1 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. A backup is recommended before using Replace-all restore.

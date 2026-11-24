@@ -3,7 +3,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers use fixed constants; all query values are prepared.
+// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks. -- Custom table identifiers use fixed constants; all query values are prepared.
 
 class PSM_Seeder {
 
@@ -365,17 +366,35 @@ class PSM_Seeder {
 
 	public static function get_skill_types() {
 		global $wpdb;
-		return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' );
+		return PSM_Cache::get_or_create(
+			'seeder_skill_types',
+			array( 'table' => PSM_AI_TABLE_PREFIX . 'skill_types' ),
+			static function () use ( $wpdb ) {
+				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' );
+			}
+		);
 	}
 
 	public static function get_question_types() {
 		global $wpdb;
-		return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'question_types ORDER BY sort_order ASC, id ASC' );
+		return PSM_Cache::get_or_create(
+			'seeder_question_types',
+			array( 'table' => PSM_AI_TABLE_PREFIX . 'question_types' ),
+			static function () use ( $wpdb ) {
+				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'question_types ORDER BY sort_order ASC, id ASC' );
+			}
+		);
 	}
 
 	public static function get_difficulties() {
 		global $wpdb;
-		return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties ORDER BY id ASC' );
+		return PSM_Cache::get_or_create(
+			'seeder_difficulties',
+			array( 'table' => PSM_AI_TABLE_PREFIX . 'difficulties' ),
+			static function () use ( $wpdb ) {
+				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties ORDER BY id ASC' );
+			}
+		);
 	}
 
 	/**
@@ -615,6 +634,7 @@ class PSM_Seeder {
 			}
 		}
 
+		PSM_Cache::delete_all();
 		return $summary;
 	}
 

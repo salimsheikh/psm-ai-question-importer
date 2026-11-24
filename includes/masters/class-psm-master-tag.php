@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table identifiers use fixed constants; all filter values are prepared.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 class PSM_Master_Tag extends PSM_Master_Abstract {
 
@@ -42,13 +43,53 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = t.skill_id'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'question_tags qt ON qt.tag_id = t.id ';
 		$count_sql              = 'SELECT COUNT(DISTINCT t.id) ' . $from . $where;
-		$data['total_count']    = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $this->get_table_name() );
-		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
+		$table                  = $this->get_table_name();
+		$total_context          = array(
+			'entity' => $this->entity,
+			'table'  => $table,
+		);
+		$list_context           = array_merge(
+			$total_context,
+			array(
+				'filters' => $data['filters'],
+				'args'    => $args,
+			)
+		);
+		$data['total_count']    = (int) PSM_Cache::get_or_create(
+			'psm_master_list_total_count',
+			$total_context,
+			static function () use ( $wpdb, $table ) {
+				return $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
+			},
+			PSM_Cache::EXPIRATION
+		);
+		$data['filtered_count'] = (int) PSM_Cache::get_or_create(
+			'psm_master_list_filtered_count',
+			$list_context,
+			static function () use ( $wpdb, $count_sql, $args ) {
+				return empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) );
+			},
+			PSM_Cache::EXPIRATION
+		);
 		$data['total_pages']    = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
 		$data['page']           = min( $data['total_pages'], max( 1, absint( $source['tag_page'] ?? 1 ) ) );
 		$offset                 = ( $data['page'] - 1 ) * $data['per_page'];
 		$query                  = 'SELECT t.*, s.name AS skill_name, s.domain_id, COUNT(qt.question_id) AS question_count ' . $from . $where . ' GROUP BY t.id ORDER BY t.sort_order ASC, t.name ASC LIMIT %d, %d';
-		$data['rows']           = $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+		$page_context           = array_merge(
+			$list_context,
+			array(
+				'page'     => $data['page'],
+				'per_page' => $data['per_page'],
+			)
+		);
+		$data['rows']           = PSM_Cache::get_or_create(
+			'psm_master_list_rows',
+			$page_context,
+			static function () use ( $wpdb, $query, $args, $offset, $data ) {
+				return $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+			},
+			PSM_Cache::EXPIRATION
+		);
 		return $data;
 	}
 
@@ -124,7 +165,7 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 		$record = wp_json_encode( $row, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
 		$name   = $row->name . ' (#' . $row->id . ')';
 		$html   = '<tr><td><strong>#' . esc_html( $row->id ) . '</strong></td><td>' . esc_html( $row->name ) . '</td><td><code>' . esc_html( $row->slug ) . '</code></td><td>' . esc_html( $row->skill_name ) . '</td><td>' . esc_html( $row->description ) . '</td><td>' . esc_html( ucfirst( $row->status ) ) . '</td><td>';
-		$html  .= '<button type="button" class="psm-icon-btn psm-open-modal" data-entity="tag" data-record="' . esc_attr( $record ) . '" aria-label="Edit ' . esc_attr( $name ) . '" data-tooltip="Edit record"><span class="dashicons dashicons-edit-alt" aria-hidden="true"></span></button> ';
+		$html  .= '<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" data-entity="tag" data-record="' . esc_attr( $record ) . '" aria-label="Edit ' . esc_attr( $name ) . '" data-tooltip="Edit record"><span class="dashicons dashicons-edit-alt" aria-hidden="true"></span></button> ';
 		$html  .= '<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" data-entity="tag" data-id="' . esc_attr( $row->id ) . '" data-name="' . esc_attr( $name ) . '" aria-label="Delete ' . esc_attr( $name ) . '" data-tooltip="Delete record"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button>';
 		return $html . '</td></tr>';
 	}

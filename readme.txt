@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.7.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,7 +24,7 @@ Question management includes skill-specific active tags, inline creation of new 
 
 Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
 
-Master modules, controller dispatch, list rendering, and reusable UI components are separated into focused classes and traits. Admin CSS and JavaScript are enqueued as versioned external assets.
+Master modules, controller dispatch, list rendering, and reusable UI components are separated into focused classes and traits. Admin CRUD, generation, import, batches, settings, and page rendering are extracted into focused traits. Frequently read master and selector queries use a namespaced one-hour WordPress object cache with filter-aware keys; successful mutations invalidate the plugin cache generation immediately.
 
 == Installation ==
 
@@ -62,6 +62,10 @@ It includes the configured prefix's domain, skill type, question type, difficult
 
 The default is 25 rows per page. Administrators can choose 5, 10, 15, 25, 50, 75, or 100 under Master Tables. Server-side validation clamps invalid values to the supported range.
 
+= How does query caching work? =
+
+Master lists, counts, selectors, question navigation, and common admin datasets are cached for one hour in the `psm_ai_queries` object-cache group. Question, tag, skill, master, batch, import, seed, restore, activation, and upgrade writes invalidate the plugin cache immediately. Use **Clear Plugin Cache** under **Settings** for a manual reset. Direct writes made by another plugin to the shared `psm_*` tables are not observed until the one-hour cache expires or the cache is cleared manually.
+
 = Does uninstalling delete shared question data? =
 
 No. Uninstall removes plugin-owned settings, usage counters, and cached previews. Shared `psm_*` master and question tables are intentionally preserved for the programming-skills-master plugin.
@@ -71,6 +75,20 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.7.1 =
+* Restored clearly styled master-table edit icons and moved custom tooltips above their controls.
+* Centered numeric pagination labels independently of navigation icons.
+* Changed master text search to AJAX after three seconds of inactivity, with a three-character minimum for non-empty searches.
+* Cancelled pending debounced searches when filters reset or change.
+
+= 1.7.0 =
+* Added shared create/get/set/remember cache helpers with normalized, blog- and table-prefix-aware keys and a one-hour default lifetime.
+* Cached master counts, filtered lists, selectors, question records/navigation, generation lookups, JSON import lookups, and common admin datasets.
+* Invalidated the complete plugin cache generation after successful master, question, tag, skill, batch, import, seed, restore, activation, and upgrade writes.
+* Added a nonce- and capability-protected Clear Plugin Cache control with cache prefix, group, lifetime, and generation details under Settings.
+* Reduced class-psm-admin-ui.php to bootstrap and hook orchestration by extracting settings, master CRUD, generation, import, batch, and page-rendering traits.
+* Kept duplicate checks, write validation, exports, and schema reads fresh for correctness.
 
 = 1.6.0 =
 * Split master implementations, controller dispatch, list rendering, and common UI components into focused classes and traits.
@@ -114,6 +132,12 @@ Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or bat
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.7.1 =
+Fixes master edit icons, tooltip placement, pagination alignment, and debounced search timing. No database schema change is required.
+
+= 1.7.0 =
+Adds one-hour namespaced query caching, automatic invalidation after plugin mutations, a manual cache-clear control, and smaller admin workflow traits. No database schema change is required.
 
 = 1.6.0 =
 Adds modular master classes and shared UI components, domain-aware skill selectors, square pagination, configurable page size, pasted-JSON validation fixes, and JSON Backup & Restore. No database schema change is required; create a backup before using Replace-all restore.

@@ -145,7 +145,10 @@ trait PSM_UI_Components_Trait {
 
 	private function psm_page_button_html( $target, $label, $icon, $tooltip, $disabled, $current, $page_param ) {
 		$classes = 'psm-page-btn' . ( $disabled ? ' is-disabled' : '' ) . ( $current ? ' is-current' : '' );
-		$content = '<span class="dashicons ' . esc_attr( $icon ) . '" aria-hidden="true"></span>';
+		$content = '';
+		if ( '' !== $icon ) {
+			$content .= '<span class="dashicons ' . esc_attr( $icon ) . '" aria-hidden="true"></span>';
+		}
 		if ( '' !== $label ) {
 			$content .= '<span>' . esc_html( $label ) . '</span>';
 		}

@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Identifiers and placeholder lists are built dynamically from fixed tables and prepared filter arrays.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 class PSM_Master_Question extends PSM_Master_Abstract {
 
@@ -24,27 +25,47 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 
 	public function get_question_record( $question_id ) {
 		global $wpdb;
-		$question = $wpdb->get_row(
-			$wpdb->prepare(
-				'SELECT q.*, s.name AS skill_name, s.domain_id, d.name AS difficulty_name FROM ' . PSM_AI_TABLE_PREFIX . 'questions q'
-				. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = q.skill_id'
-				. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'difficulties d ON d.id = q.difficulty WHERE q.id = %d',
-				$question_id
-			)
+		$question_id = absint( $question_id );
+		$record      = PSM_Cache::get_or_create(
+			'psm_master_question_record',
+			array(
+				'entity'      => $this->entity,
+				'table'       => $this->get_table_name(),
+				'question_id' => $question_id,
+			),
+			static function () use ( $wpdb, $question_id ) {
+				$question = $wpdb->get_row(
+					$wpdb->prepare(
+						'SELECT q.*, s.name AS skill_name, s.domain_id, d.name AS difficulty_name FROM ' . PSM_AI_TABLE_PREFIX . 'questions q'
+						. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = q.skill_id'
+						. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'difficulties d ON d.id = q.difficulty WHERE q.id = %d',
+						$question_id
+					)
+				);
+				if ( ! $question ) {
+					return false;
+				}
+				$tag_rows = $wpdb->get_col(
+					$wpdb->prepare(
+						'SELECT t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
+						. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
+						. ' WHERE qt.question_id = %d ORDER BY t.sort_order ASC, t.name ASC',
+						$question_id
+					)
+				);
+				return array(
+					'question' => $question,
+					'tag_rows' => $tag_rows,
+				);
+			},
+			PSM_Cache::EXPIRATION
 		);
-		if ( ! $question ) {
+		if ( ! $record ) {
 			return null;
 		}
+		$question = $record['question'];
 		$options  = json_decode( $question->options, true );
 		$correct  = json_decode( $question->correct_keys, true );
-		$tag_rows = $wpdb->get_col(
-			$wpdb->prepare(
-				'SELECT t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
-				. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
-				. ' WHERE qt.question_id = %d ORDER BY t.sort_order ASC, t.name ASC',
-				$question_id
-			)
-		);
 		return array(
 			'id'            => (int) $question->id,
 			'skill_id'      => (int) $question->skill_id,
@@ -60,7 +81,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'explanation'   => $question->explanation,
 			'status'        => $question->status,
 			'external_id'   => $question->external_id,
-			'tag_slugs'     => array_map( 'strval', $tag_rows ),
+			'tag_slugs'     => array_map( 'strval', $record['tag_rows'] ),
 		);
 	}
 
@@ -68,23 +89,41 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 		global $wpdb;
 		list( $where, $args ) = $this->get_filter_sql( $filters );
 		$table                = $this->get_table_name();
-		$previous             = (int) $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT q.id FROM ' . $table . ' q ' . $where
-				. ' AND (q.updated_at > %s OR (q.updated_at = %s AND q.id > %d)) ORDER BY q.updated_at DESC, q.id DESC LIMIT 1',
-				array_merge( $args, array( $question->updated_at, $question->updated_at, $question->id ) )
-			)
-		);
-		$next                 = (int) $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT q.id FROM ' . $table . ' q ' . $where
-				. ' AND (q.updated_at < %s OR (q.updated_at = %s AND q.id < %d)) ORDER BY q.updated_at ASC, q.id ASC LIMIT 1',
-				array_merge( $args, array( $question->updated_at, $question->updated_at, $question->id ) )
-			)
+		$neighbor_ids         = PSM_Cache::get_or_create(
+			'psm_master_question_neighbor_ids',
+			array(
+				'entity'      => $this->entity,
+				'table'       => $table,
+				'question_id' => absint( $question->id ),
+				'updated_at'  => $question->updated_at,
+				'filters'     => $filters,
+				'args'        => $args,
+			),
+			static function () use ( $wpdb, $table, $where, $args, $question ) {
+				$previous = $wpdb->get_var(
+					$wpdb->prepare(
+						'SELECT q.id FROM ' . $table . ' q ' . $where
+						. ' AND (q.updated_at > %s OR (q.updated_at = %s AND q.id > %d)) ORDER BY q.updated_at DESC, q.id DESC LIMIT 1',
+						array_merge( $args, array( $question->updated_at, $question->updated_at, $question->id ) )
+					)
+				);
+				$next     = $wpdb->get_var(
+					$wpdb->prepare(
+						'SELECT q.id FROM ' . $table . ' q ' . $where
+						. ' AND (q.updated_at < %s OR (q.updated_at = %s AND q.id < %d)) ORDER BY q.updated_at ASC, q.id ASC LIMIT 1',
+						array_merge( $args, array( $question->updated_at, $question->updated_at, $question->id ) )
+					)
+				);
+				return array(
+					'previous' => $previous,
+					'next'     => $next,
+				);
+			},
+			PSM_Cache::EXPIRATION
 		);
 		return array(
-			'previous' => $previous,
-			'next'     => $next,
+			'previous' => (int) $neighbor_ids['previous'],
+			'next'     => (int) $neighbor_ids['next'],
 		);
 	}
 
@@ -97,38 +136,103 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 		list( $where, $args )   = $this->get_filter_sql( $data['filters'] );
 		$table                  = $this->get_table_name();
 		$count_sql              = 'SELECT COUNT(*) FROM ' . $table . ' q ' . $where;
-		$data['total_count']    = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
-		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
+		$total_context          = array(
+			'entity' => $this->entity,
+			'table'  => $table,
+		);
+		$list_context           = array_merge(
+			$total_context,
+			array(
+				'filters' => $data['filters'],
+				'args'    => $args,
+			)
+		);
+		$data['total_count']    = (int) PSM_Cache::get_or_create(
+			'psm_master_list_total_count',
+			$total_context,
+			static function () use ( $wpdb, $table ) {
+				return $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
+			},
+			PSM_Cache::EXPIRATION
+		);
+		$data['filtered_count'] = (int) PSM_Cache::get_or_create(
+			'psm_master_list_filtered_count',
+			$list_context,
+			static function () use ( $wpdb, $count_sql, $args ) {
+				return empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) );
+			},
+			PSM_Cache::EXPIRATION
+		);
 		$data['total_pages']    = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
 		$data['page']           = min( $data['total_pages'], max( 1, absint( $source['question_page'] ?? 1 ) ) );
 		$offset                 = ( $data['page'] - 1 ) * $data['per_page'];
 		$order_sql              = 'SELECT q.id FROM ' . $table . ' q ' . $where . ' ORDER BY q.updated_at DESC, q.id DESC';
-		$data['question_order'] = array_map( 'intval', empty( $args ) ? $wpdb->get_col( $order_sql ) : $wpdb->get_col( $wpdb->prepare( $order_sql, $args ) ) );
+		$question_order         = PSM_Cache::get_or_create(
+			'psm_master_question_order',
+			$list_context,
+			static function () use ( $wpdb, $order_sql, $args ) {
+				return empty( $args ) ? $wpdb->get_col( $order_sql ) : $wpdb->get_col( $wpdb->prepare( $order_sql, $args ) );
+			},
+			PSM_Cache::EXPIRATION
+		);
+		$data['question_order'] = array_map( 'intval', $question_order );
 		$positions              = array_flip( $data['question_order'] );
 		$query                  = 'SELECT q.*, s.name AS skill_name, s.domain_id, d.name AS difficulty_name FROM ' . $table . ' q'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = q.skill_id'
 			. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'difficulties d ON d.id = q.difficulty '
 			. $where . ' ORDER BY q.updated_at DESC, q.id DESC LIMIT %d, %d';
-		$data['rows']           = $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+		$page_context           = array_merge(
+			$list_context,
+			array(
+				'page'     => $data['page'],
+				'per_page' => $data['per_page'],
+			)
+		);
+		$data['rows']           = PSM_Cache::get_or_create(
+			'psm_master_list_rows',
+			$page_context,
+			static function () use ( $wpdb, $query, $args, $offset, $data ) {
+				return $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+			},
+			PSM_Cache::EXPIRATION
+		);
+		$data['rows']           = array_map(
+			static function ( $row ) {
+				return clone $row;
+			},
+			$data['rows']
+		);
 
 		$question_ids = array();
 		foreach ( $data['rows'] as $row ) {
 			$question_ids[] = (int) $row->id;
 		}
+		$tags_context     = array_merge(
+			$page_context,
+			array( 'question_ids' => $question_ids )
+		);
+		$tag_rows         = PSM_Cache::get_or_create(
+			'psm_master_question_page_tag_slugs',
+			$tags_context,
+			static function () use ( $wpdb, $question_ids ) {
+				if ( empty( $question_ids ) ) {
+					return array();
+				}
+				$placeholders = implode( ',', array_fill( 0, count( $question_ids ), '%d' ) );
+				return $wpdb->get_results(
+					$wpdb->prepare(
+						'SELECT qt.question_id, t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
+						. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
+						. ' WHERE qt.question_id IN (' . $placeholders . ') ORDER BY t.sort_order ASC, t.name ASC',
+						$question_ids
+					)
+				);
+			},
+			PSM_Cache::EXPIRATION
+		);
 		$tags_by_question = array();
-		if ( ! empty( $question_ids ) ) {
-			$placeholders = implode( ',', array_fill( 0, count( $question_ids ), '%d' ) );
-			$tag_rows     = $wpdb->get_results(
-				$wpdb->prepare(
-					'SELECT qt.question_id, t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
-					. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
-					. ' WHERE qt.question_id IN (' . $placeholders . ') ORDER BY t.sort_order ASC, t.name ASC',
-					$question_ids
-				)
-			);
-			foreach ( $tag_rows as $tag_row ) {
-				$tags_by_question[ (int) $tag_row->question_id ][] = $tag_row->slug;
-			}
+		foreach ( $tag_rows as $tag_row ) {
+			$tags_by_question[ (int) $tag_row->question_id ][] = $tag_row->slug;
 		}
 		foreach ( $data['rows'] as $row ) {
 			$options           = json_decode( $row->options, true );

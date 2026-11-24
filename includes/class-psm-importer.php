@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Custom table identifiers use fixed constants; all query values are prepared.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 /**
  * Validates and stores generated questions.
@@ -732,6 +733,7 @@ class PSM_Importer {
 
 		$result['created_tags']  = array_values( array_unique( $result['created_tags'] ) );
 		$result['rejected_tags'] = array_values( array_unique( $result['rejected_tags'] ) );
+		PSM_Cache::delete_all();
 		return $result;
 	}
 

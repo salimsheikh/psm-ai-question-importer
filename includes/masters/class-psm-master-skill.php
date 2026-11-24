@@ -134,7 +134,7 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 		$record = wp_json_encode( $row, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
 		$name   = $row->name . ' (#' . $row->id . ')';
 		$html   = '<tr><td><strong>#' . esc_html( $row->id ) . '</strong></td><td>' . esc_html( $row->name ) . '</td><td><code>' . esc_html( $row->slug ) . '</code></td><td>' . esc_html( $row->domain_name ) . '</td><td>' . esc_html( $row->master_type_name ) . '</td><td>' . esc_html( $row->parent_skill_name ) . '</td><td>' . esc_html( $row->description ) . '</td><td>' . esc_html( ucfirst( $row->status ) ) . '</td><td>';
-		$html  .= '<button type="button" class="psm-icon-btn psm-open-modal" data-entity="skill" data-record="' . esc_attr( $record ) . '" aria-label="Edit ' . esc_attr( $name ) . '" data-tooltip="Edit record"><span class="dashicons dashicons-edit-alt" aria-hidden="true"></span></button> ';
+		$html  .= '<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" data-entity="skill" data-record="' . esc_attr( $record ) . '" aria-label="Edit ' . esc_attr( $name ) . '" data-tooltip="Edit record"><span class="dashicons dashicons-edit-alt" aria-hidden="true"></span></button> ';
 		$html  .= '<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" data-entity="skill" data-id="' . esc_attr( $row->id ) . '" data-name="' . esc_attr( $name ) . '" aria-label="Delete ' . esc_attr( $name ) . '" data-tooltip="Delete record"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button>';
 		return $html . '</td></tr>';
 	}

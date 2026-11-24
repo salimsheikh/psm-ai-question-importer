@@ -8,6 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table and column identifiers come from fixed whitelists; all restored values are prepared.
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Reads are cached with PSM_Cache or intentionally fresh for writes, validation, exports, and schema checks.
 
 class PSM_Backup_Restore {
 
@@ -252,6 +253,7 @@ class PSM_Backup_Restore {
 			$this->redirect_with_notice( 'Restore failed and was rolled back. ' . $error->getMessage(), true );
 		}
 
+		PSM_Cache::delete_all();
 		$this->redirect_with_notice( sprintf( 'Backup restored successfully in %s mode. %d rows affected.', $mode, $affected ), false );
 	}
 
