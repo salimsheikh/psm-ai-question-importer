@@ -247,6 +247,16 @@ trait PSM_Admin_Page_Trait {
 						admin_url( 'admin.php' )
 					),
 				),
+				'seed'     => array(
+					'label' => '6. Seed Defaults',
+					'url'   => add_query_arg(
+						array(
+							'page' => 'psm-ai-importer',
+							'tab'  => 'seed',
+						),
+						admin_url( 'admin.php' )
+					),
+				),
 			);
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_tabs_html() escapes every URL, class, and label.
 			echo $this->psm_tabs_html( $tabs, $tab );
@@ -404,67 +414,70 @@ endif;
 					</table>
 				</div>
 
-			<?php elseif ( 'masters' === $tab ) : ?>
-				<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin: 16px 0;">
-					<div class="psm-pill-nav" style="margin:0;">
-						<?php
-						$sub_entities = array(
-							'domain'        => 'Domains (' . $master_counts['domain'] . ')',
-							'skill_type'    => 'Skill Types (' . $master_counts['skill_type'] . ')',
-							'question_type' => 'Question Types (' . $master_counts['question_type'] . ')',
-							'difficulty'    => 'Difficulties (' . $master_counts['difficulty'] . ')',
-							'skill'         => 'Skills (' . $master_counts['skill'] . ')',
-							'tag'           => 'Tags (' . $master_counts['tag'] . ')',
-							'question'      => 'Questions (' . $master_counts['question'] . ')',
-						);
-						foreach ( $sub_entities as $ek => $elabel ) :
-							$cls = ( $entity === $ek ) ? 'psm-pill active' : 'psm-pill';
-							?>
-							<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $ek ); ?>" class="<?php echo esc_attr( $cls ); ?>"><?php echo esc_html( $elabel ); ?></a>
-						<?php endforeach; ?>
-					</div>
-
-					<div style="display:flex; gap:8px; align-items:center;">
-						<button type="button" class="psm-btn-add psm-open-modal" data-entity="<?php echo esc_attr( $entity ); ?>" data-record=""
-							data-tooltip="Open the add form" title="Open the add form">
-							<span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span> Add New <?php echo esc_html( ucwords( str_replace( '_', ' ', $entity ) ) ); ?>
-						</button>
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:0;" id="psm_seeder_form"
-							data-confirm-title="Run idempotent seed?"
-							data-confirm-message="This adds missing default domains, skills, and tags. Existing records are preserved."
-							data-confirm-label="Run Seed">
-							<?php wp_nonce_field( 'psm_seeder_nonce' ); ?>
-							<input type="hidden" name="action" value="psm_run_seeder">
-							<button type="submit" class="psm-btn psm-btn-secondary"
-								data-tooltip="Add missing default domains, skills, and tags without changing existing records"
-								title="Add missing default records; existing records are preserved">Run Idempotent Seed</button>
-						</form>
-					</div>
+			<?php elseif ( 'seed' === $tab ) : ?>
+				<div class="psm-table-card psm-seed-card">
+					<h2>Seed Default Masters</h2>
+					<p>Add missing default domains, skill types, question types, difficulties, skills, and topic tags, including C, C++, and C#.</p>
+					<p>Existing records are preserved. Repeated runs add only missing records and do not delete or replace existing names, ownership, statuses, or descriptions. Blank descriptions may be filled, and existing questions and tag relationships are not changed.</p>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="psm_seeder_form"
+						data-confirm-title="Run idempotent seed?"
+						data-confirm-message="This adds missing default domains, skills, and tags. Existing records are preserved."
+						data-confirm-label="Run Seed">
+						<?php wp_nonce_field( 'psm_seeder_nonce' ); ?>
+						<input type="hidden" name="action" value="psm_run_seeder">
+						<button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Add missing defaults without changing existing records">Run Idempotent Seed</button>
+					</form>
 				</div>
 
-				<div class="psm-per-page-setting" style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin:0 0 12px;">
-					<label for="psm_per_page"><strong>Rows per page</strong></label>
-					<?php
-					$per_page_options = array();
-					foreach ( array( 5, 10, 15, 25, 50, 75, 100 ) as $per_page_value ) {
-						$per_page_options[] = array(
-							'value'    => $per_page_value,
-							'label'    => $per_page_value,
-							'selected' => (int) $per_page_value === $this->psm_get_per_page(),
+			<?php elseif ( 'masters' === $tab ) : ?>
+				<?php $entity_label = ucwords( str_replace( '_', ' ', $entity ) ); ?>
+				<div class="psm-master-toolbar">
+					<div class="psm-per-page-setting">
+						<label for="psm_per_page"><strong>Rows per page</strong></label>
+						<?php
+						$per_page_options = array();
+						foreach ( array( 5, 10, 15, 25, 50, 75, 100 ) as $per_page_value ) {
+							$per_page_options[] = array(
+								'value'    => $per_page_value,
+								'label'    => $per_page_value,
+								'selected' => (int) $per_page_value === $this->psm_get_per_page(),
+							);
+						}
+						$per_page_select_html = $this->psm_select_html(
+							array(
+								'name'    => 'per_page',
+								'id'      => 'psm_per_page',
+								'options' => $per_page_options,
+								'tooltip' => 'Choose how many rows each master table displays',
+							)
 						);
-					}
-					$per_page_select_html = $this->psm_select_html(
-						array(
-							'name'    => 'per_page',
-							'id'      => 'psm_per_page',
-							'options' => $per_page_options,
-							'tooltip' => 'Choose how many rows each master table displays',
-						)
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_select_html() escapes the select attributes and option labels.
+						echo $per_page_select_html;
+						?>
+						<button type="button" class="psm-btn psm-btn-primary" id="psm_save_per_page">Save Pagination</button>
+					</div>
+					<button type="button" class="psm-btn-add psm-add-only psm-open-modal" data-entity="<?php echo esc_attr( $entity ); ?>" data-record=""
+						aria-label="Add New <?php echo esc_attr( $entity_label ); ?>" data-tooltip="Add New <?php echo esc_attr( $entity_label ); ?>">
+						<span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
+					</button>
+				</div>
+
+				<div class="psm-pill-nav psm-master-entity-nav">
+					<?php
+					$sub_entities = array(
+						'domain'        => 'Domains (' . $master_counts['domain'] . ')',
+						'skill_type'    => 'Skill Types (' . $master_counts['skill_type'] . ')',
+						'question_type' => 'Question Types (' . $master_counts['question_type'] . ')',
+						'difficulty'    => 'Difficulties (' . $master_counts['difficulty'] . ')',
+						'skill'         => 'Skills (' . $master_counts['skill'] . ')',
+						'tag'           => 'Tags (' . $master_counts['tag'] . ')',
+						'question'      => 'Questions (' . $master_counts['question'] . ')',
 					);
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_select_html() escapes the select attributes and option labels.
-					echo $per_page_select_html;
-					?>
-					<button type="button" class="psm-btn psm-btn-primary" id="psm_save_per_page">Save Pagination</button>
+					foreach ( $sub_entities as $ek => $elabel ) :
+						$cls = ( $entity === $ek ) ? 'psm-pill active' : 'psm-pill';
+						?>
+						<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $ek ); ?>" class="<?php echo esc_attr( $cls ); ?>"><?php echo esc_html( $elabel ); ?></a>
+					<?php endforeach; ?>
 				</div>
 
 				<div class="psm-table-card">
@@ -803,7 +816,7 @@ endif;
 							<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
 								<?php submit_button( 'Fetch & Show Data for Check Before Import', 'primary', 'submit', false ); ?>
 								<button type="button" class="button button-secondary" id="psm_create_prompt_btn">Create Prompt (Copy / Download)</button>
-								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_jump" data-tooltip="Paste JSON or preview a saved JSON file" title="Paste JSON or preview a saved JSON file">
+								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_jump" data-tooltip="Paste JSON or preview a saved JSON file">
 								<span class="dashicons dashicons-upload" aria-hidden="true"></span> Import JSON
 							</button>
 								<div id="psm_ai_loader" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;color:#1e3a8a;font-weight:600;">
@@ -957,11 +970,11 @@ endif;
 						<div class="psm-modal-title-wrap">
 							<h3 id="psm_modal_title">Add / Edit Record</h3>
 							<div class="psm-question-edit-nav" id="psm_question_edit_nav" style="display:none;">
-								<button type="button" id="psm_question_previous" class="psm-nav-arrow" aria-label="Edit previous question" title="Previous question" data-tooltip="Previous question">
+								<button type="button" id="psm_question_previous" class="psm-nav-arrow" aria-label="Edit previous question" data-tooltip="Previous question">
 									<span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span>
 								</button>
 								<span id="psm_question_position">Question</span>
-								<button type="button" id="psm_question_next" class="psm-nav-arrow" aria-label="Edit next question" title="Next question" data-tooltip="Next question">
+								<button type="button" id="psm_question_next" class="psm-nav-arrow" aria-label="Edit next question" data-tooltip="Next question">
 									<span class="dashicons dashicons-arrow-right-alt" aria-hidden="true"></span>
 								</button>
 							</div>
@@ -1089,8 +1102,8 @@ endif;
 									<label>Tags (Optional)
 										<div class="psm-tag-picker">
 											<input type="text" id="psm_m_question_tag_input" list="psm_question_tag_suggestions" autocomplete="off" placeholder="Select an existing tag or type a new tag"
-												data-tooltip="Choose a skill tag or enter a new tag name" title="Choose a skill tag or enter a new tag name">
-											<button type="button" id="psm_m_question_tag_add" class="psm-btn psm-btn-secondary" data-tooltip="Add the typed tag" title="Add tag">Add tag</button>
+												data-tooltip="Choose a skill tag or enter a new tag name">
+											<button type="button" id="psm_m_question_tag_add" class="psm-btn psm-btn-secondary" data-tooltip="Add the typed tag">Add tag</button>
 										</div>
 										<datalist id="psm_question_tag_suggestions"></datalist>
 										<div class="psm-selected-tags" id="psm_m_selected_question_tags" aria-live="polite"></div>

@@ -257,7 +257,7 @@ class PSM_API_Client {
 	 */
 	public static function build_export_prompt( $params ) {
 		$skill_name = trim( (string) ( $params['skill_name'] ?? '' ) );
-		$skill_slug = sanitize_title( (string) ( $params['skill_slug'] ?? '' ) );
+		$skill_slug = PSM_Seeder::make_slug( (string) ( $params['skill_slug'] ?? '' ) );
 		$count      = max( 1, min( 100, (int) ( $params['count'] ?? 50 ) ) );
 
 		$supported_types = array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' );

@@ -11,6 +11,8 @@ class PSM_Seeder {
 	/**
 	 * Generates a clean slug while enforcing fixed slugs:
 	 * - Entity Framework Core -> efcore
+	 * - C -> c
+	 * - C++ -> cplusplus
 	 * - C# -> csharp
 	 * - C# OOP -> csharp-oop
 	 * - Laravel -> laravel
@@ -24,6 +26,12 @@ class PSM_Seeder {
 		}
 		if ( 'c# oop' === $lower || 'csharp oop' === $lower || 'csharp-oop' === $lower || 'c-sharp-oop' === $lower ) {
 			return 'csharp-oop';
+		}
+		if ( in_array( $lower, array( 'c++', 'cpp', 'c plus plus', 'cplusplus', 'c-plus-plus', 'cplush' ), true ) ) {
+			return 'cplusplus';
+		}
+		if ( 'c' === $lower ) {
+			return 'c';
 		}
 		if ( 'c#' === $lower || 'csharp' === $lower || 'c-sharp' === $lower ) {
 			return 'csharp';
@@ -50,6 +58,8 @@ class PSM_Seeder {
 
 		$fixed_skills = array(
 			'Entity Framework Core' => 'efcore',
+			'C'                     => 'c',
+			'C++'                   => 'cplusplus',
 			'C#'                    => 'csharp',
 			'C# OOP'                => 'csharp-oop',
 			'Laravel'               => 'laravel',
@@ -132,7 +142,7 @@ class PSM_Seeder {
 			array(
 				'name' => 'Programming Language',
 				'slug' => 'programming-language',
-				'desc' => 'Core programming languages (C#, PHP, Java, JavaScript, Python).',
+				'desc' => 'Core programming languages (C, C++, C#, PHP, Java, JavaScript, Python).',
 			),
 			array(
 				'name' => 'Framework',
@@ -711,6 +721,92 @@ class PSM_Seeder {
 				'icon'        => 'dashicons-editor-code',
 				'description' => 'Programming languages, frameworks, libraries, and developer tools.',
 				'skills'      => array(
+					array(
+						'name'        => 'C',
+						'slug'        => 'c',
+						'skill_type'  => 'Programming Language',
+						'parent_slug' => '',
+						'description' => 'Procedural system programming language covering variables, control flow, functions, pointers, structures, memory management, preprocessing, and file handling.',
+						'tags'        => array(
+							array(
+								'slug'        => 'c',
+								'name'        => 'C',
+								'description' => 'Core C language syntax, compilation, and runtime concepts.',
+							),
+							'c-fundamentals',
+							'c-variables',
+							'c-data-types',
+							'c-operators',
+							'c-control-flow',
+							'c-loops',
+							'c-functions',
+							'c-arrays',
+							'c-strings',
+							'c-pointers',
+							'c-pointer-arithmetic',
+							'c-dynamic-memory',
+							'c-structures',
+							'c-unions',
+							'c-enums',
+							'c-typedef',
+							'c-file-handling',
+							'c-preprocessor',
+							'c-macros',
+							'c-header-files',
+							'c-memory-management',
+							'c-bitwise-operators',
+							'c-recursion',
+							'c-scope-storage-classes',
+							'c-error-handling',
+						),
+					),
+					array(
+						'name'        => 'C++',
+						'slug'        => 'cplusplus',
+						'skill_type'  => 'Programming Language',
+						'parent_slug' => '',
+						'description' => 'Object-oriented and generic programming language covering classes, inheritance, polymorphism, templates, the Standard Template Library, RAII, smart pointers, and concurrency.',
+						'tags'        => array(
+							array(
+								'slug'        => 'cplusplus',
+								'name'        => 'C++',
+								'description' => 'Core C++ language syntax, compilation, and runtime concepts.',
+							),
+							'cplusplus-fundamentals',
+							'cplusplus-variables',
+							'cplusplus-data-types',
+							'cplusplus-operators',
+							'cplusplus-control-flow',
+							'cplusplus-functions',
+							'cplusplus-overloading',
+							'cplusplus-references',
+							'cplusplus-pointers',
+							'cplusplus-arrays',
+							'cplusplus-strings',
+							'cplusplus-classes',
+							'cplusplus-objects',
+							'cplusplus-constructors-destructors',
+							'cplusplus-encapsulation',
+							'cplusplus-inheritance',
+							'cplusplus-polymorphism',
+							'cplusplus-abstraction',
+							'cplusplus-abstract-classes',
+							'cplusplus-templates',
+							'cplusplus-generics',
+							'cplusplus-stl',
+							'cplusplus-vectors',
+							'cplusplus-maps',
+							'cplusplus-smart-pointers',
+							'cplusplus-raii',
+							'cplusplus-exception-handling',
+							'cplusplus-namespaces',
+							'cplusplus-lambdas',
+							'cplusplus-move-semantics',
+							'cplusplus-memory-management',
+							'cplusplus-multithreading',
+							'cplusplus-concurrency',
+						),
+					),
 					array(
 						'name'        => 'C#',
 						'slug'        => 'csharp',

@@ -85,7 +85,7 @@ class PSM_Importer {
 			return '';
 		}
 
-		$skill_slug = sanitize_title( (string) $skill_slug );
+		$skill_slug = PSM_Seeder::make_slug( (string) $skill_slug );
 		$skill_name = trim( (string) $skill_name );
 
 		if ( '' !== $skill_name ) {

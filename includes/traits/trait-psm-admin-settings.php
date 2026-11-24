@@ -126,7 +126,7 @@ trait PSM_Admin_Settings_Trait {
 				data-confirm-label="<?php echo esc_attr__( 'Clear Cache', 'psm-ai-question-importer' ); ?>">
 				<?php wp_nonce_field( 'psm_clear_cache' ); ?>
 				<input type="hidden" name="action" value="psm_clear_cache">
-				<button type="submit" class="psm-btn psm-btn-secondary" data-tooltip="Delete all plugin query cache entries" title="Delete all plugin query cache entries">
+				<button type="submit" class="psm-btn psm-btn-secondary" data-tooltip="Delete all plugin query cache entries">
 					<span class="dashicons dashicons-trash" aria-hidden="true"></span>
 					<?php esc_html_e( 'Clear Plugin Cache', 'psm-ai-question-importer' ); ?>
 				</button>

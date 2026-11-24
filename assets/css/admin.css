@@ -170,6 +170,7 @@
 			.psm-wrap .nav-tab:nth-child(3) { background: linear-gradient(135deg, #059669, #84cc16); }
 			.psm-wrap .nav-tab:nth-child(4) { background: linear-gradient(135deg, #ea580c, #f59e0b); }
 			.psm-wrap .nav-tab:nth-child(5) { background: linear-gradient(135deg, #0891b2, #14b8a6); }
+			.psm-wrap .nav-tab:nth-child(6) { background: linear-gradient(135deg, #0f766e, #22c55e); }
 			.psm-wrap .nav-tab:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 5px 14px rgba(15,23,42,0.2); }
 			.psm-wrap .nav-tab.nav-tab-active { color: #fff; outline: 3px solid rgba(255,255,255,0.85); outline-offset: -3px; transform: translateY(-1px); }
 			.psm-pill:nth-child(1) { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
@@ -181,11 +182,11 @@
 			.psm-pill:nth-child(7) { background: #e0e7ff; color: #3730a3; border-color: #a5b4fc; }
 			.psm-pill.active { outline: 2px solid currentColor; outline-offset: 2px; }
 			.psm-filter-bar {
-				display: grid; grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, 1fr)) auto;
-				gap: 12px; align-items: end; padding: 14px; margin-bottom: 16px; border-radius: 10px;
+				display: flex; flex-wrap: nowrap; gap: 12px; align-items: end; padding: 14px; margin-bottom: 16px; border-radius: 10px;
 				background: linear-gradient(135deg, #f8fafc, #eef2ff); border: 1px solid #dbeafe;
 			}
-			.psm-filter-field { position: relative; display: flex; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
+			.psm-filter-field { position: relative; display: flex; flex: 1 1 150px; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
+			.psm-filter-search { flex: 1.4 1 220px; }
 			.psm-filter-field > span { color: #334155; font-size: 12px; font-weight: 700; }
 			.psm-filter-compact .psm-filter-field > span {
 				position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -196,7 +197,7 @@
 				padding: 8px 11px; box-shadow: 0 1px 2px rgba(15,23,42,0.04); transition: border-color .15s, box-shadow .15s;
 			}
 			.psm-filter-field input:focus, .psm-filter-field select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); outline: 0; }
-			.psm-filter-actions { display: flex; gap: 8px; }
+			.psm-filter-actions { display: flex; flex: 0 0 auto; gap: 8px; }
 			.psm-filter-actions .psm-btn { height: 44px; }
 			.psm-master-list.is-loading { opacity: .58; pointer-events: none; }
 			.psm-btn {
@@ -290,17 +291,22 @@
 				padding-top: 0; padding-bottom: 0;
 			}
 			.psm-page-btn > span:not(.dashicons) { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 100%; line-height: 1; }
+			.psm-master-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0 12px; }
+			.psm-master-toolbar .psm-per-page-setting { display: flex; align-items: center; gap: 8px; margin: 0; }
+			.psm-master-entity-nav { margin: 0 0 16px; }
+			.psm-add-only { width: 44px; height: 44px; padding: 0; }
+			.psm-add-only .dashicons { width: 22px; height: 22px; font-size: 22px; }
 			.psm-per-page-setting select { width: auto; min-width: 80px; }
+			.psm-seed-card { max-width: 760px; margin-top: 20px; }
+			.psm-seed-card h2 { margin-top: 0; }
 			.psm-backup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; margin: 18px 0; }
 			.psm-backup-card { background: #f8fafc; border: 1px solid #dbeafe; border-radius: 10px; padding: 18px; }
 			.psm-backup-card h3 { margin-top: 0; }
 			.psm-backup-card select { max-width: 100%; }
-			@media (max-width: 1100px) {
-				.psm-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-				.psm-filter-actions { align-self: end; }
-			}
 			@media (max-width: 640px) {
-				.psm-filter-bar { grid-template-columns: 1fr; }
+				.psm-filter-bar { flex-direction: column; align-items: stretch; }
+				.psm-filter-field { width: 100%; flex: 0 0 auto; }
+				.psm-filter-actions { justify-content: flex-start; }
 				.psm-pagination { align-items: flex-start; flex-direction: column; }
 				.psm-tag-picker { align-items: stretch; flex-direction: column; }
 				.psm-tag-picker .psm-btn { margin-top: 0; }

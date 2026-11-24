@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.1
+Stable tag: 1.7.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,15 +12,18 @@ Generate, preview, import, and manage AI questions with domain, skill, tag, batc
 
 == Description ==
 
-PSM AI Question Generator & Importer provides a five-tab workflow:
+PSM AI Question Generator & Importer provides a six-tab workflow:
 
 1. Prompt, Preview & Import: build a strict JSON prompt, copy or download it, upload saved JSON in a popup, validate it, and preview every row before import.
 2. Master Tables: manage domains, skill types, question types, difficulties, skills, tags, and questions with AJAX filters and pagination.
 3. Batches & Label Download: review imported batches and download question labels or CSV exports.
 4. AI Providers: configure independent provider cards and monitor usage without displaying saved API keys.
 5. Backup & Restore: export and restore the configured `psm_*` tables as validated JSON without including WordPress options or provider credentials.
+6. Seed Defaults: add missing default domains, skills, and tags, including C, C++, and C#, with an explained idempotent seed action.
 
-Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons, and the administrator-configurable rows-per-page setting is validated between 5 and 100.
+Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons, and the administrator-configurable rows-per-page setting appears at the top of Master Tables and is validated between 5 and 100.
+
+The seed defaults are non-destructive and idempotent. They add missing records by slug, preserve existing names, ownership, statuses, and descriptions, may fill blank descriptions, and never change existing questions or question-tag relationships. C and C++ use the canonical slugs `c` and `cplusplus`; C# uses `csharp`.
 
 Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
 
@@ -75,6 +78,14 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.7.2 =
+* Moved rows-per-page settings to the top of Master Tables and aligned a plus-icon-only Add control to the right.
+* Kept desktop master filters on one line without changing field heights.
+* Moved Run Idempotent Seed to a dedicated Seed Defaults tab with non-destructive guidance and confirmation.
+* Added C and C++ skills and skill-prefixed topic tags using canonical `c` and `cplusplus` slugs; retained C# as `csharp` and accepted `cplush` as a C++ alias.
+* Preserved canonical C-family slugs during tag normalization and JSON envelope validation.
+* Removed duplicate native title tooltips where custom tooltips are shown.
 
 = 1.7.1 =
 * Restored clearly styled master-table edit icons and moved custom tooltips above their controls.
@@ -132,6 +143,9 @@ Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or bat
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.7.2 =
+Refines the master toolbar and single-line filters, moves seeding to Seed Defaults, and adds C/C++ skills and topic tags while preserving existing data. No database schema change is required.
 
 = 1.7.1 =
 Fixes master edit icons, tooltip placement, pagination alignment, and debounced search timing. No database schema change is required.

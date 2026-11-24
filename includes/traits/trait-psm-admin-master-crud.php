@@ -581,7 +581,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			add_query_arg(
 				array(
 					'page' => 'psm-ai-importer',
-					'tab'  => 'masters',
+					'tab'  => 'seed',
 				),
 				admin_url( 'admin.php' )
 			)

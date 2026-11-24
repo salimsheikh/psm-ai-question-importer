@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.7.1  
+**Version:** 1.7.2  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -8,13 +8,17 @@ Generate structured AI questions, review them before import, and manage question
 
 ## Features
 
-- Five admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, AI Providers, and Backup & Restore.
+- Six admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, AI Providers, Backup & Restore, and Seed Defaults.
 - Modular master classes, controller dispatch, shared list rendering, reusable UI component traits, and focused admin workflow traits.
 - Namespaced one-hour query caching for master lists, counts, selectors, question navigation, and common admin datasets, with automatic mutation invalidation and a manual admin clear control.
 - Versioned external admin CSS and JavaScript assets.
 - AJAX filters and pagination for every master table, with related domain, status, skill-type, and skill filters.
 - Domain-aware skill selectors in filters, question/tag/skill editors, prompt generation, and JSON import, with server-side ownership validation.
-- Fixed-square pagination controls with centered numbers/icons and an administrator-configurable page size (5–100).
+- Fixed-square pagination controls with centered numbers/icons and a top-of-table administrator-configurable page size (5–100).
+- Plus-icon Add control aligned to the right of the master toolbar.
+- Single-line desktop master filters with responsive stacking on smaller screens.
+- Dedicated Seed Defaults tab with an explained idempotent, non-destructive seed action.
+- C, C++, and C# default skills with canonical `c`, `cplusplus`, and `csharp` slugs and skill-prefixed topic tags.
 - Portable JSON Backup & Restore for the configured `psm_*` tables, with validated uploads, merge/replace modes, transactions, and no executable SQL.
 - Provider credentials and WordPress options are excluded from backups.
 - Strict JSON prompt builder with copy and download actions.
@@ -54,7 +58,9 @@ Generate structured AI questions, review them before import, and manage question
 
 All master tables include AJAX search and pagination. Skill Types can be filtered by domain, Question Types and Difficulties by status, Skills by domain/type/status, and Tags by wildcard name/slug, domain, and skill. Question, tag, and skill editors limit skill choices to the selected domain.
 
-The default page size is 25. Under **Master Tables**, administrators can select 5, 10, 15, 25, 50, 75, or 100 rows per page; the server clamps invalid saved values to the supported range.
+The default page size is 25. At the top of **Master Tables**, administrators can select 5, 10, 15, 25, 50, 75, or 100 rows per page; the server clamps invalid saved values to the supported range.
+
+Use **Seed Defaults** to add missing default masters and C/C++/C# topic tags. The seed is idempotent: it adds missing records by slug, preserves existing records, may fill blank descriptions, and never deletes records or changes question-tag relationships.
 
 The **Tags** tab supports `*` for any sequence and `?` for one character. Examples include `csharp-*` and `*oop`.
 
@@ -95,6 +101,15 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.7.2
+
+- Moved rows-per-page pagination settings to the top of Master Tables and aligned a plus-icon-only Add control to the right.
+- Kept desktop master filters on one line while retaining existing field heights and responsive mobile stacking.
+- Moved Run Idempotent Seed to a dedicated Seed Defaults tab with a clear non-destructive explanation and confirmation.
+- Added C and C++ skills with canonical `c` and `cplusplus` slugs and skill-prefixed topic tags; retained C# as `csharp` and accepted `cplush` as a C++ import alias.
+- Preserved canonical C-family slugs during tag normalization and JSON envelope validation.
+- Removed duplicate native title tooltips where custom tooltips are already shown.
 
 ### 1.7.1
 
@@ -159,4 +174,4 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 
 ## Upgrade Notes
 
-Version 1.7.1 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. A backup is recommended before using Replace-all restore.
+Version 1.7.2 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. Run Seed Defaults to add missing C/C++/C# masters and tags; a backup is recommended before using Replace-all restore.

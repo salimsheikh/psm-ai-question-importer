@@ -197,7 +197,7 @@ trait PSM_Admin_Import_Trait {
 		}
 
 		if ( isset( $decoded['skill'] ) && is_array( $decoded['skill'] ) ) {
-			$envelope_slug = sanitize_title( (string) ( $decoded['skill']['slug'] ?? '' ) );
+			$envelope_slug = PSM_Seeder::make_slug( (string) ( $decoded['skill']['slug'] ?? '' ) );
 			if ( '' !== $envelope_slug && $envelope_slug !== $skill->slug ) {
 				return new WP_Error(
 					'skill_mismatch',

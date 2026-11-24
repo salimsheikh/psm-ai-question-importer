@@ -409,8 +409,8 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 		}
 		$updated = strtotime( $row->updated_at . ' UTC' );
 		$html   .= '</td><td><span class="psm-badge ' . esc_attr( $badge ) . '">' . esc_html( ucfirst( $row->status ) ) . '</span></td><td>' . esc_html( $updated ? wp_date( 'Y-m-d H:i', $updated ) : $row->updated_at ) . '</td><td>';
-		$html   .= '<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" title="Edit question" data-tooltip="Edit question" data-entity="question" data-record="' . esc_attr( wp_json_encode( $record, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) ) . '"><span class="dashicons dashicons-edit" aria-hidden="true"></span></button>';
-		$html   .= '<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" title="Delete question" data-tooltip="Delete question" data-entity="question" data-id="' . esc_attr( $row->id ) . '" data-name="' . esc_attr( $excerpt ) . '"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button></td></tr>';
+		$html   .= '<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" data-tooltip="Edit question" data-entity="question" data-record="' . esc_attr( wp_json_encode( $record, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ) ) . '"><span class="dashicons dashicons-edit" aria-hidden="true"></span></button>';
+		$html   .= '<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" data-tooltip="Delete question" data-entity="question" data-id="' . esc_attr( $row->id ) . '" data-name="' . esc_attr( $excerpt ) . '"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button></td></tr>';
 		return $html;
 	}
 
