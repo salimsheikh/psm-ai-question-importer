@@ -17,6 +17,7 @@ class PSM_Admin_UI {
 		add_action( 'wp_ajax_psm_ajax_save_master', array( $this, 'ajax_save_master' ) );
 		add_action( 'wp_ajax_psm_ajax_delete_master', array( $this, 'ajax_delete_master' ) );
 		add_action( 'wp_ajax_psm_ajax_get_question_master', array( $this, 'ajax_get_question_master' ) );
+		add_action( 'wp_ajax_psm_ajax_get_master_list', array( $this, 'ajax_get_master_list' ) );
 
 		// AJAX endpoint for saving individual AI provider forms (Gemini / OpenAI / Custom)
 		add_action( 'wp_ajax_psm_ajax_save_ai_provider', array( $this, 'ajax_save_ai_provider' ) );
@@ -526,12 +527,11 @@ class PSM_Admin_UI {
 			if ( '' !== $label ) {
 				$content .= '<span>' . esc_html( $label ) . '</span>';
 			}
-			if ( $disabled ) {
-				return '<span class="' . $classes . '" aria-disabled="true" data-tooltip="' . esc_attr( $tooltip ) . '">' . $content . '</span>';
+			$attr = ' data-page="' . esc_attr( $target ) . '" data-page-param="' . esc_attr( $page_param ) . '"';
+			if ( $disabled || $current ) {
+				return '<span class="' . $classes . '" aria-disabled="true" data-tooltip="' . esc_attr( $tooltip ) . '"' . $attr . '>' . $content . '</span>';
 			}
-			$url  = esc_url( add_query_arg( $page_param, $target ) );
-			$attr = $current ? ' aria-current="page"' : '';
-			return '<a class="' . $classes . '" href="' . $url . '" aria-label="' . esc_attr( $tooltip ) . '" data-tooltip="' . esc_attr( $tooltip ) . '"' . $attr . '>' . $content . '</a>';
+			return '<button type="button" class="' . $classes . '" aria-label="' . esc_attr( $tooltip ) . '" data-tooltip="' . esc_attr( $tooltip ) . '"' . $attr . '>' . $content . '</button>';
 		};
 
 		$html  = '<div class="psm-pagination"><div class="psm-pagination-info">Showing <strong>' . number_format_i18n( $start ) . '&ndash;' . number_format_i18n( $end ) . '</strong> of <strong>' . number_format_i18n( $total_items ) . '</strong> ' . esc_html( $item_label ) . '</div><nav class="psm-pagination-links" aria-label="' . esc_attr( ucfirst( $item_label ) . ' pagination' ) . '">';
@@ -558,6 +558,410 @@ class PSM_Admin_UI {
 		$html .= '</nav></div>';
 
 		return $html;
+	}
+
+	private function get_master_counts() {
+		global $wpdb;
+		$tables = array(
+			'domain'        => 'psm_domains',
+			'skill_type'    => 'psm_skill_types',
+			'question_type' => 'psm_question_types',
+			'difficulty'    => 'psm_difficulties',
+			'skill'         => 'psm_skills',
+			'tag'           => 'psm_tags',
+			'question'      => 'psm_questions',
+		);
+		$counts = array();
+		foreach ( $tables as $entity => $table ) {
+			$counts[ $entity ] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}{$table}" );
+		}
+		return $counts;
+	}
+
+	private function get_master_filters( $entity, $source ) {
+		$search_key = $entity . '_search';
+		$filters    = array(
+			'search' => sanitize_text_field( wp_unslash( $source[ $search_key ] ?? '' ) ),
+		);
+
+		if ( 'skill_type' === $entity ) {
+			$filters['domain_id'] = absint( $source['skill_type_domain'] ?? 0 );
+		} elseif ( 'question_type' === $entity || 'difficulty' === $entity || 'skill' === $entity ) {
+			$status = sanitize_key( $source[ $entity . '_status' ] ?? '' );
+			$filters['status'] = in_array( $status, array( 'active', 'inactive' ), true ) ? $status : '';
+			if ( 'skill' === $entity ) {
+				$filters['domain_id']     = absint( $source['skill_domain'] ?? 0 );
+				$filters['skill_type_id'] = absint( $source['skill_type'] ?? 0 );
+			}
+		} elseif ( 'tag' === $entity ) {
+			$filters['skill_id'] = absint( $source['tag_skill'] ?? 0 );
+		} elseif ( 'question' === $entity ) {
+			$filters = $this->get_question_filters( $source );
+		}
+
+		return $filters;
+	}
+
+	private function get_master_list_data( $entity, $source ) {
+		global $wpdb;
+		$per_page = 25;
+		$filters  = $this->get_master_filters( $entity, $source );
+		$data     = array(
+			'entity'        => $entity,
+			'filters'       => $filters,
+			'rows'          => array(),
+			'total_count'   => 0,
+			'filtered_count'=> 0,
+			'page'          => 1,
+			'total_pages'   => 1,
+			'per_page'      => $per_page,
+			'question_order'=> array(),
+			'skills'        => $wpdb->get_results( "SELECT id, name, slug FROM {$wpdb->prefix}psm_skills ORDER BY name ASC" ),
+			'domains'       => $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}psm_domains ORDER BY sort_order ASC, name ASC" ),
+			'skill_types'   => $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}psm_skill_types ORDER BY sort_order ASC, name ASC" ),
+			'tags'          => $wpdb->get_results( "SELECT id, name, slug, skill_id, status FROM {$wpdb->prefix}psm_tags ORDER BY name ASC" ),
+		);
+
+		if ( 'question' === $entity ) {
+			return $this->get_question_master_list_data( $data, $source );
+		}
+		if ( 'tag' === $entity ) {
+			return $this->get_tag_master_list_data( $data, $source );
+		}
+		if ( 'skill' === $entity ) {
+			return $this->get_skill_master_list_data( $data, $source );
+		}
+
+		$tables = array(
+			'domain'        => 'psm_domains',
+			'skill_type'    => 'psm_skill_types',
+			'question_type' => 'psm_question_types',
+			'difficulty'    => 'psm_difficulties',
+		);
+		if ( ! isset( $tables[ $entity ] ) ) {
+			return $data;
+		}
+
+		$table  = $wpdb->prefix . $tables[ $entity ];
+		$where  = ' WHERE 1=1';
+		$args   = array();
+		if ( '' !== $filters['search'] ) {
+			$where  .= ' AND m.name LIKE %s';
+			$args[]  = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+		}
+		if ( 'skill_type' === $entity && $filters['domain_id'] > 0 ) {
+			$where  .= ' AND EXISTS (SELECT 1 FROM ' . $wpdb->prefix . 'psm_skills s WHERE s.skill_type_id = m.id AND s.domain_id = %d)';
+			$args[]  = $filters['domain_id'];
+		}
+		if ( isset( $filters['status'] ) && '' !== $filters['status'] ) {
+			$where .= ' AND m.status = %s';
+			$args[] = $filters['status'];
+		}
+
+		$count_sql = "SELECT COUNT(*) FROM $table m $where";
+		$data['total_count'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" );
+		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
+		$data['total_pages'] = max( 1, (int) ceil( $data['filtered_count'] / $per_page ) );
+		$data['page'] = min( $data['total_pages'], max( 1, absint( $source[ $entity . '_page' ] ?? 1 ) ) );
+		$offset = ( $data['page'] - 1 ) * $per_page;
+		$data['rows'] = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT m.* FROM $table m $where ORDER BY m.sort_order ASC, m.name ASC LIMIT %d, %d",
+				array_merge( $args, array( $offset, $per_page ) )
+			)
+		);
+
+		return $data;
+	}
+
+	private function get_skill_master_list_data( $data, $source ) {
+		global $wpdb;
+		$filters = $data['filters'];
+		$where   = ' WHERE 1=1';
+		$args    = array();
+		if ( '' !== $filters['search'] ) {
+			$where  .= ' AND s.name LIKE %s';
+			$args[]  = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+		}
+		if ( $filters['domain_id'] > 0 ) {
+			$where  .= ' AND s.domain_id = %d';
+			$args[]  = $filters['domain_id'];
+		}
+		if ( $filters['skill_type_id'] > 0 ) {
+			$where  .= ' AND s.skill_type_id = %d';
+			$args[]  = $filters['skill_type_id'];
+		}
+		if ( '' !== $filters['status'] ) {
+			$where .= ' AND s.status = %s';
+			$args[] = $filters['status'];
+		}
+
+		$from = "FROM {$wpdb->prefix}psm_skills s
+			LEFT JOIN {$wpdb->prefix}psm_domains d ON s.domain_id = d.id
+			LEFT JOIN {$wpdb->prefix}psm_skill_types st ON s.skill_type_id = st.id
+			LEFT JOIN {$wpdb->prefix}psm_skills p ON s.parent_id = p.id";
+		$count_sql = "SELECT COUNT(*) $from $where";
+		$data['total_count'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}psm_skills" );
+		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
+		$data['total_pages'] = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
+		$data['page'] = min( $data['total_pages'], max( 1, absint( $source['skill_page'] ?? 1 ) ) );
+		$offset = ( $data['page'] - 1 ) * $data['per_page'];
+		$data['rows'] = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT s.*, d.name AS domain_name, st.name AS master_type_name, p.name AS parent_skill_name
+				 $from $where ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC LIMIT %d, %d",
+				array_merge( $args, array( $offset, $data['per_page'] ) )
+			)
+		);
+		return $data;
+	}
+
+	private function get_tag_master_list_data( $data, $source ) {
+		global $wpdb;
+		$filters = $data['filters'];
+		$where   = ' WHERE 1=1';
+		$args    = array();
+		if ( '' !== $filters['search'] ) {
+			$pattern = str_replace( array( '*', '?' ), array( '%', '_' ), $wpdb->esc_like( $filters['search'] ) );
+			$where  .= ' AND (t.name LIKE %s OR t.slug LIKE %s)';
+			$args[]  = '%' . $pattern . '%';
+			$args[]  = '%' . $pattern . '%';
+		}
+		if ( $filters['skill_id'] > 0 ) {
+			$where  .= ' AND t.skill_id = %d';
+			$args[]  = $filters['skill_id'];
+		}
+		$from = "FROM {$wpdb->prefix}psm_tags t
+			LEFT JOIN {$wpdb->prefix}psm_skills s ON s.id = t.skill_id
+			LEFT JOIN {$wpdb->prefix}psm_question_tags qt ON qt.tag_id = t.id";
+		$count_sql = "SELECT COUNT(DISTINCT t.id) $from $where";
+		$data['total_count'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}psm_tags" );
+		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
+		$data['total_pages'] = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
+		$data['page'] = min( $data['total_pages'], max( 1, absint( $source['tag_page'] ?? 1 ) ) );
+		$offset = ( $data['page'] - 1 ) * $data['per_page'];
+		$data['rows'] = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT t.*, s.name AS skill_name, COUNT(qt.question_id) AS question_count
+				 $from $where GROUP BY t.id ORDER BY t.sort_order ASC, t.name ASC LIMIT %d, %d",
+				array_merge( $args, array( $offset, $data['per_page'] ) )
+			)
+		);
+		return $data;
+	}
+
+	private function get_question_master_list_data( $data, $source ) {
+		global $wpdb;
+		list( $where, $args ) = $this->get_question_filter_sql( $data['filters'] );
+		$table = $wpdb->prefix . 'psm_questions';
+		$count_sql = "SELECT COUNT(*) FROM $table q $where";
+		$data['total_count'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" );
+		$data['filtered_count'] = (int) ( empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) ) );
+		$data['total_pages'] = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
+		$data['page'] = min( $data['total_pages'], max( 1, absint( $source['question_page'] ?? 1 ) ) );
+		$offset = ( $data['page'] - 1 ) * $data['per_page'];
+		$ordered_sql = "SELECT q.id FROM $table q $where ORDER BY q.updated_at DESC, q.id DESC";
+		$data['question_order'] = array_map( 'intval', empty( $args ) ? $wpdb->get_col( $ordered_sql ) : $wpdb->get_col( $wpdb->prepare( $ordered_sql, $args ) ) );
+		$positions = array_flip( $data['question_order'] );
+		$data['rows'] = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT q.*, s.name AS skill_name, d.name AS difficulty_name
+				 FROM $table q
+				 LEFT JOIN {$wpdb->prefix}psm_skills s ON s.id = q.skill_id
+				 LEFT JOIN {$wpdb->prefix}psm_difficulties d ON d.id = q.difficulty
+				 $where ORDER BY q.updated_at DESC, q.id DESC LIMIT %d, %d",
+				array_merge( $args, array( $offset, $data['per_page'] ) )
+			)
+		);
+
+		$question_ids = array();
+		foreach ( $data['rows'] as $row ) {
+			$question_ids[] = (int) $row->id;
+		}
+		$tags_by_question = array();
+		if ( ! empty( $question_ids ) ) {
+			$placeholders = implode( ',', array_fill( 0, count( $question_ids ), '%d' ) );
+			$tag_rows = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT qt.question_id, t.slug FROM {$wpdb->prefix}psm_question_tags qt
+					 INNER JOIN {$wpdb->prefix}psm_tags t ON t.id = qt.tag_id
+					 WHERE qt.question_id IN ($placeholders) ORDER BY t.sort_order ASC, t.name ASC",
+					$question_ids
+				)
+			);
+			foreach ( $tag_rows as $tag_row ) {
+				$tags_by_question[ (int) $tag_row->question_id ][] = $tag_row->slug;
+			}
+		}
+		foreach ( $data['rows'] as $row ) {
+			$options = json_decode( $row->options, true );
+			$correct = json_decode( $row->correct_keys, true );
+			$row->options = is_array( $options ) ? $options : array();
+			$row->correct_keys = is_array( $correct ) ? array_values( $correct ) : array();
+			$row->tag_slugs = $tags_by_question[ (int) $row->id ] ?? array();
+			$position = $positions[ (int) $row->id ] ?? 0;
+			$row->previous_id = $position > 0 ? (int) $data['question_order'][ $position - 1 ] : 0;
+			$row->next_id = isset( $data['question_order'][ $position + 1 ] ) ? (int) $data['question_order'][ $position + 1 ] : 0;
+		}
+		return $data;
+	}
+
+	public function ajax_get_master_list() {
+		check_ajax_referer( 'psm_ajax_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+		}
+		$entity = sanitize_key( $_POST['entity'] ?? '' );
+		if ( ! in_array( $entity, array( 'domain', 'skill_type', 'question_type', 'difficulty', 'skill', 'tag', 'question' ), true ) ) {
+			wp_send_json_error( array( 'message' => 'Invalid master entity.' ) );
+		}
+		$data = $this->get_master_list_data( $entity, $_POST );
+		wp_send_json_success(
+			array(
+				'html'            => $this->render_master_list_html( $data ),
+				'counts'          => $this->get_master_counts(),
+				'filters'         => $data['filters'],
+				'page'            => $data['page'],
+				'total_pages'     => $data['total_pages'],
+				'question_order'  => $data['question_order'],
+				'tags'            => $data['tags'],
+				'skills'          => $data['skills'],
+			)
+		);
+	}
+
+	private function render_master_filters_html( $data ) {
+		$entity  = $data['entity'];
+		$filters = $data['filters'];
+		$compact = in_array( $entity, array( 'question', 'tag' ), true );
+		$html    = '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="psm-filter-bar' . ( $compact ? ' psm-filter-compact' : '' ) . '" id="psm_master_filters" data-entity="' . esc_attr( $entity ) . '">';
+		$html   .= '<input type="hidden" name="page" value="psm-ai-importer"><input type="hidden" name="tab" value="masters"><input type="hidden" name="entity" value="' . esc_attr( $entity ) . '">';
+		$search_name = $entity . '_search';
+		$placeholders = array(
+			'domain'        => 'Search domain name',
+			'skill_type'    => 'Search skill type name',
+			'question_type' => 'Search question type name',
+			'difficulty'    => 'Search difficulty name',
+			'skill'         => 'Search skill name',
+			'tag'           => 'Example: csharp-* or *oop',
+			'question'      => 'Search question text',
+		);
+		$html .= '<label class="psm-filter-field psm-filter-search"><span>' . esc_html( 'tag' === $entity ? 'Tag name or slug' : 'Search' ) . '</span><input type="search" name="' . esc_attr( $search_name ) . '" value="' . esc_attr( $filters['search'] ) . '" placeholder="' . esc_attr( $placeholders[ $entity ] ) . '" data-tooltip="' . esc_attr( 'tag' === $entity ? 'Use * for any characters and ? for one character' : 'Search by name' ) . '"></label>';
+
+		if ( 'skill_type' === $entity ) {
+			$html .= '<label class="psm-filter-field"><span>Domain</span><select name="skill_type_domain" data-tooltip="Show skill types used in this domain"><option value="">All domains</option>';
+			foreach ( $data['domains'] as $domain ) {
+				$html .= '<option value="' . esc_attr( $domain->id ) . '" ' . selected( $filters['domain_id'], $domain->id, false ) . '>' . esc_html( $domain->name ) . '</option>';
+			}
+			$html .= '</select></label>';
+		}
+		if ( 'question' === $entity ) {
+			$html .= '<label class="psm-filter-field"><span>Skill</span><select name="question_skill" id="psm_question_skill_filter" data-tooltip="Filter by skill"><option value="">All skills</option>';
+			foreach ( $data['skills'] as $skill ) {
+				$html .= '<option value="' . esc_attr( $skill->id ) . '" ' . selected( $filters['skill_id'], $skill->id, false ) . '>' . esc_html( $skill->name ) . '</option>';
+			}
+			$html .= '</select></label><label class="psm-filter-field"><span>Tag</span><select name="question_tag" id="psm_question_tag_filter" data-tooltip="Filter by a tag owned by the selected skill"><option value="">All tags</option>';
+			foreach ( $data['tags'] as $tag ) {
+				$html .= '<option value="' . esc_attr( $tag->id ) . '" data-skill-id="' . esc_attr( $tag->skill_id ) . '" ' . selected( $filters['tag_id'], $tag->id, false ) . '>' . esc_html( $tag->name . ' [' . $tag->slug . ']' ) . '</option>';
+			}
+			$html .= '</select></label><label class="psm-filter-field"><span>Status</span><select name="question_status" data-tooltip="Filter by draft or published status"><option value="">All statuses</option><option value="draft" ' . selected( $filters['status'], 'draft', false ) . '>Draft</option><option value="published" ' . selected( $filters['status'], 'published', false ) . '>Published</option></select></label>';
+		} elseif ( 'tag' === $entity ) {
+			$html .= '<label class="psm-filter-field"><span>Skill</span><select name="tag_skill" data-tooltip="Filter tags by their owning skill"><option value="">All skills</option>';
+			foreach ( $data['skills'] as $skill ) {
+				$html .= '<option value="' . esc_attr( $skill->id ) . '" ' . selected( $filters['skill_id'], $skill->id, false ) . '>' . esc_html( $skill->name ) . '</option>';
+			}
+			$html .= '</select></label>';
+		} elseif ( 'skill' === $entity ) {
+			$html .= '<label class="psm-filter-field"><span>Domain</span><select name="skill_domain" data-tooltip="Filter skills by domain"><option value="">All domains</option>';
+			foreach ( $data['domains'] as $domain ) {
+				$html .= '<option value="' . esc_attr( $domain->id ) . '" ' . selected( $filters['domain_id'], $domain->id, false ) . '>' . esc_html( $domain->name ) . '</option>';
+			}
+			$html .= '</select></label><label class="psm-filter-field"><span>Skill Type</span><select name="skill_type" data-tooltip="Filter skills by skill type"><option value="">All skill types</option>';
+			foreach ( $data['skill_types'] as $type ) {
+				$html .= '<option value="' . esc_attr( $type->id ) . '" ' . selected( $filters['skill_type_id'], $type->id, false ) . '>' . esc_html( $type->name ) . '</option>';
+			}
+			$html .= '</select></label><label class="psm-filter-field"><span>Status</span><select name="skill_status" data-tooltip="Filter skills by status"><option value="">All statuses</option><option value="active" ' . selected( $filters['status'], 'active', false ) . '>Active</option><option value="inactive" ' . selected( $filters['status'], 'inactive', false ) . '>Inactive</option></select></label>';
+		} elseif ( 'question_type' === $entity || 'difficulty' === $entity ) {
+			$html .= '<label class="psm-filter-field"><span>Status</span><select name="' . esc_attr( $entity . '_status' ) . '" data-tooltip="Filter by status"><option value="">All statuses</option><option value="active" ' . selected( $filters['status'], 'active', false ) . '>Active</option><option value="inactive" ' . selected( $filters['status'], 'inactive', false ) . '>Inactive</option></select></label>';
+		}
+		$html .= '<div class="psm-filter-actions"><button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Apply filters"><span class="dashicons dashicons-filter" aria-hidden="true"></span> Filter</button><button type="button" class="psm-btn psm-btn-secondary" data-psm-reset-filters data-tooltip="Clear all filters">Reset</button></div></form>';
+		return $html;
+	}
+
+	private function render_master_table_html( $data ) {
+		$entity = $data['entity'];
+		$rows   = $data['rows'];
+		$html   = '<table class="widefat striped" id="psm_master_table"><thead><tr><th style="width:65px;">ID</th><th>Name</th><th>Slug</th>';
+		if ( 'question' === $entity ) {
+			$html .= '<th>Skill</th><th>Type</th><th>Difficulty</th><th>Correct</th><th>Tags</th><th style="width:90px;">Status</th><th style="width:140px;">Updated</th><th style="width:110px;">Actions</th>';
+		} else {
+			if ( 'skill' === $entity ) {
+				$html .= '<th>Domain</th><th>Skill Type</th><th>Parent Skill</th><th>Description</th>';
+			} elseif ( 'tag' === $entity ) {
+				$html .= '<th>Skill</th><th>Description</th>';
+			} else {
+				$html .= '<th>Description</th>';
+			}
+			$html .= '<th style="width:90px;">Status</th><th style="width:110px;">Actions</th>';
+		}
+		$html .= '</tr></thead><tbody>';
+
+		if ( empty( $rows ) ) {
+			$colspan = 'question' === $entity ? 10 : ( 'skill' === $entity ? 9 : ( 'tag' === $entity ? 7 : 6 ) );
+			$html   .= '<tr><td colspan="' . $colspan . '" class="psm-empty-state">No records match the selected filters.</td></tr>';
+		} elseif ( 'question' === $entity ) {
+			$type_labels = array( 'four_option' => 'Four Options (Single / Multiple)', 'two_option' => 'Two Options', 'true_false' => 'True / False' );
+			foreach ( $rows as $q ) {
+				$plain = preg_replace( '/\s+/u', ' ', $q->question_text );
+				$excerpt = mb_substr( $plain, 0, 180 );
+				if ( mb_strlen( $plain ) > 180 ) {
+					$excerpt .= '…';
+				}
+				$record = array(
+					'id' => $q->id, 'skill_id' => $q->skill_id, 'difficulty' => $q->difficulty,
+					'question_type' => $q->question_type, 'question_text' => $q->question_text,
+					'code_snippet' => $q->code_snippet, 'code_language' => $q->code_language,
+					'options' => $q->options, 'correct_keys' => $q->correct_keys, 'is_multiple' => $q->is_multiple,
+					'explanation' => $q->explanation, 'status' => $q->status, 'external_id' => $q->external_id,
+					'tag_slugs' => $q->tag_slugs, 'previous_id' => (int) $q->previous_id, 'next_id' => (int) $q->next_id,
+				);
+				$badge = 'published' === $q->status ? 'psm-badge-active' : 'psm-badge-draft';
+				$html .= '<tr id="psm-row-question-' . esc_attr( $q->id ) . '"><td><strong>#' . esc_html( $q->id ) . '</strong></td><td><strong>' . esc_html( $excerpt ) . '</strong></td><td><span class="psm-badge psm-badge-domain">' . esc_html( $q->skill_name ?: '—' ) . '</span></td><td><span class="psm-badge psm-badge-type">' . esc_html( $type_labels[ $q->question_type ] ?? $q->question_type ) . '</span></td><td>' . esc_html( $q->difficulty_name ?: $q->difficulty ) . '</td><td><code>' . esc_html( implode( ', ', $q->correct_keys ) ?: '—' ) . '</code>';
+				if ( $q->is_multiple ) {
+					$html .= '<br><small>Multi choice</small>';
+				}
+				$html .= '</td><td>';
+				if ( empty( $q->tag_slugs ) ) {
+					$html .= '—';
+				} else {
+					foreach ( $q->tag_slugs as $slug ) {
+						$html .= '<span class="psm-badge psm-badge-type">' . esc_html( $slug ) . '</span> ';
+					}
+				}
+				$html .= '</td><td><span class="psm-badge ' . $badge . '">' . esc_html( ucfirst( $q->status ) ) . '</span></td><td>' . esc_html( $this->local_time( $q->updated_at ) ) . '</td><td><button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" title="Edit question" data-tooltip="Edit question" data-entity="question" data-record=\'' . esc_attr( wp_json_encode( $record ) ) . '\'><span class="dashicons dashicons-edit"></span></button><button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" title="Delete question" data-tooltip="Delete question" data-entity="question" data-id="' . esc_attr( $q->id ) . '" data-name="' . esc_attr( $excerpt ) . '"><span class="dashicons dashicons-trash"></span></button></td></tr>';
+			}
+		} else {
+			foreach ( $rows as $r ) {
+				$html .= '<tr id="psm-row-' . esc_attr( $entity . '-' . $r->id ) . '"><td><strong>#' . esc_html( $r->id ) . '</strong></td><td><strong>' . esc_html( $r->name ) . '</strong></td><td><code>' . esc_html( $r->slug ) . '</code></td>';
+				if ( 'skill' === $entity ) {
+					$html .= '<td><span class="psm-badge psm-badge-domain">' . esc_html( $r->domain_name ?: '—' ) . '</span></td><td><span class="psm-badge psm-badge-type">' . esc_html( $r->master_type_name ?: $r->skill_type ) . '</span></td><td>' . esc_html( $r->parent_skill_name ?: '—' ) . '</td><td>' . esc_html( $r->description ?: '—' ) . '</td>';
+				} elseif ( 'tag' === $entity ) {
+					$html .= '<td><span class="psm-badge psm-badge-type">' . esc_html( $r->skill_name ?: $r->skill_id ) . '</span></td><td>' . esc_html( $r->description ?: '—' ) . '</td>';
+				} else {
+					$html .= '<td>' . esc_html( $r->description ?: '—' ) . '</td>';
+				}
+				$badge = 'active' === $r->status ? 'psm-badge-active' : 'psm-badge-inactive';
+				$html .= '<td><span class="psm-badge ' . $badge . '">' . esc_html( ucfirst( $r->status ) ) . '</span></td><td><button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" title="Edit record" data-tooltip="Edit record" data-entity="' . esc_attr( $entity ) . '" data-record=\'' . esc_attr( wp_json_encode( $r ) ) . '\'><span class="dashicons dashicons-edit"></span></button><button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" title="Delete record" data-tooltip="Delete record" data-entity="' . esc_attr( $entity ) . '" data-id="' . esc_attr( $r->id ) . '" data-name="' . esc_attr( $r->name ) . '"><span class="dashicons dashicons-trash"></span></button></td></tr>';
+			}
+		}
+		$html .= '</tbody></table>';
+		$labels = array( 'domain' => 'domains', 'skill_type' => 'skill types', 'question_type' => 'question types', 'difficulty' => 'difficulties', 'skill' => 'skills', 'tag' => 'tags', 'question' => 'questions' );
+		$html .= $this->master_pagination_html( $data['page'], $data['total_pages'], $data['filtered_count'], $data['per_page'], $entity . '_page', $labels[ $entity ] );
+		return $html;
+	}
+
+	private function render_master_list_html( $data ) {
+		return '<div class="psm-master-list" id="psm_master_list" data-entity="' . esc_attr( $data['entity'] ) . '">' . $this->render_master_filters_html( $data ) . $this->render_master_table_html( $data ) . '</div>';
 	}
 
 	/**
@@ -1036,30 +1440,45 @@ class PSM_Admin_UI {
 			}
 		}
 
-		$file       = isset( $_FILES['json_file'] ) ? $_FILES['json_file'] : array();
-		$error_code = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
-		if ( UPLOAD_ERR_OK !== $error_code ) {
-			$this->redirect_with_notice( $this->upload_error_message( $error_code ) );
-		}
+		$source_mode = sanitize_key( $_POST['import_source'] ?? 'file' );
+		$raw         = '';
+		$source_name = 'Pasted JSON';
+		if ( 'paste' === $source_mode ) {
+			$raw = wp_unslash( $_POST['manual_json_payload'] ?? '' );
+			if ( '' === trim( $raw ) ) {
+				$this->redirect_with_notice( 'Paste JSON code before importing.' );
+			}
+			$raw_size = function_exists( 'mb_strlen' ) ? mb_strlen( $raw, '8bit' ) : strlen( $raw );
+			if ( $raw_size > 5 * 1024 * 1024 ) {
+				$this->redirect_with_notice( 'Pasted JSON must be 5 MB or smaller.' );
+			}
+		} else {
+			$file       = isset( $_FILES['json_file'] ) ? $_FILES['json_file'] : array();
+			$error_code = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+			if ( UPLOAD_ERR_OK !== $error_code ) {
+				$this->redirect_with_notice( $this->upload_error_message( $error_code ) );
+			}
 
-		$tmp_name = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
-		if ( '' === $tmp_name || ! is_uploaded_file( $tmp_name ) ) {
-			$this->redirect_with_notice( 'The JSON upload could not be verified. Please try again.' );
-		}
+			$tmp_name = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
+			if ( '' === $tmp_name || ! is_uploaded_file( $tmp_name ) ) {
+				$this->redirect_with_notice( 'The JSON upload could not be verified. Please try again.' );
+			}
 
-		$size = (int) ( $file['size'] ?? 0 );
-		if ( $size <= 0 || $size > 5 * 1024 * 1024 ) {
-			$this->redirect_with_notice( 'The JSON file must be between 1 byte and 5 MB.' );
-		}
+			$size = (int) ( $file['size'] ?? 0 );
+			if ( $size <= 0 || $size > 5 * 1024 * 1024 ) {
+				$this->redirect_with_notice( 'The JSON file must be between 1 byte and 5 MB.' );
+			}
 
-		$ext = strtolower( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_EXTENSION ) );
-		if ( 'json' !== $ext ) {
-			$this->redirect_with_notice( 'Only .json files are supported.' );
-		}
+			$ext = strtolower( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_EXTENSION ) );
+			if ( 'json' !== $ext ) {
+				$this->redirect_with_notice( 'Only .json files are supported.' );
+			}
 
-		$raw = file_get_contents( $tmp_name );
-		if ( false === $raw || '' === trim( $raw ) ) {
-			$this->redirect_with_notice( 'The uploaded JSON file is empty or unreadable.' );
+			$raw = file_get_contents( $tmp_name );
+			if ( false === $raw || '' === trim( $raw ) ) {
+				$this->redirect_with_notice( 'The uploaded JSON file is empty or unreadable.' );
+			}
+			$source_name = sanitize_text_field( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_FILENAME ) );
 		}
 
 		$validated = $this->validate_json_import_payload( $raw, $skill );
@@ -1091,9 +1510,14 @@ class PSM_Admin_UI {
 
 		$label = sanitize_text_field( wp_unslash( $_POST['label_name'] ?? '' ) );
 		if ( '' === $label ) {
-			$label = sanitize_text_field( pathinfo( (string) ( $file['name'] ?? '' ), PATHINFO_FILENAME ) );
+			$label = $source_name;
 		}
 		$label = mb_substr( $label, 0, 190 );
+
+		$default_status = sanitize_key( $_POST['default_status'] ?? 'draft' );
+		if ( ! in_array( $default_status, array( 'draft', 'published' ), true ) ) {
+			$this->redirect_with_notice( 'Import Status must be Draft or Published.' );
+		}
 
 		$envelope      = json_decode( $raw, true );
 		$file_diff     = ( is_array( $envelope ) && isset( $envelope['generation']['difficulty'] ) )
@@ -1105,7 +1529,7 @@ class PSM_Admin_UI {
 				'skill_id'            => $skill_id,
 				'tag_ids'             => array(),
 				'difficulty'          => '' !== $file_diff ? $file_diff : 'all',
-				'default_status'      => sanitize_key( $_POST['default_status'] ?? 'draft' ),
+				'default_status'      => $default_status,
 				'label_name'          => $label,
 				'import_mode'         => 'manual_json',
 				'manual_json_payload' => $raw,
@@ -1562,58 +1986,6 @@ class PSM_Admin_UI {
 			ORDER BY t.sort_order ASC, t.name ASC"
 		);
 
-		$tag_filters = array(
-			'search'   => sanitize_text_field( wp_unslash( $_GET['tag_search'] ?? '' ) ),
-			'skill_id' => absint( $_GET['tag_skill'] ?? 0 ),
-		);
-		$tag_where          = ' WHERE 1=1';
-		$tag_args           = array();
-		$tag_count          = count( $tags_all );
-		$tag_filtered_count = $tag_count;
-		$tag_page           = 1;
-		$tag_total_pages    = 1;
-		$tag_per_page       = 25;
-		$tags               = $tags_all;
-
-		if ( $tab === 'masters' && $entity === 'tag' ) {
-			if ( '' !== $tag_filters['search'] ) {
-				$pattern   = str_replace( array( '*', '?' ), array( '%', '_' ), $wpdb->esc_like( $tag_filters['search'] ) );
-				$tag_where .= ' AND (t.name LIKE %s OR t.slug LIKE %s)';
-				$tag_args[] = '%' . $pattern . '%';
-				$tag_args[] = '%' . $pattern . '%';
-			}
-			if ( $tag_filters['skill_id'] > 0 ) {
-				$tag_where .= ' AND t.skill_id = %d';
-				$tag_args[] = $tag_filters['skill_id'];
-			}
-
-			$count_sql = "SELECT COUNT(DISTINCT t.id)
-				FROM {$wpdb->prefix}psm_tags t
-				LEFT JOIN {$wpdb->prefix}psm_skills s ON s.id = t.skill_id
-				LEFT JOIN {$wpdb->prefix}psm_question_tags qt ON qt.tag_id = t.id
-				$tag_where";
-			$tag_filtered_count = (int) ( empty( $tag_args )
-				? $wpdb->get_var( $count_sql )
-				: $wpdb->get_var( $wpdb->prepare( $count_sql, $tag_args ) ) );
-			$tag_total_pages = max( 1, (int) ceil( $tag_filtered_count / $tag_per_page ) );
-			$tag_page        = min( $tag_total_pages, max( 1, absint( $_GET['tag_page'] ?? 1 ) ) );
-			$tag_offset      = ( $tag_page - 1 ) * $tag_per_page;
-			$tag_query_args  = array_merge( $tag_args, array( $tag_offset, $tag_per_page ) );
-			$tags            = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT t.*, s.name AS skill_name, COUNT(qt.question_id) AS question_count
-					 FROM {$wpdb->prefix}psm_tags t
-					 LEFT JOIN {$wpdb->prefix}psm_skills s ON s.id = t.skill_id
-					 LEFT JOIN {$wpdb->prefix}psm_question_tags qt ON qt.tag_id = t.id
-					 $tag_where
-					 GROUP BY t.id
-					 ORDER BY t.sort_order ASC, t.name ASC
-					 LIMIT %d, %d",
-					$tag_query_args
-				)
-			);
-		}
-
 		$batches = $wpdb->get_results(
 			"SELECT b.*, s.name AS skill_name,
 			        (SELECT COUNT(*) FROM {$wpdb->prefix}psm_batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
@@ -1651,84 +2023,15 @@ class PSM_Admin_UI {
 			'two_option'  => 'Two Options',
 			'true_false'  => 'True / False',
 		);
-		$question_filters        = $this->get_question_filters( $_GET );
-		$question_count          = 0;
-		$question_filtered_count = 0;
-		$question_master_rows    = array();
-		$question_page           = 1;
-		$question_total_pages    = 1;
-		$question_per_page       = 25;
-
+		$master_counts    = $this->get_master_counts();
+		$master_list_data = array();
 		if ( $tab === 'masters' ) {
-			$question_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}psm_questions" );
+			$master_list_data = $this->get_master_list_data( $entity, $_GET );
 		}
-
-		if ( $tab === 'masters' && $entity === 'question' ) {
-			list( $question_where, $question_args ) = $this->get_question_filter_sql( $question_filters );
-			$questions_table = $wpdb->prefix . 'psm_questions';
-			$count_sql       = "SELECT COUNT(*) FROM $questions_table q $question_where";
-			$question_filtered_count = (int) ( empty( $question_args )
-				? $wpdb->get_var( $count_sql )
-				: $wpdb->get_var( $wpdb->prepare( $count_sql, $question_args ) ) );
-			$question_total_pages = max( 1, (int) ceil( $question_filtered_count / $question_per_page ) );
-			$question_page        = min( $question_total_pages, max( 1, absint( $_GET['question_page'] ?? 1 ) ) );
-			$question_offset      = ( $question_page - 1 ) * $question_per_page;
-
-			$ordered_sql = "SELECT q.id FROM $questions_table q $question_where ORDER BY q.updated_at DESC, q.id DESC";
-			$question_ordered_ids = array_map(
-				'intval',
-				empty( $question_args )
-					? $wpdb->get_col( $ordered_sql )
-					: $wpdb->get_col( $wpdb->prepare( $ordered_sql, $question_args ) )
-			);
-			$question_positions = array_flip( $question_ordered_ids );
-
-			$question_master_rows = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT q.*, s.name AS skill_name, d.name AS difficulty_name
-					 FROM $questions_table q
-					 LEFT JOIN {$wpdb->prefix}psm_skills s ON s.id = q.skill_id
-					 LEFT JOIN {$wpdb->prefix}psm_difficulties d ON d.id = q.difficulty
-					 $question_where
-					 ORDER BY q.updated_at DESC, q.id DESC
-					 LIMIT %d, %d",
-					array_merge( $question_args, array( $question_offset, $question_per_page ) )
-				)
-			);
-
-			$tag_slugs_by_question = array();
-			$question_ids          = array();
-			foreach ( $question_master_rows as $question_row ) {
-				$question_ids[] = (int) $question_row->id;
-			}
-			if ( ! empty( $question_ids ) ) {
-				$placeholders = implode( ',', array_fill( 0, count( $question_ids ), '%d' ) );
-				$question_tag_rows = $wpdb->get_results(
-					$wpdb->prepare(
-						"SELECT qt.question_id, t.slug
-						 FROM {$wpdb->prefix}psm_question_tags qt
-						 INNER JOIN {$wpdb->prefix}psm_tags t ON t.id = qt.tag_id
-						 WHERE qt.question_id IN ($placeholders)
-						 ORDER BY t.sort_order ASC, t.name ASC",
-						$question_ids
-					)
-				);
-				foreach ( $question_tag_rows as $question_tag_row ) {
-					$tag_slugs_by_question[ (int) $question_tag_row->question_id ][] = $question_tag_row->slug;
-				}
-			}
-
-			foreach ( $question_master_rows as $question_row ) {
-				$options = json_decode( $question_row->options, true );
-				$correct = json_decode( $question_row->correct_keys, true );
-				$question_row->options      = is_array( $options ) ? $options : array();
-				$question_row->correct_keys = is_array( $correct ) ? array_values( $correct ) : array();
-				$question_row->tag_slugs    = $tag_slugs_by_question[ (int) $question_row->id ] ?? array();
-				$position                   = $question_positions[ (int) $question_row->id ] ?? 0;
-				$question_row->previous_id  = $position > 0 ? (int) $question_ordered_ids[ $position - 1 ] : 0;
-				$question_row->next_id      = isset( $question_ordered_ids[ $position + 1 ] ) ? (int) $question_ordered_ids[ $position + 1 ] : 0;
-			}
-		}
+		$question_filters    = ( $tab === 'masters' && $entity === 'question' )
+			? ( $master_list_data['filters'] ?? $this->get_question_filters( array() ) )
+			: $this->get_question_filters( $_GET );
+		$question_ordered_ids = $master_list_data['question_order'] ?? array();
 
 		$master_qtype_labels = array();
 		foreach ( $question_types as $qt_row ) {
@@ -1785,11 +2088,12 @@ class PSM_Admin_UI {
 			.psm-header-banner .psm-ver { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 			.psm-pill-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
 			.psm-pill {
-				padding: 8px 15px; border-radius: 20px; text-decoration: none; font-weight: 600; font-size: 13px;
-				background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; transition: all .15s;
+				padding: 9px 16px; border-radius: 7px; text-decoration: none; font-weight: 600; font-size: 13px;
+				background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe;
+				transition: background-color .15s, color .15s, border-color .15s;
 			}
-			.psm-pill:hover { background: #e0e7ff; color: #1e1b4b; }
-			.psm-pill.active { background: linear-gradient(135deg, #4f46e5, #2563eb); color: #fff; border-color: #2563eb; box-shadow: 0 2px 6px rgba(37,99,235,0.3); }
+			.psm-pill:hover { background: #e0e7ff; color: #1e1b4b; border-color: #a5b4fc; }
+			.psm-pill.active { background: #3730a3; color: #fff; border-color: #3730a3; }
 			.psm-table-card {
 				background: #fff; border-radius: 10px; padding: 18px; border: 1px solid #e2e8f0;
 				box-shadow: 0 2px 10px rgba(15,23,42,0.05);
@@ -1920,9 +2224,9 @@ class PSM_Admin_UI {
 				font-size: 12px; margin-bottom: 12px; line-height: 1.5;
 			}
 			.psm-toast {
-				position: fixed; bottom: 24px; right: 24px; z-index: 100100; padding: 12px 18px;
-				border-radius: 8px; color: #fff; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-				display: none;
+				position: relative; z-index: 100100; width: fit-content; max-width: 100%; margin: 12px 0;
+				padding: 12px 18px; border-radius: 8px; color: #fff; font-weight: 600;
+				box-shadow: 0 8px 24px rgba(0,0,0,0.16); display: none;
 			}
 			.psm-toast.ok { background: #059669; }
 			.psm-toast.err { background: #dc2626; }
@@ -1958,14 +2262,20 @@ class PSM_Admin_UI {
 				gap: 12px; align-items: end; padding: 14px; margin-bottom: 16px; border-radius: 10px;
 				background: linear-gradient(135deg, #f8fafc, #eef2ff); border: 1px solid #dbeafe;
 			}
-			.psm-filter-field { display: flex; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
+			.psm-filter-field { position: relative; display: flex; flex-direction: column; gap: 5px; margin: 0; min-width: 0; }
 			.psm-filter-field > span { color: #334155; font-size: 12px; font-weight: 700; }
+			.psm-filter-compact .psm-filter-field > span {
+				position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+				overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+			}
 			.psm-filter-field input, .psm-filter-field select {
-				width: 100%; min-height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
-				padding: 8px 10px; box-shadow: 0 1px 2px rgba(15,23,42,0.04); transition: border-color .15s, box-shadow .15s;
+				width: 100%; height: 44px; min-height: 44px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff;
+				padding: 8px 11px; box-shadow: 0 1px 2px rgba(15,23,42,0.04); transition: border-color .15s, box-shadow .15s;
 			}
 			.psm-filter-field input:focus, .psm-filter-field select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); outline: 0; }
 			.psm-filter-actions { display: flex; gap: 8px; }
+			.psm-filter-actions .psm-btn { height: 44px; }
+			.psm-master-list.is-loading { opacity: .58; pointer-events: none; }
 			.psm-btn {
 				display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px;
 				padding: 8px 14px; border-radius: 8px; border: 1px solid transparent; font-weight: 700; font-size: 12px;
@@ -2029,6 +2339,15 @@ class PSM_Admin_UI {
 			.psm-json-import-modal input[type="file"]::file-selector-button {
 				border: 0; border-radius: 6px; background: #e0e7ff; color: #3730a3; padding: 7px 10px; margin-right: 10px; font-weight: 700; cursor: pointer;
 			}
+			.psm-wrap .psm-modal.psm-confirm-modal { max-width: 460px; }
+			.psm-confirm-modal .psm-modal-body p { margin: 0; color: #475569; line-height: 1.6; }
+			.psm-confirm-danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+			.psm-json-import-modal textarea {
+				width: 100%; min-height: 220px; border: 1px solid #bfdbfe; border-radius: 8px;
+				background: #fbfdff; padding: 10px; box-sizing: border-box;
+				font-family: Consolas, Monaco, monospace; font-size: 12px; line-height: 1.5;
+			}
+			.psm-json-import-modal .psm-modal-footer { flex-wrap: wrap; }
 			[data-tooltip] { position: relative; }
 			[data-tooltip]::after {
 				content: attr(data-tooltip); position: absolute; left: 50%; top: calc(100% + 7px); transform: translateX(-50%) translateY(-3px);
@@ -2055,18 +2374,18 @@ class PSM_Admin_UI {
 				<span class="psm-ver">v<?php echo esc_html( PSM_AI_VERSION ); ?></span>
 			</div>
 
-			<div id="psm_toast" class="psm-toast"></div>
-
-			<?php if ( $notice ) : ?>
-				<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?> is-dismissible"><p><?php echo esc_html( $notice['text'] ); ?></p></div>
-			<?php endif; ?>
-
 			<nav class="nav-tab-wrapper">
 				<a href="?page=psm-ai-importer&tab=generate" class="nav-tab <?php echo $tab === 'generate' ? 'nav-tab-active' : ''; ?>">1. Prompt, Preview &amp; Import</a>
 				<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $entity ); ?>" class="nav-tab <?php echo $tab === 'masters' ? 'nav-tab-active' : ''; ?>">2. Master Tables</a>
 				<a href="?page=psm-ai-importer&tab=batches" class="nav-tab <?php echo $tab === 'batches' ? 'nav-tab-active' : ''; ?>">3. Batches &amp; Label Download</a>
 				<a href="?page=psm-ai-importer&tab=settings" class="nav-tab <?php echo $tab === 'settings' ? 'nav-tab-active' : ''; ?>">4. AI Providers</a>
 			</nav>
+
+			<div id="psm_toast" class="psm-toast" role="status" aria-live="polite"></div>
+
+			<?php if ( $notice ) : ?>
+				<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?> is-dismissible"><p><?php echo esc_html( $notice['text'] ); ?></p></div>
+			<?php endif; ?>
 
 			<?php if ( $tab === 'settings' ) : ?>
 				<!-- TAB 4: THREE SEPARATE AJAX FORMS FOR GEMINI, OPENAI, AND CUSTOM -->
@@ -2198,18 +2517,17 @@ class PSM_Admin_UI {
 				</div>
 
 			<?php elseif ( $tab === 'masters' ) : ?>
-				<!-- TAB 2: FULL-WIDTH COLORFUL MASTER TABLES + MODAL POPUP CRUD -->
 				<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin: 16px 0;">
 					<div class="psm-pill-nav" style="margin:0;">
 						<?php
 						$sub_entities = array(
-							'domain'        => 'Domains (' . count( $domains ) . ')',
-							'skill_type'    => 'Skill Types (' . count( $skill_types ) . ')',
-							'question_type' => 'Question Types (' . count( $question_types ) . ')',
-							'difficulty'    => 'Difficulties (' . count( $difficulties ) . ')',
-							'skill'         => 'Skills (' . count( $skills ) . ')',
-							'tag'           => 'Tags (' . $tag_count . ')',
-							'question'      => 'Questions (' . $question_count . ')',
+							'domain'        => 'Domains (' . $master_counts['domain'] . ')',
+							'skill_type'    => 'Skill Types (' . $master_counts['skill_type'] . ')',
+							'question_type' => 'Question Types (' . $master_counts['question_type'] . ')',
+							'difficulty'    => 'Difficulties (' . $master_counts['difficulty'] . ')',
+							'skill'         => 'Skills (' . $master_counts['skill'] . ')',
+							'tag'           => 'Tags (' . $master_counts['tag'] . ')',
+							'question'      => 'Questions (' . $master_counts['question'] . ')',
 						);
 						foreach ( $sub_entities as $ek => $elabel ) :
 							$cls = ( $entity === $ek ) ? 'psm-pill active' : 'psm-pill';
@@ -2223,256 +2541,21 @@ class PSM_Admin_UI {
 							data-tooltip="Open the add form" title="Open the add form">
 							<span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span> Add New <?php echo esc_html( ucwords( str_replace( '_', ' ', $entity ) ) ); ?>
 						</button>
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:0;">
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:0;" id="psm_seeder_form"
+							data-confirm-title="Run idempotent seed?"
+							data-confirm-message="This adds missing default domains, skills, and tags. Existing records are preserved."
+							data-confirm-label="Run Seed">
 							<?php wp_nonce_field( 'psm_seeder_nonce' ); ?>
 							<input type="hidden" name="action" value="psm_run_seeder">
-							<button type="submit" class="button button-secondary" style="height:36px;">Run Idempotent Seed</button>
+							<button type="submit" class="psm-btn psm-btn-secondary"
+								data-tooltip="Add missing default domains, skills, and tags without changing existing records"
+								title="Add missing default records; existing records are preserved">Run Idempotent Seed</button>
 						</form>
 					</div>
 				</div>
 
 				<div class="psm-table-card">
-					<?php if ( $entity === 'question' ) : ?>
-					<form method="get" class="psm-filter-bar" id="psm_question_filters">
-						<input type="hidden" name="page" value="psm-ai-importer">
-						<input type="hidden" name="tab" value="masters">
-						<input type="hidden" name="entity" value="question">
-						<label class="psm-filter-field psm-filter-search">
-							<span>Question text</span>
-							<input type="search" name="question_search" value="<?php echo esc_attr( $question_filters['search'] ); ?>" placeholder="Search question text"
-								data-tooltip="Search within question text" title="Search within question text">
-						</label>
-						<label class="psm-filter-field">
-							<span>Skill</span>
-							<select name="question_skill" id="psm_question_skill_filter" data-tooltip="Filter by skill" title="Filter by skill">
-								<option value="">All skills</option>
-								<?php foreach ( $skills as $filter_skill ) : ?>
-									<option value="<?php echo esc_attr( $filter_skill->id ); ?>" <?php selected( $question_filters['skill_id'], $filter_skill->id ); ?>><?php echo esc_html( $filter_skill->name ); ?></option>
-								<?php endforeach; ?>
-							</select>
-						</label>
-						<label class="psm-filter-field">
-							<span>Tag</span>
-							<select name="question_tag" id="psm_question_tag_filter" data-tooltip="Filter by a tag owned by the selected skill" title="Filter by tag">
-								<option value="">All tags</option>
-								<?php foreach ( $tags_all as $filter_tag ) : ?>
-									<option value="<?php echo esc_attr( $filter_tag->id ); ?>" data-skill-id="<?php echo esc_attr( $filter_tag->skill_id ); ?>" <?php selected( $question_filters['tag_id'], $filter_tag->id ); ?>>
-										<?php echo esc_html( $filter_tag->name . ' [' . $filter_tag->slug . ']' ); ?>
-									</option>
-								<?php endforeach; ?>
-							</select>
-						</label>
-						<label class="psm-filter-field">
-							<span>Status</span>
-							<select name="question_status" data-tooltip="Filter by draft or published status" title="Filter by status">
-								<option value="">All statuses</option>
-								<option value="draft" <?php selected( $question_filters['status'], 'draft' ); ?>>Draft</option>
-								<option value="published" <?php selected( $question_filters['status'], 'published' ); ?>>Published</option>
-							</select>
-						</label>
-						<div class="psm-filter-actions">
-							<button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Apply the selected filters" title="Apply filters">
-								<span class="dashicons dashicons-filter" aria-hidden="true"></span> Filter
-							</button>
-							<a class="psm-btn psm-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=psm-ai-importer&tab=masters&entity=question' ) ); ?>" data-tooltip="Clear all question filters" title="Clear filters">Reset</a>
-						</div>
-					</form>
-						<table class="widefat striped">
-							<thead>
-								<tr>
-									<th style="width:65px;">ID</th>
-									<th>Question</th>
-									<th>Skill</th>
-									<th>Type</th>
-									<th>Difficulty</th>
-									<th>Correct</th>
-									<th>Tags</th>
-									<th style="width:90px;">Status</th>
-									<th style="width:140px;">Updated</th>
-									<th style="width:110px;">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php if ( empty( $question_master_rows ) ) : ?>
-									<tr><td colspan="10"><?php echo $question_filters['search'] !== '' || $question_filters['skill_id'] || $question_filters['tag_id'] || $question_filters['status'] ? 'No questions match the selected filters.' : 'No questions found. Use Add New Question to create one.'; ?></td></tr>
-								<?php else : foreach ( $question_master_rows as $q ) : ?>
-									<?php
-									$q_type_label  = $question_type_labels[ $q->question_type ] ?? $q->question_type;
-									$q_type_badge  = 'psm-badge-' . ( 'published' === $q->status ? 'active' : 'draft' );
-									$q_correct     = implode( ', ', $q->correct_keys );
-									$q_plain_text  = preg_replace( '/\s+/u', ' ', $q->question_text );
-									$q_excerpt     = mb_substr( $q_plain_text, 0, 180 );
-									if ( mb_strlen( $q_plain_text ) > 180 ) {
-										$q_excerpt .= '…';
-									}
-									$q_edit_record = array(
-										'id'             => $q->id,
-										'skill_id'       => $q->skill_id,
-										'difficulty'     => $q->difficulty,
-										'question_type'  => $q->question_type,
-										'question_text'  => $q->question_text,
-										'code_snippet'   => $q->code_snippet,
-										'code_language'  => $q->code_language,
-										'options'        => $q->options,
-										'correct_keys'   => $q->correct_keys,
-										'is_multiple'    => $q->is_multiple,
-										'explanation'    => $q->explanation,
-										'status'         => $q->status,
-										'external_id'    => $q->external_id,
-										'tag_slugs'      => $q->tag_slugs,
-										'previous_id'    => (int) $q->previous_id,
-										'next_id'        => (int) $q->next_id,
-									);
-									?>
-									<tr id="psm-row-question-<?php echo esc_attr( $q->id ); ?>">
-										<td><strong>#<?php echo esc_html( $q->id ); ?></strong></td>
-										<td><strong><?php echo esc_html( $q_excerpt ); ?></strong></td>
-										<td><span class="psm-badge psm-badge-domain"><?php echo esc_html( $q->skill_name ?: '—' ); ?></span></td>
-										<td><span class="psm-badge psm-badge-type"><?php echo esc_html( $q_type_label ); ?></span></td>
-										<td><?php echo esc_html( $q->difficulty_name ?: $q->difficulty ); ?></td>
-										<td>
-											<code><?php echo esc_html( $q_correct ?: '—' ); ?></code>
-											<?php if ( $q->is_multiple ) : ?><br><small>Multiple answers</small><?php endif; ?>
-										</td>
-										<td>
-											<?php if ( empty( $q->tag_slugs ) ) : ?>
-												—
-											<?php else : ?>
-												<?php foreach ( $q->tag_slugs as $q_tag_slug ) : ?>
-													<span class="psm-badge psm-badge-type"><?php echo esc_html( $q_tag_slug ); ?></span>
-												<?php endforeach; ?>
-											<?php endif; ?>
-										</td>
-										<td><span class="psm-badge <?php echo esc_attr( $q_type_badge ); ?>"><?php echo esc_html( ucfirst( $q->status ) ); ?></span></td>
-										<td><?php echo esc_html( $this->local_time( $q->updated_at ) ); ?></td>
-										<td>
-											<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" title="Edit question" data-tooltip="Edit question"
-												data-entity="question"
-												data-record='<?php echo esc_attr( wp_json_encode( $q_edit_record ) ); ?>'>
-												<span class="dashicons dashicons-edit"></span>
-											</button>
-											<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" title="Delete question" data-tooltip="Delete question"
-												data-entity="question"
-												data-id="<?php echo esc_attr( $q->id ); ?>"
-												data-name="<?php echo esc_attr( $q_excerpt ); ?>">
-												<span class="dashicons dashicons-trash"></span>
-											</button>
-										</td>
-									</tr>
-								<?php endforeach; endif; ?>
-							</tbody>
-						</table>
-						<?php if ( $question_total_pages >= 1 ) : ?>
-							<div style="margin-top:14px;">
-								<?php
-								echo $this->master_pagination_html( $question_page, $question_total_pages, $question_filtered_count, $question_per_page, 'question_page', 'questions' );
-								?>
-							</div>
-						<?php endif; ?>
-					<?php else : ?>
-						<?php if ( $entity === 'tag' ) : ?>
-							<form method="get" class="psm-filter-bar" id="psm_tag_filters">
-								<input type="hidden" name="page" value="psm-ai-importer">
-								<input type="hidden" name="tab" value="masters">
-								<input type="hidden" name="entity" value="tag">
-								<label class="psm-filter-field psm-filter-search">
-									<span>Tag name or slug</span>
-									<input type="search" name="tag_search" value="<?php echo esc_attr( $tag_filters['search'] ); ?>" placeholder="Example: csharp-* or *oop"
-										data-tooltip="Use * for any characters and ? for one character" title="Wildcard search: * = any characters, ? = one character">
-								</label>
-								<label class="psm-filter-field">
-									<span>Skill</span>
-									<select name="tag_skill" data-tooltip="Filter tags by their owning skill" title="Filter by skill">
-										<option value="">All skills</option>
-										<?php foreach ( $skills as $filter_skill ) : ?>
-											<option value="<?php echo esc_attr( $filter_skill->id ); ?>" <?php selected( $tag_filters['skill_id'], $filter_skill->id ); ?>><?php echo esc_html( $filter_skill->name ); ?></option>
-										<?php endforeach; ?>
-									</select>
-								</label>
-								<div class="psm-filter-actions">
-									<button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Apply tag filters" title="Apply filters">
-										<span class="dashicons dashicons-filter" aria-hidden="true"></span> Filter
-									</button>
-									<a class="psm-btn psm-btn-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=psm-ai-importer&tab=masters&entity=tag' ) ); ?>" data-tooltip="Clear all tag filters" title="Clear filters">Reset</a>
-								</div>
-							</form>
-						<?php endif; ?>
-						<table class="widefat striped">
-							<thead>
-								<tr>
-									<th style="width:65px;">ID</th>
-									<th>Name</th>
-									<th>Slug</th>
-									<?php if ( $entity === 'skill' ) : ?>
-										<th>Domain</th>
-										<th>Skill Type</th>
-										<th>Parent Skill</th>
-										<th>Description</th>
-									<?php elseif ( $entity === 'tag' ) : ?>
-										<th>Skill</th>
-										<th>Description</th>
-									<?php else : ?>
-										<th>Description</th>
-									<?php endif; ?>
-									<th style="width:90px;">Status</th>
-									<th style="width:110px;">Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php
-								$list_rows = array();
-								if ( $entity === 'domain' ) { $list_rows = $domains; }
-								elseif ( $entity === 'skill_type' ) { $list_rows = $skill_types; }
-								elseif ( $entity === 'question_type' ) { $list_rows = $question_types; }
-								elseif ( $entity === 'difficulty' ) { $list_rows = $difficulties; }
-								elseif ( $entity === 'skill' ) { $list_rows = $skills; }
-								elseif ( $entity === 'tag' ) { $list_rows = $tags; }
-
-								if ( empty( $list_rows ) ) : ?>
-									<tr><td colspan="9">No records found.</td></tr>
-								<?php else : foreach ( $list_rows as $r ) : ?>
-									?>
-									<tr id="psm-row-<?php echo esc_attr( $entity . '-' . $r->id ); ?>">
-										<td><strong>#<?php echo esc_html( $r->id ); ?></strong></td>
-										<td><strong><?php echo esc_html( $r->name ); ?></strong></td>
-										<td><code><?php echo esc_html( $r->slug ); ?></code></td>
-										<?php if ( $entity === 'skill' ) : ?>
-											<td><span class="psm-badge psm-badge-domain"><?php echo esc_html( $r->domain_name ?: '—' ); ?></span></td>
-											<td><span class="psm-badge psm-badge-type"><?php echo esc_html( $r->master_type_name ?: $r->skill_type ); ?></span></td>
-											<td><?php echo esc_html( $r->parent_skill_name ?: '—' ); ?></td>
-											<td><?php echo esc_html( $r->description ?: '—' ); ?></td>
-										<?php elseif ( $entity === 'tag' ) : ?>
-											<td><span class="psm-badge psm-badge-type"><?php echo esc_html( $r->skill_name ?: $r->skill_id ); ?></span></td>
-											<td><?php echo esc_html( $r->description ?: '—' ); ?></td>
-										<?php else : ?>
-											<td><?php echo esc_html( $r->description ?: '—' ); ?></td>
-										<?php endif; ?>
-										<td>
-											<span class="psm-badge <?php echo $r->status === 'active' ? 'psm-badge-active' : 'psm-badge-inactive'; ?>">
-												<?php echo esc_html( ucfirst( $r->status ) ); ?>
-											</span>
-										</td>
-										<td>
-											<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" title="Edit record" data-tooltip="Edit record"
-												data-entity="<?php echo esc_attr( $entity ); ?>"
-												data-record='<?php echo esc_attr( wp_json_encode( $r ) ); ?>'>
-												<span class="dashicons dashicons-edit"></span>
-											</button>
-											<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" title="Delete record" data-tooltip="Delete record"
-												data-entity="<?php echo esc_attr( $entity ); ?>"
-												data-id="<?php echo esc_attr( $r->id ); ?>"
-												data-name="<?php echo esc_attr( $r->name ); ?>">
-												<span class="dashicons dashicons-trash"></span>
-											</button>
-										</td>
-									</tr>
-								<?php endforeach; endif; ?>
-							</tbody>
-						</table>
-						<?php if ( $entity === 'tag' ) : ?>
-							<?php echo $this->master_pagination_html( $tag_page, $tag_total_pages, $tag_filtered_count, $tag_per_page, 'tag_page', 'tags' ); ?>
-						<?php endif; ?>
-					<?php endif; ?>
+					<?php echo $this->render_master_list_html( $master_list_data ); ?>
 				</div>
 
 			<?php else : ?>
@@ -2765,21 +2848,13 @@ class PSM_Admin_UI {
 									</td>
 								</tr>
 
-								<tr>
-									<th><label>7. Source Mode</label></th>
-									<td>
-										<label><input type="radio" name="import_mode" value="api" checked> Fetch JSON from AI API &amp; Show Preview</label><br>
-										<label><input type="radio" name="import_mode" value="manual_json"> Load Pasted JSON into Preview</label>
-										<textarea name="manual_json_payload" rows="4" class="large-text" style="margin-top:8px;" placeholder='Optional: Paste {"questions": [...]} here.'></textarea>
-									</td>
-								</tr>
-							</table>
+								</table>
 
 							<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
 								<?php submit_button( 'Fetch & Show Data for Check Before Import', 'primary', 'submit', false ); ?>
 								<button type="button" class="button button-secondary" id="psm_create_prompt_btn">Create Prompt (Copy / Download)</button>
-								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_jump" data-tooltip="Upload a saved JSON file" title="Upload a saved JSON file">
-								<span class="dashicons dashicons-upload" aria-hidden="true"></span> Import JSON File
+								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_jump" data-tooltip="Paste JSON or preview a saved JSON file" title="Paste JSON or preview a saved JSON file">
+								<span class="dashicons dashicons-upload" aria-hidden="true"></span> Import JSON
 							</button>
 								<div id="psm_ai_loader" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;color:#1e3a8a;font-weight:600;">
 									<span class="spinner is-active" style="float:none;margin:0;"></span>
@@ -2793,85 +2868,89 @@ class PSM_Admin_UI {
 			<?php endif; ?>
 
 			<?php if ( $tab === 'generate' && ! $is_prev ) : ?>
-			<div class="psm-modal-backdrop" id="psm_import_json_modal" role="dialog" aria-modal="true" aria-labelledby="psm_import_json_title">
+						<div class="psm-modal-backdrop" id="psm_import_json_modal" role="dialog" aria-modal="true" aria-labelledby="psm_import_json_title">
 				<div class="psm-modal psm-json-import-modal">
 					<div class="psm-modal-header">
-						<h3 id="psm_import_json_title">Import JSON File (Saved AI Output)</h3>
+						<h3 id="psm_import_json_title">Import JSON</h3>
 						<button type="button" class="psm-modal-close" id="psm_import_json_close" aria-label="Close JSON import">&times;</button>
 					</div>
-						<div class="psm-modal-body">
-				<p class="description" style="margin-top:0;">
-					Upload a <code>.json</code> file produced by the Create Prompt output. The file is validated against the plugin schema,
-					tags are normalized to this skill's slugs, and everything is shown on the preview screen before anything is written to the database.
-					Missing tag slugs are created automatically for the selected skill on import; inactive tags and slugs owned by another skill are rejected.
-					For duplicate questions, missing tags are attached to the existing question instead of inserting another question row.
-				</p>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
-					<?php wp_nonce_field( 'psm_import_json_file_nonce' ); ?>
-					<input type="hidden" name="action" value="psm_import_json_file">
-					<table class="form-table">
-						<tr>
-							<th><label for="psm_json_skill_select">Target Skill *</label></th>
-							<td>
-								<select name="skill_id" id="psm_json_skill_select" class="regular-text" required>
-									<option value="">&mdash; Select Skill &mdash;</option>
-									<?php
-									$json_grouped = array();
-									foreach ( $skills as $s ) {
-										$json_grouped[ $s->domain_name ?: 'Other' ][] = $s;
-									}
-									foreach ( $json_grouped as $dom_name => $dom_skills ) :
-										?>
-										<optgroup label="<?php echo esc_attr( $dom_name ); ?>">
-											<?php foreach ( $dom_skills as $s ) : ?>
-												<option value="<?php echo esc_attr( $s->id ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
-													<?php echo esc_html( $s->name . ' [' . $s->slug . ']' ); ?>
+					<div class="psm-modal-body">
+						<p class="description" style="margin-top:0;">
+							Paste AI-generated JSON or choose a saved <code>.json</code> file. Both actions validate the data and open the preview screen;
+							no questions, tags, or batches are written until you confirm the import. A batch label is created automatically.
+						</p>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" id="psm_json_import_form">
+							<?php wp_nonce_field( 'psm_import_json_file_nonce' ); ?>
+							<input type="hidden" name="action" value="psm_import_json_file">
+							<table class="form-table">
+								<tr>
+									<th><label for="psm_json_skill_select">Target Skill *</label></th>
+									<td>
+										<select name="skill_id" id="psm_json_skill_select" required>
+											<option value="">&mdash; Select Skill &mdash;</option>
+										<?php
+										$json_grouped = array();
+										foreach ( $skills as $s ) {
+											$json_grouped[ $s->domain_name ?: 'Other' ][] = $s;
+										}
+										foreach ( $json_grouped as $dom_name => $dom_skills ) :
+											?>
+											<optgroup label="<?php echo esc_attr( $dom_name ); ?>">
+												<?php foreach ( $dom_skills as $s ) : ?>
+													<option value="<?php echo esc_attr( $s->id ); ?>" data-slug="<?php echo esc_attr( $s->slug ); ?>">
+														<?php echo esc_html( $s->name . ' [' . $s->slug . ']' ); ?>
 												</option>
 											<?php endforeach; ?>
 										</optgroup>
 									<?php endforeach; ?>
 								</select>
 							</td>
-						</tr>
-						<tr>
-							<th><label for="psm_json_focus_tag">Tag Focus (Optional)</label></th>
-							<td>
-								<select name="focus_tag_id" id="psm_json_focus_tag" class="regular-text">
-									<option value="">&mdash; No tag focus &mdash;</option>
-								</select>
-								<p class="description">When set, import is strict: every question in the file must include this tag slug, or the whole file is rejected.</p>
-							</td>
-						</tr>
-						<tr>
-							<th><label for="psm_json_label">Batch Label (Optional)</label></th>
-							<td><input type="text" name="label_name" id="psm_json_label" class="regular-text" placeholder="Defaults to the file name"></td>
-						</tr>
-						<tr>
-							<th><label for="psm_json_status">Import Status</label></th>
-							<td>
-								<select name="default_status" id="psm_json_status">
-									<option value="draft">Draft</option>
-									<option value="published">Published</option>
-								</select>
-							</td>
-						</tr>
-						<tr>
-							<th><label for="psm_json_file">JSON File *</label></th>
-							<td>
-								<input type="file" name="json_file" id="psm_json_file" accept=".json,application/json" required>
-								<p class="description">Max 5 MB. Root must contain a <code>questions</code> array (schema_version 1.0) or be a bare question array.</p>
-							</td>
-						</tr>
-					</table>
-						<div class="psm-modal-footer">
-							<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_cancel">Cancel</button>
-							<?php submit_button( 'Upload JSON & Show Preview', 'primary', 'psm_upload_json', false ); ?>
-						</div>
-				</form>
+							</tr>
+								<tr>
+									<th><label for="psm_json_focus_tag">Tag Focus (Optional)</label></th>
+									<td>
+										<select name="focus_tag_id" id="psm_json_focus_tag">
+											<option value="">&mdash; No tag focus &mdash;</option>
+										</select>
+										<p class="description">When set, every question must include this tag slug or the whole payload is rejected.</p>
+								</td>
+							</tr>
+								<tr>
+									<th><label for="psm_json_status">Import Status</label></th>
+									<td>
+										<select name="default_status" id="psm_json_status">
+											<option value="draft">Draft</option>
+											<option value="published">Published</option>
+										</select>
+								</td>
+							</tr>
+								<tr>
+									<th><label for="psm_json_payload">Pasted JSON</label></th>
+									<td>
+										<textarea name="manual_json_payload" id="psm_json_payload" rows="12" maxlength="5242880" placeholder='Paste {"questions": [...]} or a complete schema_version 1.0 envelope here.'></textarea>
+										<p class="description">Maximum 5 MB. Use <strong>Import Pasted JSON</strong> to validate this text and open the preview.</p>
+									</td>
+							</tr>
+								<tr>
+									<th><label for="psm_json_file">JSON File (Optional)</label></th>
+									<td>
+										<input type="file" name="json_file" id="psm_json_file" accept=".json,application/json">
+										<p class="description">Maximum 5 MB. Choose <strong>Preview</strong> to validate the selected file and open the preview.</p>
+									</td>
+							</tr>
+							</table>
+							<div class="psm-modal-footer">
+								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_cancel">Cancel</button>
+								<button type="submit" class="psm-btn psm-btn-secondary" name="import_source" value="file" id="psm_json_preview"
+									data-tooltip="Validate the selected JSON file and open the preview">Preview</button>
+								<button type="submit" class="psm-btn psm-btn-primary" name="import_source" value="paste" id="psm_import_pasted_json"
+									data-tooltip="Validate the pasted JSON and open the preview">Import Pasted JSON</button>
+							</div>
+						</form>
+					</div>
 				</div>
 			</div>
-		</div>
-	<?php endif; ?>
+		<?php endif; ?>
 
 			<!-- PROMPT BUILDER MODAL (Copy / Download) -->
 			<div class="psm-modal-backdrop" id="psm_prompt_modal" role="dialog" aria-modal="true">
@@ -2883,7 +2962,7 @@ class PSM_Admin_UI {
 					<div class="psm-modal-body">
 						<p class="description" style="margin-top:0;">
 							Paste this into ChatGPT, Gemini, or Qoder. The model must return only raw JSON that matches the plugin schema,
-							so you can save it as a <code>.json</code> file and import it with the Import JSON File popup.
+							so you can save it as a <code>.json</code> file and import it with the Import JSON popup.
 						</p>
 						<div id="psm_prompt_status" style="margin:8px 0;color:#64748b;font-size:12px;"></div>
 						<textarea id="psm_prompt_textarea" rows="18" readonly style="width:100%;font-family:Consolas,Monaco,monospace;font-size:12px;white-space:pre;overflow:auto;"></textarea>
@@ -2892,6 +2971,20 @@ class PSM_Admin_UI {
 						<button type="button" class="button button-secondary" id="psm_prompt_close_footer">Close</button>
 						<button type="button" class="button" id="psm_prompt_download" style="margin-left:8px;">Download .txt</button>
 						<button type="button" class="button button-primary" id="psm_prompt_copy" style="margin-left:8px;">Copy Prompt</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="psm-modal-backdrop" id="psm_confirm_modal" role="dialog" aria-modal="true" aria-labelledby="psm_confirm_title">
+				<div class="psm-modal psm-confirm-modal">
+					<div class="psm-modal-header">
+						<h3 id="psm_confirm_title">Please confirm</h3>
+						<button type="button" class="psm-modal-close" id="psm_confirm_close" aria-label="Close confirmation">&times;</button>
+					</div>
+					<div class="psm-modal-body"><p id="psm_confirm_message"></p></div>
+					<div class="psm-modal-footer">
+						<button type="button" class="psm-btn psm-btn-secondary" id="psm_confirm_cancel">Cancel</button>
+						<button type="button" class="psm-btn psm-confirm-danger" id="psm_confirm_accept">Confirm</button>
 					</div>
 				</div>
 			</div>
@@ -3108,10 +3201,20 @@ class PSM_Admin_UI {
 		<script>
 		(function() {
 			const ajaxUrl   = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
+			const adminPageUrl = <?php echo wp_json_encode( admin_url( 'admin.php' ) ); ?>;
 			const ajaxNonce = <?php echo wp_json_encode( $ajax_nonce ); ?>;
 			const tagsBySkill = <?php echo wp_json_encode( $tags_by_skill ); ?>;
 			const skillMeta = <?php echo wp_json_encode( $skill_meta ); ?>;
-			const questionFilters = <?php echo wp_json_encode( $question_filters ); ?>;
+			let questionFilters = <?php echo wp_json_encode( $question_filters ); ?>;
+			let questionOrder = <?php echo wp_json_encode( $question_ordered_ids ); ?>;
+			let masterState = <?php echo wp_json_encode( $tab === 'masters' ? array(
+				'entity' => $entity,
+				'page'   => $master_list_data['page'],
+			) : null ); ?>;
+			let masterRequestId = 0;
+			let masterAbort = null;
+			let questionNavLoading = false;
+			let questionNavRequestId = 0;
 
 			function showToast(msg, ok = true) {
 				const t = document.getElementById('psm_toast');
@@ -3119,8 +3222,237 @@ class PSM_Admin_UI {
 				t.textContent = msg;
 				t.className = 'psm-toast ' + (ok ? 'ok' : 'err');
 				t.style.display = 'block';
-				setTimeout(() => { t.style.display = 'none'; }, 4000);
+				clearTimeout(showToast.timer);
+				showToast.timer = setTimeout(() => { t.style.display = 'none'; }, 4000);
 			}
+
+			const confirmModal = document.getElementById('psm_confirm_modal');
+			let confirmResolver = null;
+			function settleSoftConfirm(result) {
+				if (!confirmResolver) return;
+				const resolve = confirmResolver;
+				confirmResolver = null;
+				confirmModal?.classList.remove('open');
+				resolve(result);
+			}
+			function softConfirm({ title = 'Please confirm', message = '', confirmLabel = 'Confirm', danger = true } = {}) {
+				if (confirmResolver) settleSoftConfirm(false);
+				document.getElementById('psm_confirm_title').textContent = title;
+				document.getElementById('psm_confirm_message').textContent = message;
+				const accept = document.getElementById('psm_confirm_accept');
+				accept.textContent = confirmLabel;
+				accept.className = 'psm-btn ' + (danger ? 'psm-confirm-danger' : 'psm-btn-primary');
+				confirmModal?.classList.add('open');
+				setTimeout(() => accept?.focus(), 30);
+				return new Promise(resolve => { confirmResolver = resolve; });
+			}
+
+			function updateMasterMetadata(data) {
+				Object.keys(tagsBySkill).forEach(key => delete tagsBySkill[key]);
+				(data.tags || []).filter(tag => tag.status === 'active').forEach(function(tag) {
+					const skillId = String(tag.skill_id);
+					if (!tagsBySkill[skillId]) tagsBySkill[skillId] = [];
+					tagsBySkill[skillId].push({ id: Number(tag.id), name: tag.name, label: tag.name, slug: tag.slug });
+				});
+				(data.skills || []).forEach(function(skill) {
+					skillMeta[String(skill.id)] = { name: skill.name, slug: skill.slug };
+				});
+			}
+
+			function updateMasterCounts(counts) {
+				const labels = {
+					domain: 'Domains', skill_type: 'Skill Types', question_type: 'Question Types',
+					difficulty: 'Difficulties', skill: 'Skills', tag: 'Tags', question: 'Questions'
+				};
+				document.querySelectorAll('.psm-pill-nav .psm-pill').forEach(function(link) {
+					const entity = new URLSearchParams(link.search).get('entity');
+					if (entity && counts[entity] !== undefined) link.textContent = labels[entity] + ' (' + counts[entity] + ')';
+				});
+			}
+
+			function updateMasterUrl() {
+				if (!masterState) return;
+				const form = document.getElementById('psm_master_filters');
+				if (!form) return;
+				const params = new URLSearchParams();
+				params.set('page', 'psm-ai-importer');
+				params.set('tab', 'masters');
+				params.set('entity', masterState.entity);
+				new FormData(form).forEach(function(value, key) {
+					if (key === masterState.entity + '_page' || value === '') return;
+					params.set(key, String(value));
+				});
+				if (masterState.page > 1) params.set(masterState.entity + '_page', String(masterState.page));
+				history.replaceState(null, '', adminPageUrl + '?' + params.toString());
+			}
+
+			async function loadMasterList(nextState = {}, options = {}) {
+				if (!masterState) return;
+				const list = document.getElementById('psm_master_list');
+				const form = document.getElementById('psm_master_filters');
+				if (!list || !form) return;
+				masterState = Object.assign({}, masterState, nextState);
+				const requestId = ++masterRequestId;
+				if (masterAbort) masterAbort.abort();
+				masterAbort = new AbortController();
+				const fd = new FormData(form);
+				fd.set('action', 'psm_ajax_get_master_list');
+				fd.set('nonce', ajaxNonce);
+				fd.set('entity', masterState.entity);
+				fd.set(masterState.entity + '_page', String(masterState.page));
+				list.classList.add('is-loading');
+				list.setAttribute('aria-busy', 'true');
+				try {
+					const response = await fetch(ajaxUrl, { method: 'POST', body: fd, signal: masterAbort.signal });
+					const result = await response.json();
+					if (requestId !== masterRequestId) return;
+					if (!result.success) throw new Error(result.data?.message || 'Could not load the master list.');
+					const current = document.getElementById('psm_master_list');
+					if (current) current.outerHTML = result.data.html;
+					updateMasterCounts(result.data.counts);
+					updateMasterMetadata(result.data);
+					if (masterState.entity === 'question') {
+						questionFilters = result.data.filters;
+						questionOrder = result.data.question_order;
+					}
+					syncQuestionTagFilter();
+					updateMasterUrl();
+					if (options.scroll) document.querySelector('.psm-table-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				} catch (error) {
+					if (error.name !== 'AbortError') showToast(error.message || 'Network error while loading records.', false);
+				} finally {
+					if (requestId === masterRequestId) {
+						masterAbort = null;
+						const current = document.getElementById('psm_master_list');
+						current?.classList.remove('is-loading');
+						current?.removeAttribute('aria-busy');
+					}
+				}
+			}
+
+			function refreshMasterList() {
+				return masterState ? loadMasterList({ page: masterState.page }) : Promise.resolve();
+			}
+
+			function syncQuestionTagFilter() {
+				const skillFilter = document.getElementById('psm_question_skill_filter');
+				const tagFilter = document.getElementById('psm_question_tag_filter');
+				if (!tagFilter) return;
+				const skillId = parseInt(skillFilter?.value || '0', 10);
+				Array.from(tagFilter.options).forEach(function(option) {
+					if (!option.value) return;
+					option.hidden = !!skillId && parseInt(option.dataset.skillId || '0', 10) !== skillId;
+				});
+				const selected = tagFilter.selectedOptions[0];
+				if (selected && selected.value && selected.hidden) tagFilter.value = '';
+			}
+
+			let filterTimer = null;
+			document.addEventListener('submit', function(e) {
+				const filterForm = e.target.closest('#psm_master_filters');
+				if (filterForm && masterState) {
+					e.preventDefault();
+					clearTimeout(filterTimer);
+					masterState.page = 1;
+					loadMasterList();
+					return;
+				}
+				const seederForm = e.target.closest('#psm_seeder_form');
+				if (seederForm) {
+					e.preventDefault();
+					softConfirm({
+						title: seederForm.dataset.confirmTitle,
+						message: seederForm.dataset.confirmMessage,
+						confirmLabel: seederForm.dataset.confirmLabel,
+						danger: false
+					}).then(confirmed => { if (confirmed) seederForm.submit(); });
+				}
+			}, true);
+
+			document.addEventListener('input', function(e) {
+				if (!masterState || !e.target.matches('#psm_master_filters input[type="search"]')) return;
+				clearTimeout(filterTimer);
+				filterTimer = setTimeout(function() {
+					masterState.page = 1;
+					loadMasterList();
+				}, 350);
+			}, true);
+
+			document.addEventListener('change', function(e) {
+				if (!masterState || !e.target.closest('#psm_master_filters')) return;
+				if (e.target.id === 'psm_question_skill_filter') syncQuestionTagFilter();
+				clearTimeout(filterTimer);
+				masterState.page = 1;
+				loadMasterList();
+			}, true);
+
+			document.addEventListener('click', async function(e) {
+				if (!e.target?.closest) return;
+				const reset = e.target.closest('[data-psm-reset-filters]');
+				if (reset && masterState) {
+					e.preventDefault();
+					const form = document.getElementById('psm_master_filters');
+					form.querySelectorAll('input[type="search"], select').forEach(control => { control.value = ''; });
+					syncQuestionTagFilter();
+					masterState.page = 1;
+					loadMasterList();
+					return;
+				}
+				const pageButton = e.target.closest('.psm-page-btn[data-page]');
+				if (pageButton && !pageButton.classList.contains('is-disabled') && !pageButton.classList.contains('is-current') && masterState) {
+					e.preventDefault();
+					masterState.page = parseInt(pageButton.dataset.page, 10) || 1;
+					loadMasterList({}, { scroll: true });
+					return;
+				}
+				if (e.target.closest('#psm_confirm_cancel') || e.target.closest('#psm_confirm_close')) {
+					settleSoftConfirm(false);
+					return;
+				}
+				if (e.target.closest('#psm_confirm_accept')) {
+					settleSoftConfirm(true);
+					return;
+				}
+				if (e.target === confirmModal) {
+					settleSoftConfirm(false);
+					return;
+				}
+				const deleteButton = e.target.closest('.psm-ajax-delete');
+				if (deleteButton) {
+					e.preventDefault();
+					const entity = deleteButton.dataset.entity;
+					const id = deleteButton.dataset.id;
+					const name = deleteButton.dataset.name || 'this record';
+					const confirmed = await softConfirm({
+						title: 'Delete ' + entity.replace(/_/g, ' ') + '?',
+						message: 'Are you sure you want to delete "' + name + ' (#' + id + ')"? This action cannot be undone.',
+						confirmLabel: 'Delete'
+					});
+					if (!confirmed) return;
+					deleteButton.disabled = true;
+					const fd = new FormData();
+					fd.append('action', 'psm_ajax_delete_master');
+					fd.append('nonce', ajaxNonce);
+					fd.append('entity', entity);
+					fd.append('record_id', id);
+					try {
+						const response = await fetch(ajaxUrl, { method: 'POST', body: fd });
+						const result = await response.json();
+						if (!result.success) throw new Error(result.data?.message || 'Delete blocked.');
+						showToast(result.data.message, true);
+						if (masterState && masterState.entity === entity) await refreshMasterList();
+						else document.getElementById('psm-row-' + entity + '-' + id)?.remove();
+					} catch (error) {
+						showToast(error.message || 'Network error while deleting.', false);
+					} finally {
+						deleteButton.disabled = false;
+					}
+				}
+			}, true);
+
+			document.addEventListener('keydown', function(e) {
+				if ((e.key === 'Escape' || e.keyCode === 27) && confirmModal?.classList.contains('open')) settleSoftConfirm(false);
+			});
 
 			function escapeHtml(str) {
 				const div = document.createElement('div');
@@ -3362,21 +3694,6 @@ class PSM_Admin_UI {
 				}
 			}, true);
 
-			const questionSkillFilter = document.getElementById('psm_question_skill_filter');
-			const questionTagFilter = document.getElementById('psm_question_tag_filter');
-			function syncQuestionTagFilter() {
-				if (!questionTagFilter) return;
-				const skillId = parseInt(questionSkillFilter?.value || '0', 10);
-				Array.from(questionTagFilter.options).forEach(function(option) {
-					if (!option.value) return;
-					option.hidden = !!skillId && parseInt(option.dataset.skillId || '0', 10) !== skillId;
-				});
-				const selected = questionTagFilter.selectedOptions[0];
-				if (selected && selected.value && selected.hidden) questionTagFilter.value = '';
-			}
-			questionSkillFilter?.addEventListener('change', syncQuestionTagFilter);
-			syncQuestionTagFilter();
-
 			// Import card: populate Tag Focus from the selected skill, then sync from the main form.
 			const jsonSkillSelect = document.getElementById('psm_json_skill_select');
 			const jsonFocusTag    = document.getElementById('psm_json_focus_tag');
@@ -3394,12 +3711,7 @@ class PSM_Admin_UI {
 
 			jsonSkillSelect?.addEventListener('change', loadJsonFocusTags);
 			loadJsonFocusTags();
-
-			document.getElementById('psm_json_file')?.addEventListener('change', function() {
-				const label = document.getElementById('psm_json_label');
-				if (!label || label.value.trim() || !this.files || !this.files.length) return;
-				label.value = this.files[0].name.replace(/\.json$/i, '');
-			});
+			syncQuestionTagFilter();
 
 			// Select all rows on Preview
 			document.getElementById('psm_select_all_rows')?.addEventListener('change', function() {
@@ -3586,22 +3898,29 @@ class PSM_Admin_UI {
 				questionTagInput?.focus();
 			}
 
-			function setQuestionEditNav(recordId, previousId, nextId) {
+			function setQuestionEditNav(recordId) {
 				const nav = document.getElementById('psm_question_edit_nav');
 				const previous = document.getElementById('psm_question_previous');
 				const next = document.getElementById('psm_question_next');
 				const position = document.getElementById('psm_question_position');
-				const visible = parseInt(recordId || '0', 10) > 0;
-				if (nav) nav.style.display = visible ? 'inline-flex' : 'none';
+				const id = parseInt(recordId || '0', 10);
+				const index = questionOrder.findIndex(questionId => Number(questionId) === id);
+				const previousId = index > 0 ? Number(questionOrder[index - 1]) : 0;
+				const nextId = index >= 0 && index < questionOrder.length - 1 ? Number(questionOrder[index + 1]) : 0;
+				if (nav) nav.style.display = id > 0 ? 'inline-flex' : 'none';
 				if (previous) {
-					previous.disabled = !previousId;
+					previous.disabled = questionNavLoading || !previousId;
 					previous.dataset.questionId = previousId || '';
 				}
 				if (next) {
-					next.disabled = !nextId;
+					next.disabled = questionNavLoading || !nextId;
 					next.dataset.questionId = nextId || '';
 				}
-				if (position) position.textContent = visible ? 'Question #' + recordId : 'Question';
+				if (position) {
+					position.textContent = id > 0
+						? 'Question #' + id + (index >= 0 ? ' (' + (index + 1) + ' of ' + questionOrder.length + ')' : '')
+						: 'Question';
+				}
 			}
 
 			function populateQuestionModal(rec) {
@@ -3626,7 +3945,7 @@ class PSM_Admin_UI {
 					input.checked = !!(rec && Array.isArray(rec.correct_keys) && rec.correct_keys.includes(input.value));
 				});
 				updateQuestionType();
-				setQuestionEditNav(rec?.id || 0, rec?.previous_id || 0, rec?.next_id || 0);
+				setQuestionEditNav(rec?.id || 0);
 			}
 
 			questionSkillSelect?.addEventListener('change', function() {
@@ -3644,18 +3963,22 @@ class PSM_Admin_UI {
 				}
 			});
 
-			document.querySelectorAll('.psm-open-modal').forEach(btn => {
-				btn.addEventListener('click', function() {
-					const entity = this.dataset.entity;
-					const recRaw = this.dataset.record;
+			document.addEventListener('click', function(e) {
+				const btn = e.target.closest('.psm-open-modal');
+				if (!btn) return;
+				e.preventDefault();
+					const entity = btn.dataset.entity;
+					const recRaw = btn.dataset.record;
 					const rec    = recRaw ? JSON.parse(recRaw) : null;
 					const isQuestion = entity === 'question';
+					questionNavRequestId++;
+					questionNavLoading = false;
 
 					modalForm?.reset();
 					selectedQuestionTags = [];
 					if (questionTagInput) questionTagInput.value = '';
 					renderQuestionTagPicker();
-					setQuestionEditNav(0, 0, 0);
+					setQuestionEditNav(0);
 					document.getElementById('psm_m_entity').value    = entity;
 					document.getElementById('psm_m_record_id').value = rec ? rec.id : 0;
 
@@ -3708,7 +4031,7 @@ class PSM_Admin_UI {
 							input.checked = !!(rec && Array.isArray(rec.correct_keys) && rec.correct_keys.includes(input.value));
 						});
 						updateQuestionType();
-						setQuestionEditNav(rec?.id || 0, rec?.previous_id || 0, rec?.next_id || 0);
+						setQuestionEditNav(rec?.id || 0);
 					} else if (entity === 'batch') {
 						document.getElementById('psm_m_label_name').value = rec ? (rec.label_name || '') : '';
 						document.getElementById('psm_m_status').value     = rec ? (rec.status || 'completed') : 'completed';
@@ -3730,17 +4053,17 @@ class PSM_Admin_UI {
 					}
 
 					modal.classList.add('open');
-				});
-			});
+			}, true);
 
 			['psm_question_previous', 'psm_question_next'].forEach(function(id) {
-				document.getElementById(id)?.addEventListener('click', function() {
+				document.getElementById(id)?.addEventListener('click', async function() {
+					if (questionNavLoading) return;
 					const questionId = this.dataset.questionId;
 					if (!questionId) return;
-					const previous = document.getElementById('psm_question_previous');
-					const next = document.getElementById('psm_question_next');
-					if (previous) previous.disabled = true;
-					if (next) next.disabled = true;
+					const sourceRecordId = document.getElementById('psm_m_record_id').value;
+					questionNavLoading = true;
+					setQuestionEditNav(document.getElementById('psm_m_record_id').value);
+					const requestId = ++questionNavRequestId;
 					const fd = new FormData();
 					fd.append('action', 'psm_ajax_get_question_master');
 					fd.append('nonce', ajaxNonce);
@@ -3748,25 +4071,24 @@ class PSM_Admin_UI {
 					Object.entries(questionFilters).forEach(function([key, value]) {
 						if (value !== '' && value !== 0) fd.append(key, value);
 					});
-					fetch(ajaxUrl, { method: 'POST', body: fd })
-						.then(r => r.json())
-						.then(res => {
-							if (!res.success || !res.data?.record) {
-								alert(res.data?.message || 'Could not load the question.');
-								return;
-							}
-							document.getElementById('psm_m_record_id').value = res.data.record.id;
-							document.getElementById('psm_modal_title').textContent = 'Edit Question';
-							populateQuestionModal(res.data.record);
-							setQuestionEditNav(res.data.record.id, res.data.previous_id || 0, res.data.next_id || 0);
-							const body = modal?.querySelector('.psm-modal-body');
-							if (body) body.scrollTop = 0;
-						})
-						.catch(() => alert('Network error while loading the question.'))
-						.finally(() => {
-							if (previous) previous.disabled = !previous.dataset.questionId;
-							if (next) next.disabled = !next.dataset.questionId;
-						});
+					try {
+						const response = await fetch(ajaxUrl, { method: 'POST', body: fd });
+						const result = await response.json();
+						if (requestId !== questionNavRequestId || !modal?.classList.contains('open') || document.getElementById('psm_m_record_id').value !== sourceRecordId) return;
+						if (!result.success || !result.data?.record) throw new Error(result.data?.message || 'Could not load the question.');
+						document.getElementById('psm_m_record_id').value = result.data.record.id;
+						document.getElementById('psm_modal_title').textContent = 'Edit Question';
+						populateQuestionModal(result.data.record);
+						const body = modal?.querySelector('.psm-modal-body');
+						if (body) body.scrollTop = 0;
+					} catch (error) {
+						if (requestId === questionNavRequestId) showToast(error.message || 'Network error while loading the question.', false);
+					} finally {
+						if (requestId === questionNavRequestId) {
+							questionNavLoading = false;
+							setQuestionEditNav(document.getElementById('psm_m_record_id').value);
+						}
+					}
 				});
 			});
 
@@ -3816,45 +4138,14 @@ class PSM_Admin_UI {
 						if (res.success) {
 							showToast(res.data.message, true);
 							closeModal();
-							setTimeout(() => location.reload(), 650);
+							if (masterState && masterState.entity === entity) refreshMasterList();
+							else location.reload();
 						} else {
 							alert(res.data?.message || 'Error saving record.');
 						}
 					})
 					.catch(() => alert('Network error while saving.'))
 					.finally(() => { if (submitBtn) submitBtn.disabled = false; });
-			});
-
-			// Delete Confirmation + AJAX Delete with Dependency Validation
-			document.querySelectorAll('.psm-ajax-delete').forEach(btn => {
-				btn.addEventListener('click', function() {
-					const entity = this.dataset.entity;
-					const id     = this.dataset.id;
-					const name   = this.dataset.name;
-
-					if (!confirm('Are you sure you want to delete "' + name + '" (#' + id + ')?')) {
-						return;
-					}
-
-					const fd = new FormData();
-					fd.append('action', 'psm_ajax_delete_master');
-					fd.append('nonce', ajaxNonce);
-					fd.append('entity', entity);
-					fd.append('record_id', id);
-
-					fetch(ajaxUrl, { method: 'POST', body: fd })
-						.then(r => r.json())
-						.then(res => {
-							if (res.success) {
-								showToast(res.data.message, true);
-								const row = document.getElementById('psm-row-' + entity + '-' + id);
-								if (row) row.remove();
-							} else {
-								alert(res.data?.message || 'Delete blocked.');
-							}
-						})
-						.catch(() => alert('Network error while deleting.'));
-				});
 			});
 
 			// 3 Separate AJAX AI Forms on Tab 4

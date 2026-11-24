@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1.5
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,13 +15,13 @@ Generate structured AI questions, review them before import, and manage question
 PSM AI Question Generator & Importer provides a four-tab workflow:
 
 1. Prompt, Preview & Import: build a strict JSON prompt, copy or download it, upload saved JSON in a popup, validate it, and preview every row before import.
-2. Master Tables: manage domains, skill types, question types, difficulties, skills, tags, and questions.
+2. Master Tables: manage domains, skill types, question types, difficulties, skills, tags, and questions with AJAX filters and pagination.
 3. Batches & Label Download: review imported batches and download question labels or CSV exports.
 4. AI Providers: configure independent provider cards and monitor usage without displaying saved API keys.
 
-Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, previous/next editing, text/skill/tag/status filters, and pagination. Tag management includes wildcard name or slug searches and skill filters.
+Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Tag management includes wildcard name or slug searches and skill filters. Related filters are available for every master table.
 
-Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
+Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
 
 == Installation ==
 
@@ -57,9 +57,21 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 
 = Can imported JSON be reviewed before it changes the database? =
 
-Yes. JSON uploads show a preview first. No question, tag, or batch rows are written until the confirmed import step.
+Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.5.0 =
+* Added AJAX filtering and pagination to every master table without page reloads.
+* Added related filters for domains, skill types, question types, difficulties, skills, tags, and questions.
+* Replaced browser delete confirmations and the seed confirmation with centered soft popups.
+* Added a descriptive tooltip to Run Idempotent Seed.
+* Fixed question previous/next navigation to follow the exact filtered order, including non-contiguous IDs.
+* Renamed multiple-answer display to Multi choice.
+* Simplified JSON import into one popup with skill, optional tag focus, import status, pasted JSON, optional file upload, and preview.
+* Removed the visible batch label requirement; import batches are labeled automatically when omitted.
+* Removed stray closing-tag output, hid compact filter labels, standardized filter heights, and moved notifications below the tabs.
+* Changed master tab buttons to rectangular shapes with distinct hover and selected colors.
 
 = 1.4.0 =
 * Added skill-specific tag suggestions and new-tag creation in question add/edit.
@@ -80,6 +92,9 @@ Yes. JSON uploads show a preview first. No question, tag, or batch rows are writ
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.5.0 =
+Adds AJAX master filters and pagination, centered soft confirmations, exact filtered question navigation, and the simplified paste/upload import popup. No database schema change is required.
 
 = 1.4.0 =
 Adds filtered question/tag management, skill-scoped tags, edit navigation, pagination, and the JSON import popup. No database schema change is required.
