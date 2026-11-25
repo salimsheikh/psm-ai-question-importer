@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.7.2  
+**Version:** 1.7.3  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -14,8 +14,9 @@ Generate structured AI questions, review them before import, and manage question
 - Versioned external admin CSS and JavaScript assets.
 - AJAX filters and pagination for every master table, with related domain, status, skill-type, and skill filters.
 - Domain-aware skill selectors in filters, question/tag/skill editors, prompt generation, and JSON import, with server-side ownership validation.
-- Fixed-square pagination controls with centered numbers/icons and a top-of-table administrator-configurable page size (5–100).
-- Plus-icon Add control aligned to the right of the master toolbar.
+- Fixed-square pagination controls with centered numbers/icons and an administrator-configurable page size (5–100) in a filter-styled footer below each master table.
+- Centered plus-icon Add control at the far right of the master entity tabs.
+- Width-constrained master tables and responsive layouts without page-level horizontal scrolling.
 - Single-line desktop master filters with responsive stacking on smaller screens.
 - Dedicated Seed Defaults tab with an explained idempotent, non-destructive seed action.
 - C, C++, and C# default skills with canonical `c`, `cplusplus`, and `csharp` slugs and skill-prefixed topic tags.
@@ -58,7 +59,7 @@ Generate structured AI questions, review them before import, and manage question
 
 All master tables include AJAX search and pagination. Skill Types can be filtered by domain, Question Types and Difficulties by status, Skills by domain/type/status, and Tags by wildcard name/slug, domain, and skill. Question, tag, and skill editors limit skill choices to the selected domain.
 
-The default page size is 25. At the top of **Master Tables**, administrators can select 5, 10, 15, 25, 50, 75, or 100 rows per page; the server clamps invalid saved values to the supported range.
+The default page size is 25. Below each **Master Tables** list, administrators can select 5, 10, 15, 25, 50, 75, or 100 rows per page; the control matches the filter dropdown styling, remains available after AJAX pagination, and the server clamps invalid saved values to the supported range.
 
 Use **Seed Defaults** to add missing default masters and C/C++/C# topic tags. The seed is idempotent: it adds missing records by slug, preserves existing records, may fill blank descriptions, and never deletes records or changes question-tag relationships.
 
@@ -101,6 +102,12 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.7.3
+
+- Centered the plus icon in a compact Add button and moved the button to the far right of the master entity tabs.
+- Moved Rows Per Page and Save Pagination into a filter-styled footer below each master table, preserving AJAX refreshes.
+- Constrained master tables and surrounding containers to the available width to remove horizontal page scrolling without hiding or clipping content.
 
 ### 1.7.2
 
@@ -174,4 +181,4 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 
 ## Upgrade Notes
 
-Version 1.7.2 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. Run Seed Defaults to add missing C/C++/C# masters and tags; a backup is recommended before using Replace-all restore.
+Version 1.7.3 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. No seed or restore action is required for this layout update.

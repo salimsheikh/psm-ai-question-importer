@@ -27,7 +27,8 @@ class PSM_Seeder {
 		if ( 'c# oop' === $lower || 'csharp oop' === $lower || 'csharp-oop' === $lower || 'c-sharp-oop' === $lower ) {
 			return 'csharp-oop';
 		}
-		if ( in_array( $lower, array( 'c++', 'cpp', 'c plus plus', 'cplusplus', 'c-plus-plus', 'cplush' ), true ) ) {
+		$cplusplus = preg_replace( '/[\s_-]+/', '', $lower );
+		if ( in_array( $cplusplus, array( 'c++', 'cpp', 'cplusplus', 'cplush' ), true ) ) {
 			return 'cplusplus';
 		}
 		if ( 'c' === $lower ) {
@@ -570,8 +571,8 @@ class PSM_Seeder {
 					}
 
 					$tag_name     = '' !== $custom_name ? $custom_name : self::humanize_tag_slug( $tag_slug, $skill_slug );
-					$tag_desc     = '' !== $custom_desc ? $custom_desc : ( 'Topic tag "' . $tag_name . '" (' . $tag_slug . ') under ' . $skill_data['name'] . '.' );
-					$existing_tag = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $tags_table WHERE slug = %s", $tag_slug ) );
+					$tag_desc     = '' !== $custom_desc ? $custom_desc : self::get_seed_tag_description( $tag_name, $skill_data['name'] );
+					$existing_tag = $wpdb->get_row( $wpdb->prepare( "SELECT id, name, description FROM $tags_table WHERE slug = %s", $tag_slug ) );
 
 					if ( ! $existing_tag ) {
 						$wpdb->insert(
@@ -589,17 +590,20 @@ class PSM_Seeder {
 							array( '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 						);
 						++$summary['tags'];
-					} elseif ( '' === trim( (string) $existing_tag->description ) ) {
-						$wpdb->update(
-							$tags_table,
-							array(
-								'description' => $tag_desc,
-								'updated_at'  => $now,
-							),
-							array( 'id' => (int) $existing_tag->id ),
-							array( '%s', '%s' ),
-							array( '%d' )
-						);
+					} else {
+						$generated_description = 'Topic tag "' . $existing_tag->name . '" (' . $tag_slug . ') under ' . $skill_data['name'] . '.';
+						if ( '' === trim( (string) $existing_tag->description ) || $generated_description === trim( (string) $existing_tag->description ) ) {
+							$wpdb->update(
+								$tags_table,
+								array(
+									'description' => $tag_desc,
+									'updated_at'  => $now,
+								),
+								array( 'id' => (int) $existing_tag->id ),
+								array( '%s', '%s' ),
+								array( '%d' )
+							);
+						}
 					}
 					$tag_order += 10;
 				}
@@ -644,6 +648,7 @@ class PSM_Seeder {
 			}
 		}
 
+		self::backfill_empty_descriptions();
 		PSM_Cache::delete_all();
 		return $summary;
 	}
@@ -822,7 +827,6 @@ class PSM_Seeder {
 							'csharp-list',
 							'csharp-dictionary',
 							'csharp-collections',
-							'csharp-oop',
 							'csharp-classes',
 							'csharp-objects',
 							'csharp-inheritance',

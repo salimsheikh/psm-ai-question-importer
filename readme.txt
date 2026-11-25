@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.2
+Stable tag: 1.7.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,7 +21,7 @@ PSM AI Question Generator & Importer provides a six-tab workflow:
 5. Backup & Restore: export and restore the configured `psm_*` tables as validated JSON without including WordPress options or provider credentials.
 6. Seed Defaults: add missing default domains, skills, and tags, including C, C++, and C#, with an explained idempotent seed action.
 
-Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons, and the administrator-configurable rows-per-page setting appears at the top of Master Tables and is validated between 5 and 100.
+Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons, and the administrator-configurable rows-per-page setting appears below each master table in a filter-styled footer and is validated between 5 and 100. The centered plus-only Add button sits at the right of the master entity tabs. Master tables fit the available width without page-level horizontal scrolling.
 
 The seed defaults are non-destructive and idempotent. They add missing records by slug, preserve existing names, ownership, statuses, and descriptions, may fill blank descriptions, and never change existing questions or question-tag relationships. C and C++ use the canonical slugs `c` and `cplusplus`; C# uses `csharp`.
 
@@ -63,7 +63,7 @@ It includes the configured prefix's domain, skill type, question type, difficult
 
 = How is pagination configured? =
 
-The default is 25 rows per page. Administrators can choose 5, 10, 15, 25, 50, 75, or 100 under Master Tables. Server-side validation clamps invalid values to the supported range.
+The default is 25 rows per page. Below each master table, administrators can choose 5, 10, 15, 25, 50, 75, or 100 in a dropdown matching the filter controls. Server-side validation clamps invalid values to the supported range.
 
 = How does query caching work? =
 
@@ -78,6 +78,11 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.7.3 =
+* Centered the plus icon in a compact Add button and moved the button to the far right of the master entity tabs.
+* Moved Rows Per Page and Save Pagination into a filter-styled footer below each master table, preserving AJAX refreshes.
+* Constrained master tables and surrounding containers to the available width to remove horizontal page scrolling without hiding or clipping content.
 
 = 1.7.2 =
 * Moved rows-per-page settings to the top of Master Tables and aligned a plus-icon-only Add control to the right.
@@ -143,6 +148,9 @@ Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or bat
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.7.3 =
+Moves the plus-only Add button into the right side of the master tabs, places filter-styled pagination settings below each table, and removes horizontal page overflow without changing data. No database schema change, seed, or restore is required.
 
 = 1.7.2 =
 Refines the master toolbar and single-line filters, moves seeding to Seed Defaults, and adds C/C++ skills and topic tags while preserving existing data. No database schema change is required.

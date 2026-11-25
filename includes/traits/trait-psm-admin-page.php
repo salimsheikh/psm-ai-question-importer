@@ -431,37 +431,6 @@ endif;
 
 			<?php elseif ( 'masters' === $tab ) : ?>
 				<?php $entity_label = ucwords( str_replace( '_', ' ', $entity ) ); ?>
-				<div class="psm-master-toolbar">
-					<div class="psm-per-page-setting">
-						<label for="psm_per_page"><strong>Rows per page</strong></label>
-						<?php
-						$per_page_options = array();
-						foreach ( array( 5, 10, 15, 25, 50, 75, 100 ) as $per_page_value ) {
-							$per_page_options[] = array(
-								'value'    => $per_page_value,
-								'label'    => $per_page_value,
-								'selected' => (int) $per_page_value === $this->psm_get_per_page(),
-							);
-						}
-						$per_page_select_html = $this->psm_select_html(
-							array(
-								'name'    => 'per_page',
-								'id'      => 'psm_per_page',
-								'options' => $per_page_options,
-								'tooltip' => 'Choose how many rows each master table displays',
-							)
-						);
-						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_select_html() escapes the select attributes and option labels.
-						echo $per_page_select_html;
-						?>
-						<button type="button" class="psm-btn psm-btn-primary" id="psm_save_per_page">Save Pagination</button>
-					</div>
-					<button type="button" class="psm-btn-add psm-add-only psm-open-modal" data-entity="<?php echo esc_attr( $entity ); ?>" data-record=""
-						aria-label="Add New <?php echo esc_attr( $entity_label ); ?>" data-tooltip="Add New <?php echo esc_attr( $entity_label ); ?>">
-						<span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
-					</button>
-				</div>
-
 				<div class="psm-pill-nav psm-master-entity-nav">
 					<?php
 					$sub_entities = array(
@@ -478,6 +447,10 @@ endif;
 						?>
 						<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $ek ); ?>" class="<?php echo esc_attr( $cls ); ?>"><?php echo esc_html( $elabel ); ?></a>
 					<?php endforeach; ?>
+					<button type="button" class="psm-btn-add psm-add-only psm-master-add psm-open-modal" data-entity="<?php echo esc_attr( $entity ); ?>" data-record=""
+						aria-label="Add New <?php echo esc_attr( $entity_label ); ?>" data-tooltip="Add New <?php echo esc_attr( $entity_label ); ?>">
+						<span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
+					</button>
 				</div>
 
 				<div class="psm-table-card">
