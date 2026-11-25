@@ -28,7 +28,7 @@ trait PSM_Master_List_Trait {
 				'psm_master_selector_skills',
 				array( 'table' => PSM_AI_TABLE_PREFIX . 'skills' ),
 				static function () use ( $wpdb ) {
-					return $wpdb->get_results( 'SELECT id, name, slug, domain_id, skill_type_id, parent_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills ORDER BY name ASC' );
+					return PSM_Cache::get_results( 'SELECT id, name, slug, domain_id, skill_type_id, parent_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills ORDER BY name ASC', array(), false );
 				},
 				PSM_Cache::EXPIRATION
 			),
@@ -36,7 +36,7 @@ trait PSM_Master_List_Trait {
 				'psm_master_selector_domains',
 				array( 'table' => PSM_AI_TABLE_PREFIX . 'domains' ),
 				static function () use ( $wpdb ) {
-					return $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC' );
+					return PSM_Cache::get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC', array(), false );
 				},
 				PSM_Cache::EXPIRATION
 			),
@@ -44,7 +44,7 @@ trait PSM_Master_List_Trait {
 				'psm_master_selector_skill_types',
 				array( 'table' => PSM_AI_TABLE_PREFIX . 'skill_types' ),
 				static function () use ( $wpdb ) {
-					return $wpdb->get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' );
+					return PSM_Cache::get_results( 'SELECT id, name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC', array(), false );
 				},
 				PSM_Cache::EXPIRATION
 			),
@@ -52,7 +52,7 @@ trait PSM_Master_List_Trait {
 				'psm_master_selector_tags',
 				array( 'table' => PSM_AI_TABLE_PREFIX . 'tags' ),
 				static function () use ( $wpdb ) {
-					return $wpdb->get_results( 'SELECT id, name, slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags ORDER BY name ASC' );
+					return PSM_Cache::get_results( 'SELECT id, name, slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags ORDER BY name ASC', array(), false );
 				},
 				PSM_Cache::EXPIRATION
 			),
@@ -160,7 +160,7 @@ trait PSM_Master_List_Trait {
 				'table'  => $table,
 			),
 			static function () use ( $wpdb, $table ) {
-				return $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
+				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . $table, array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);

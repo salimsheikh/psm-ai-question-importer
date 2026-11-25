@@ -28,11 +28,11 @@ trait PSM_Admin_Batches_Trait {
 		$d_table  = PSM_AI_TABLE_PREFIX . 'difficulties';
 
 		if ( $batch_id > 0 ) {
-			$batch = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $b_table WHERE id = %d", $batch_id ) );
+			$batch = PSM_Cache::get_row( $wpdb->prepare( "SELECT * FROM $b_table WHERE id = %d", $batch_id ), array(), false );
 			if ( ! $batch ) {
 				wp_die( 'Batch not found.' );
 			}
-			$rows     = $wpdb->get_results(
+			$rows     = PSM_Cache::get_results(
 				$wpdb->prepare(
 					"SELECT q.id AS question_id, q.difficulty, df.name AS difficulty_name, q.question_type, q.question_text, q.status,
 					        s.name AS skill_name, b.batch_code, b.label_name
@@ -44,11 +44,13 @@ trait PSM_Admin_Batches_Trait {
 					 WHERE bq.batch_id = %d
 					 ORDER BY bq.import_order ASC, q.id ASC",
 					$batch_id
-				)
+				),
+				array(),
+				false
 			);
 			$filename = sanitize_file_name( $batch->batch_code . '-labels.csv' );
 		} else {
-			$rows     = $wpdb->get_results(
+			$rows     = PSM_Cache::get_results(
 				"SELECT q.id AS question_id, q.difficulty, df.name AS difficulty_name, q.question_type, q.question_text, q.status,
 				        s.name AS skill_name,
 				        COALESCE((SELECT b.batch_code FROM $bq_table bq INNER JOIN $b_table b ON bq.batch_id = b.id WHERE bq.question_id = q.id ORDER BY bq.batch_id DESC LIMIT 1), '') AS batch_code,
@@ -56,7 +58,9 @@ trait PSM_Admin_Batches_Trait {
 				 FROM $q_table q
 				 LEFT JOIN $s_table s ON q.skill_id = s.id
 				 LEFT JOIN $d_table df ON q.difficulty = df.id
-				 ORDER BY q.id DESC LIMIT 500"
+				 ORDER BY q.id DESC LIMIT 500",
+				array(),
+				false
 			);
 			$filename = 'psm-question-labels.csv';
 		}
@@ -70,11 +74,13 @@ trait PSM_Admin_Batches_Trait {
 		fputcsv( $out, array( 'Label', 'Batch Code', 'Question ID', 'Skill', 'Difficulty ID', 'Difficulty', 'Question Type Slug', 'Tags', 'Status', 'Question Text' ) );
 
 		foreach ( $rows as $r ) {
-			$tag_slugs = $wpdb->get_col(
+			$tag_slugs = PSM_Cache::get_col(
 				$wpdb->prepare(
 					"SELECT t.slug FROM $qt_table qt INNER JOIN $t_table t ON qt.tag_id = t.id WHERE qt.question_id = %d",
 					$r->question_id
-				)
+				),
+				array(),
+				false
 			);
 			fputcsv(
 				$out,

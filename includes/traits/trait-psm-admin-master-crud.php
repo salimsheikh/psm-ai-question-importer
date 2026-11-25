@@ -85,8 +85,10 @@ trait PSM_Admin_Master_CRUD_Trait {
 		$table = $table_map[ $entity ];
 
 		// Check duplicate slug
-		$dup_id = $wpdb->get_var(
-			$wpdb->prepare( "SELECT id FROM $table WHERE slug = %s AND id != %d", $slug, $record_id )
+		$dup_id = PSM_Cache::get_var(
+			$wpdb->prepare( "SELECT id FROM $table WHERE slug = %s AND id != %d", $slug, $record_id ),
+			array(),
+			false
 		);
 		if ( $dup_id ) {
 			wp_send_json_error( array( 'message' => "Slug '{$slug}' already exists. Slugs must be unique." ) );
@@ -107,13 +109,13 @@ trait PSM_Admin_Master_CRUD_Trait {
 			$domain_id = absint( $_POST['domain_id'] ?? 0 );
 			$parent_id = absint( $_POST['parent_skill_id'] ?? 0 );
 			$type_id   = absint( $_POST['skill_type_id'] ?? 0 );
-			$domain    = $wpdb->get_row( $wpdb->prepare( 'SELECT id FROM ' . PSM_AI_TABLE_PREFIX . 'domains WHERE id = %d', $domain_id ) );
+			$domain    = PSM_Cache::get_row( $wpdb->prepare( 'SELECT id FROM ' . PSM_AI_TABLE_PREFIX . 'domains WHERE id = %d', $domain_id ), array(), false );
 			if ( ! $domain ) {
 				wp_send_json_error( array( 'message' => 'Select a valid Domain for the Skill.' ) );
 			}
 			$type_name = 'Subject';
 			if ( $type_id ) {
-				$skill_type = $wpdb->get_row( $wpdb->prepare( 'SELECT name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types WHERE id = %d', $type_id ) );
+				$skill_type = PSM_Cache::get_row( $wpdb->prepare( 'SELECT name FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types WHERE id = %d', $type_id ), array(), false );
 				if ( ! $skill_type ) {
 					wp_send_json_error( array( 'message' => 'Select a valid Skill Type.' ) );
 				}
@@ -124,7 +126,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 				wp_send_json_error( array( 'message' => 'A skill cannot be its own parent.' ) );
 			}
 			if ( $parent_id ) {
-				$parent = $wpdb->get_row( $wpdb->prepare( 'SELECT id, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $parent_id ) );
+				$parent = PSM_Cache::get_row( $wpdb->prepare( 'SELECT id, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $parent_id ), array(), false );
 				if ( ! $parent || (int) $parent->domain_id !== $domain_id ) {
 					wp_send_json_error( array( 'message' => 'The parent Skill must belong to the selected Domain.' ) );
 				}
@@ -138,7 +140,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 		} elseif ( 'tag' === $entity ) {
 			$skill_id  = absint( $_POST['skill_id'] ?? 0 );
 			$domain_id = absint( $_POST['tag_domain_id'] ?? 0 );
-			$skill     = $wpdb->get_row( $wpdb->prepare( 'SELECT id, domain_id, slug, name FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
+			$skill     = PSM_Cache::get_row( $wpdb->prepare( 'SELECT id, domain_id, slug, name FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ), array(), false );
 			if ( ! $skill ) {
 				wp_send_json_error( array( 'message' => 'Select a valid parent Skill for the Tag.' ) );
 			}
@@ -153,7 +155,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 				wp_send_json_error( array( 'message' => 'Valid tag name is required.' ) );
 			}
 			if ( $slug !== $data['slug'] ) {
-				$dup_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $table WHERE slug = %s AND id != %d", $slug, $record_id ) );
+				$dup_id = PSM_Cache::get_var( $wpdb->prepare( "SELECT id FROM $table WHERE slug = %s AND id != %d", $slug, $record_id ), array(), false );
 				if ( $dup_id ) {
 					wp_send_json_error( array( 'message' => "Slug '{$slug}' already exists. Slugs must be unique." ) );
 				}
@@ -185,7 +187,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 
 		$skill_id  = absint( $_POST['skill_id'] ?? 0 );
 		$domain_id = absint( $_POST['question_domain_id'] ?? 0 );
-		$skill     = $skill_id ? $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) ) : null;
+		$skill     = $skill_id ? PSM_Cache::get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ), array(), false ) : null;
 		if ( ! $skill ) {
 			wp_send_json_error( array( 'message' => 'Select a valid Skill for the question.' ) );
 		}
@@ -198,7 +200,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 
 		$existing = null;
 		if ( $record_id ) {
-			$existing = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE id = %d', $record_id ) );
+			$existing = PSM_Cache::get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE id = %d', $record_id ), array(), false );
 			if ( ! $existing ) {
 				wp_send_json_error( array( 'message' => 'Question not found.' ) );
 			}
@@ -236,22 +238,26 @@ trait PSM_Admin_Master_CRUD_Trait {
 		$data = $inspected['data'];
 
 		$questions_table = PSM_AI_TABLE_PREFIX . 'questions';
-		$duplicate_id    = (int) $wpdb->get_var(
+		$duplicate_id    = (int) PSM_Cache::get_var(
 			$wpdb->prepare(
 				"SELECT id FROM $questions_table WHERE skill_id = %d AND content_hash = %s AND id != %d LIMIT 1",
 				$skill_id,
 				$data['content_hash'],
 				$record_id
-			)
+			),
+			array(),
+			false
 		);
 		if ( ! $duplicate_id && '' !== $data['external_id'] ) {
-			$duplicate_id = (int) $wpdb->get_var(
+			$duplicate_id = (int) PSM_Cache::get_var(
 				$wpdb->prepare(
 					"SELECT id FROM $questions_table WHERE skill_id = %d AND external_id = %s AND id != %d LIMIT 1",
 					$skill_id,
 					$data['external_id'],
 					$record_id
-				)
+				),
+				array(),
+				false
 			);
 		}
 		if ( $duplicate_id ) {
@@ -365,8 +371,9 @@ trait PSM_Admin_Master_CRUD_Trait {
 
 		global $wpdb;
 		$question_id = absint( $_POST['question_id'] ?? 0 );
-		$question    = $wpdb->get_row(
-			$wpdb->prepare( 'SELECT id, updated_at FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE id = %d', $question_id )
+		$question    = PSM_Cache::get_row(
+			$wpdb->prepare( 'SELECT id, updated_at FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE id = %d', $question_id ),
+			array()
 		);
 		if ( ! $question ) {
 			wp_send_json_error( array( 'message' => 'Question not found.' ) );
@@ -408,7 +415,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 
 		if ( 'question' === $entity ) {
 			$questions_table = PSM_AI_TABLE_PREFIX . 'questions';
-			$exists          = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $questions_table WHERE id = %d", $record_id ) );
+			$exists          = PSM_Cache::get_var( $wpdb->prepare( "SELECT id FROM $questions_table WHERE id = %d", $record_id ), array(), false );
 			if ( ! $exists ) {
 				wp_send_json_error( array( 'message' => 'Question not found.' ) );
 			}
@@ -430,18 +437,24 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'skill' === $entity ) {
-			$q_count     = (int) $wpdb->get_var(
-				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE skill_id = %d', $record_id )
+			$q_count     = (int) PSM_Cache::get_var(
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE skill_id = %d', $record_id ),
+				array(),
+				false
 			);
-			$t_count     = (int) $wpdb->get_var(
-				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'tags WHERE skill_id = %d', $record_id )
+			$t_count     = (int) PSM_Cache::get_var(
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'tags WHERE skill_id = %d', $record_id ),
+				array(),
+				false
 			);
-			$child_count = (int) $wpdb->get_var(
+			$child_count = (int) PSM_Cache::get_var(
 				$wpdb->prepare(
 					'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE parent_id = %d OR parent_skill_id = %d',
 					$record_id,
 					$record_id
-				)
+				),
+				array(),
+				false
 			);
 
 			if ( $q_count > 0 || $t_count > 0 || $child_count > 0 ) {
@@ -471,8 +484,10 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'tag' === $entity ) {
-			$q_count = (int) $wpdb->get_var(
-				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags WHERE tag_id = %d', $record_id )
+			$q_count = (int) PSM_Cache::get_var(
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags WHERE tag_id = %d', $record_id ),
+				array(),
+				false
 			);
 			if ( $q_count > 0 ) {
 				wp_send_json_error(
@@ -491,7 +506,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'domain' === $entity ) {
-			$s_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE domain_id = %d', $record_id ) );
+			$s_count = (int) PSM_Cache::get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE domain_id = %d', $record_id ), array(), false );
 			if ( $s_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Domain because {$s_count} skill(s) belong to it." ) );
 			}
@@ -504,7 +519,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'skill_type' === $entity ) {
-			$s_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE skill_type_id = %d', $record_id ) );
+			$s_count = (int) PSM_Cache::get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE skill_type_id = %d', $record_id ), array(), false );
 			if ( $s_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Skill Type because {$s_count} skill(s) use it." ) );
 			}
@@ -517,8 +532,8 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'question_type' === $entity ) {
-			$slug    = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_types WHERE id = %d', $record_id ) );
-			$q_count = $slug ? (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE question_type = %s', $slug ) ) : 0;
+			$slug    = (string) PSM_Cache::get_var( $wpdb->prepare( 'SELECT slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_types WHERE id = %d', $record_id ), array(), false );
+			$q_count = $slug ? (int) PSM_Cache::get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE question_type = %s', $slug ), array(), false ) : 0;
 			if ( $q_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Question Type because {$q_count} question(s) use slug '{$slug}'." ) );
 			}
@@ -531,7 +546,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'difficulty' === $entity ) {
-			$q_count = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE difficulty = %d', $record_id ) );
+			$q_count = (int) PSM_Cache::get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'questions WHERE difficulty = %d', $record_id ), array(), false );
 			if ( $q_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Difficulty because {$q_count} question(s) reference ID {$record_id}." ) );
 			}

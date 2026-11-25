@@ -67,13 +67,15 @@ class PSM_Seeder {
 		);
 
 		foreach ( $fixed_skills as $skill_name => $target_slug ) {
-			$by_name = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE LOWER(name) = LOWER(%s) LIMIT 1", $skill_name ) );
+			$by_name = PSM_Cache::get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE LOWER(name) = LOWER(%s) LIMIT 1", $skill_name ), array(), false );
 			if ( ! $by_name || $by_name->slug === $target_slug ) {
 				continue;
 			}
 
-			$conflict = $wpdb->get_var(
-				$wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s AND id != %d LIMIT 1", $target_slug, (int) $by_name->id )
+			$conflict = PSM_Cache::get_var(
+				$wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s AND id != %d LIMIT 1", $target_slug, (int) $by_name->id ),
+				array(),
+				false
 			);
 			if ( $conflict ) {
 				continue;
@@ -89,12 +91,14 @@ class PSM_Seeder {
 		}
 
 		// Legacy Laravel slugs ("laravel-php", "larvel") are repairable by name.
-		$legacy_laravel = $wpdb->get_row(
+		$legacy_laravel = PSM_Cache::get_row(
 			"SELECT * FROM $skills_table
-			 WHERE LOWER(name) = 'laravel' AND slug IN ('laravel-php','larave-php','larvel') LIMIT 1"
+			 WHERE LOWER(name) = 'laravel' AND slug IN ('laravel-php','larave-php','larvel') LIMIT 1",
+			array(),
+			false
 		);
 		if ( $legacy_laravel ) {
-			$taken = $wpdb->get_var( "SELECT id FROM $skills_table WHERE slug = 'laravel' LIMIT 1" );
+			$taken = PSM_Cache::get_var( "SELECT id FROM $skills_table WHERE slug = 'laravel' LIMIT 1", array(), false );
 			if ( ! $taken ) {
 				$wpdb->update(
 					$skills_table,
@@ -106,8 +110,8 @@ class PSM_Seeder {
 			}
 		}
 
-		$bad_tag  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'c-sharp-oop' ) );
-		$good_tag = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'csharp-oop' ) );
+		$bad_tag  = PSM_Cache::get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'c-sharp-oop' ), array(), false );
+		$good_tag = PSM_Cache::get_row( $wpdb->prepare( "SELECT * FROM $tags_table WHERE slug = %s LIMIT 1", 'csharp-oop' ), array(), false );
 		if ( ! $bad_tag ) {
 			return;
 		}
@@ -204,7 +208,7 @@ class PSM_Seeder {
 
 		$order = 10;
 		foreach ( $default_types as $dt ) {
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $types_table WHERE slug = %s", $dt['slug'] ) );
+			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $types_table WHERE slug = %s", $dt['slug'] ), array(), false );
 			if ( ! $existing ) {
 				$wpdb->insert(
 					$types_table,
@@ -275,7 +279,7 @@ class PSM_Seeder {
 			),
 		);
 		foreach ( $default_qtypes as $qt ) {
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $qt_table WHERE slug = %s", $qt['slug'] ) );
+			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $qt_table WHERE slug = %s", $qt['slug'] ), array(), false );
 			if ( ! $existing ) {
 				$wpdb->insert(
 					$qt_table,
@@ -330,7 +334,7 @@ class PSM_Seeder {
 			),
 		);
 		foreach ( $default_diffs as $df ) {
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $diff_table WHERE id = %d OR slug = %s", $df['id'], $df['slug'] ) );
+			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $diff_table WHERE id = %d OR slug = %s", $df['id'], $df['slug'] ), array(), false );
 			if ( ! $existing ) {
 				$wpdb->insert(
 					$diff_table,
@@ -364,7 +368,7 @@ class PSM_Seeder {
 
 		// Sync skill_type_id
 		$skills_table = PSM_AI_TABLE_PREFIX . 'skills';
-		foreach ( $wpdb->get_results( "SELECT id, name FROM $types_table" ) as $t ) {
+		foreach ( PSM_Cache::get_results( "SELECT id, name FROM $types_table", array(), false ) as $t ) {
 			$wpdb->query(
 				$wpdb->prepare(
 					"UPDATE $skills_table SET skill_type_id = %d WHERE skill_type_id = 0 AND LOWER(skill_type) = LOWER(%s)",
@@ -381,7 +385,7 @@ class PSM_Seeder {
 			'seeder_skill_types',
 			array( 'table' => PSM_AI_TABLE_PREFIX . 'skill_types' ),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC' );
+				return PSM_Cache::get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skill_types ORDER BY sort_order ASC, name ASC', array(), false );
 			}
 		);
 	}
@@ -392,7 +396,7 @@ class PSM_Seeder {
 			'seeder_question_types',
 			array( 'table' => PSM_AI_TABLE_PREFIX . 'question_types' ),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'question_types ORDER BY sort_order ASC, id ASC' );
+				return PSM_Cache::get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'question_types ORDER BY sort_order ASC, id ASC', array(), false );
 			}
 		);
 	}
@@ -403,7 +407,7 @@ class PSM_Seeder {
 			'seeder_difficulties',
 			array( 'table' => PSM_AI_TABLE_PREFIX . 'difficulties' ),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties ORDER BY id ASC' );
+				return PSM_Cache::get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties ORDER BY id ASC', array(), false );
 			}
 		);
 	}
@@ -425,7 +429,7 @@ class PSM_Seeder {
 		$now           = current_time( 'mysql' );
 
 		$type_map = array();
-		foreach ( $wpdb->get_results( "SELECT id, name FROM $types_table" ) as $tr ) {
+		foreach ( PSM_Cache::get_results( "SELECT id, name FROM $types_table", array(), false ) as $tr ) {
 			$type_map[ strtolower( $tr->name ) ] = (int) $tr->id;
 		}
 
@@ -441,7 +445,7 @@ class PSM_Seeder {
 
 		foreach ( $taxonomy as $domain_data ) {
 			$domain_slug = self::make_slug( $domain_data['slug'], $domain_data['name'] );
-			$domain      = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $domains_table WHERE slug = %s", $domain_slug ) );
+			$domain      = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $domains_table WHERE slug = %s", $domain_slug ), array(), false );
 
 			if ( ! $domain ) {
 				$wpdb->insert(
@@ -488,11 +492,13 @@ class PSM_Seeder {
 				$type_key   = strtolower( $skill_data['skill_type'] );
 
 				$skill_type_id = isset( $type_map[ $type_key ] ) ? $type_map[ $type_key ] : 0;
-				$existing      = $wpdb->get_row(
+				$existing      = PSM_Cache::get_row(
 					$wpdb->prepare(
 						"SELECT id, description, skill_type, skill_type_id FROM $skills_table WHERE slug = %s",
 						$skill_slug
-					)
+					),
+					array(),
+					false
 				);
 
 				if ( ! $existing ) {
@@ -572,7 +578,7 @@ class PSM_Seeder {
 
 					$tag_name     = '' !== $custom_name ? $custom_name : self::humanize_tag_slug( $tag_slug, $skill_slug );
 					$tag_desc     = '' !== $custom_desc ? $custom_desc : self::get_seed_tag_description( $tag_name, $skill_data['name'] );
-					$existing_tag = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $tags_table WHERE slug = %s", $tag_slug ) );
+					$existing_tag = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $tags_table WHERE slug = %s", $tag_slug ), array(), false );
 
 					if ( ! $existing_tag ) {
 						$wpdb->insert(
@@ -619,13 +625,13 @@ class PSM_Seeder {
 			if ( '' !== $parent_slug && isset( $seed_skills[ $parent_slug ] ) ) {
 				$parent_id = (int) $seed_skills[ $parent_slug ]['id'];
 			} elseif ( '' !== $parent_slug ) {
-				$parent_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s", $parent_slug ) );
+				$parent_id = (int) PSM_Cache::get_var( $wpdb->prepare( "SELECT id FROM $skills_table WHERE slug = %s", $parent_slug ), array(), false );
 			}
 			if ( $parent_id === (int) $info['id'] ) {
 				$parent_id = 0;
 			}
 
-			$current = $wpdb->get_row( $wpdb->prepare( "SELECT parent_id, parent_skill_id FROM $skills_table WHERE id = %d", (int) $info['id'] ) );
+			$current = PSM_Cache::get_row( $wpdb->prepare( "SELECT parent_id, parent_skill_id FROM $skills_table WHERE id = %d", (int) $info['id'] ), array(), false );
 			if ( ! $current ) {
 				continue;
 			}
@@ -662,7 +668,7 @@ class PSM_Seeder {
 		$now          = current_time( 'mysql' );
 		$skills_table = PSM_AI_TABLE_PREFIX . 'skills';
 		$skill_names  = array();
-		foreach ( $wpdb->get_results( "SELECT id, name FROM $skills_table" ) as $skill ) {
+		foreach ( PSM_Cache::get_results( "SELECT id, name FROM $skills_table", array(), false ) as $skill ) {
 			$skill_names[ (int) $skill->id ] = $skill->name;
 		}
 
@@ -675,7 +681,7 @@ class PSM_Seeder {
 		$tables   = array( 'domains', 'skill_types', 'question_types', 'difficulties', 'skills', 'tags' );
 		foreach ( $tables as $table ) {
 			$table_name = PSM_AI_TABLE_PREFIX . $table;
-			foreach ( $wpdb->get_results( "SELECT * FROM $table_name" ) as $row ) {
+			foreach ( PSM_Cache::get_results( "SELECT * FROM $table_name", array(), false ) as $row ) {
 				$current_description = trim( (string) $row->description );
 				if ( '' !== $current_description && ! ( 'tags' === $table && 0 === strpos( $current_description, 'Topic tag "' ) ) ) {
 					continue;

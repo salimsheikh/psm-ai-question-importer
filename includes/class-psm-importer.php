@@ -506,16 +506,21 @@ class PSM_Importer {
 		$batch_questions_table = PSM_AI_TABLE_PREFIX . 'batch_questions';
 
 		$skill_id = absint( $skill_id );
-		$skill    = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE id = %d", $skill_id ) );
+		$skill    = PSM_Cache::get_row( $wpdb->prepare( "SELECT * FROM $skills_table WHERE id = %d", $skill_id ), array(), false );
 
 		if ( ! $skill ) {
 			return new WP_Error( 'invalid_skill', 'Target Skill ID does not exist.' );
 		}
 
 		// Load ONLY tags belonging to this exact Skill ID (Backend Ownership Enforcement)
-		$valid_skill_tags = $wpdb->get_results(
-			$wpdb->prepare( "SELECT id, slug FROM $tags_table WHERE skill_id = %d AND status = 'active'", $skill_id ),
-			OBJECT_K
+		$valid_skill_tags = array_column(
+			PSM_Cache::get_results(
+				$wpdb->prepare( "SELECT id, slug FROM $tags_table WHERE skill_id = %d AND status = 'active'", $skill_id ),
+				array(),
+				false
+			),
+			null,
+			'id'
 		);
 
 		$slug_to_tag_id = array();
@@ -598,21 +603,25 @@ class PSM_Importer {
 			$data         = $inspect['data'];
 			$content_hash = $data['content_hash'];
 
-			$duplicate_question_id = (int) $wpdb->get_var(
+			$duplicate_question_id = (int) PSM_Cache::get_var(
 				$wpdb->prepare(
 					"SELECT id FROM $questions_table WHERE skill_id = %d AND content_hash = %s LIMIT 1",
 					$skill_id,
 					$content_hash
-				)
+				),
+				array(),
+				false
 			);
 
 			if ( ! $duplicate_question_id && ! empty( $data['external_id'] ) ) {
-				$duplicate_question_id = (int) $wpdb->get_var(
+				$duplicate_question_id = (int) PSM_Cache::get_var(
 					$wpdb->prepare(
 						"SELECT id FROM $questions_table WHERE skill_id = %d AND external_id = %s LIMIT 1",
 						$skill_id,
 						$data['external_id']
-					)
+					),
+					array(),
+					false
 				);
 			}
 
@@ -757,7 +766,7 @@ class PSM_Importer {
 			return 0;
 		}
 
-		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ) );
+		$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ), array(), false );
 		if ( $existing ) {
 			return ( (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) ? (int) $existing->id : 0;
 		}
@@ -772,7 +781,7 @@ class PSM_Importer {
 			$name = $tag_slug;
 		}
 
-		$max_sort = (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(sort_order) FROM $tags_table WHERE skill_id = %d", (int) $skill->id ) );
+		$max_sort = (int) PSM_Cache::get_var( $wpdb->prepare( "SELECT MAX(sort_order) FROM $tags_table WHERE skill_id = %d", (int) $skill->id ), array(), false );
 
 		$ok = $wpdb->insert(
 			$tags_table,
@@ -791,7 +800,7 @@ class PSM_Importer {
 
 		if ( ! $ok ) {
 			// Unique slug race: another request may have just inserted it.
-			$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ) );
+			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ), array(), false );
 			return ( $existing && (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) ? (int) $existing->id : 0;
 		}
 

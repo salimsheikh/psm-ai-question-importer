@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.4
+Stable tag: 1.7.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -27,7 +27,7 @@ The seed defaults are non-destructive. They add missing records by slug, preserv
 
 Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
 
-Master modules, controller dispatch, list rendering, reusable UI components, and a shared button component are separated into focused classes and traits. Admin CRUD, generation, import, batches, settings, and page rendering are extracted into focused traits. Frequently read master and selector queries use a namespaced one-hour WordPress object cache with filter-aware keys; successful mutations invalidate the plugin cache generation immediately.
+Master modules, controller dispatch, list rendering, reusable UI components, and a shared button component are separated into focused classes and traits. Admin CRUD, generation, import, batches, settings, and page rendering are extracted into focused traits. All shared-table reads pass through a common cache-first database reader. Frequently read master and selector queries use a namespaced one-hour WordPress object cache with filter-aware keys; successful mutations invalidate the plugin cache generation immediately. Duplicate checks, write validation, transactional imports and seeding, exports, restore validation, and schema inspection always use fresh reads.
 
 == Installation ==
 
@@ -67,7 +67,7 @@ The default is 25 rows per page. Below each master table, administrators can cho
 
 = How does query caching work? =
 
-Master lists, counts, selectors, question navigation, and common admin datasets are cached for one hour in the `psm_ai_queries` object-cache group. Question, tag, skill, master, batch, import, seed, restore, activation, and upgrade writes invalidate the plugin cache immediately. Use **Clear Plugin Cache** under **Settings** for a manual reset. Direct writes made by another plugin to the shared `psm_*` tables are not observed until the one-hour cache expires or the cache is cleared manually.
+Master lists, counts, selectors, question navigation, and common admin datasets are cached for one hour in the `psm_ai_queries` object-cache group. Every shared-table read uses the common `PSM_Cache` reader, which checks the cache before querying and prepares supplied arguments. Keys include the query, arguments, output format, site ID, configured `psm_*` table prefix, and normalized context. Successful empty and null results are cached; failed queries are not. Question, tag, skill, master, batch, import, seed, restore, activation, and upgrade writes invalidate the plugin cache immediately. Use **Clear Plugin Cache** under **Settings** for a manual reset. Duplicate checks, write validation, import and seed transactions, backup exports, restore validation, and schema inspection deliberately bypass caching. Reads from `wp_options` are always fresh, and provider credentials are never handled by the shared table reader. Direct writes made by another plugin to the shared `psm_*` tables are not observed until the one-hour cache expires or the cache is cleared manually.
 
 = Does uninstalling delete shared question data? =
 
@@ -78,6 +78,11 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.7.5 =
+* Centralized all shared-table reads behind cache-first `PSM_Cache::get_row()`, `get_results()`, `get_var()`, and `get_col()` wrappers with prepared arguments and query-aware keys.
+* Preserved fresh reads for duplicate checks, write validation, transactional imports and seeding, backup exports, restore validation, and schema inspection; options-table reads are never cached.
+* Prevented failed database reads from being cached and retained generation-wide invalidation after successful mutations.
 
 = 1.7.4 =
 * Routed custom admin buttons through the shared button component and restored the master Edit pencil with the valid Dashicons class.
@@ -154,6 +159,9 @@ Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or bat
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.7.5 =
+Routes shared-table reads through the common cache-first reader while keeping correctness-sensitive checks fresh. No database schema change, seed, restore, or settings migration is required.
 
 = 1.7.4 =
 Centralizes custom admin buttons, restores master Edit pencils, refines the bottom pagination layout, completes seed descriptions, and guarantees the C++ slug. No database schema change is required; run Seed Defaults once to fill missing or generated descriptions while preserving curated text.

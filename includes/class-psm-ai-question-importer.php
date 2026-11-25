@@ -73,7 +73,7 @@ class PSM_AI_Question_Importer {
 
 		PSM_Seeder::init_default_masters();
 
-		$skill_count = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills' );
+		$skill_count = (int) PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'skills', array(), false );
 		if ( 0 === $skill_count ) {
 			PSM_Seeder::run_seed();
 		}

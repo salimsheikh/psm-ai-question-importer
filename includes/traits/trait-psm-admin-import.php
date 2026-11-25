@@ -26,7 +26,7 @@ trait PSM_Admin_Import_Trait {
 			'import_skill',
 			array( 'skill_id' => $skill_id ),
 			static function () use ( $wpdb, $skill_id ) {
-				return $wpdb->get_row( $wpdb->prepare( 'SELECT id, name, slug, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
+				return PSM_Cache::get_row( $wpdb->prepare( 'SELECT id, name, slug, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ), array(), false );
 			}
 		);
 		if ( ! $skill ) {
@@ -46,12 +46,14 @@ trait PSM_Admin_Import_Trait {
 					'skill_id' => $skill_id,
 				),
 				static function () use ( $wpdb, $focus_tag_id, $skill_id ) {
-					return $wpdb->get_row(
+					return PSM_Cache::get_row(
 						$wpdb->prepare(
 							'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE id = %d AND skill_id = %d AND status = 'active'",
 							$focus_tag_id,
 							$skill_id
-						)
+						),
+						array(),
+						false
 					);
 				}
 			);

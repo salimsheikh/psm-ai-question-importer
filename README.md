@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.7.4  
+**Version:** 1.7.5  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -11,6 +11,7 @@ Generate structured AI questions, review them before import, and manage question
 - Six admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, AI Providers, Backup & Restore, and Seed Defaults.
 - Modular master classes, controller dispatch, shared list rendering, reusable UI component traits, a shared button component, and focused admin workflow traits.
 - Namespaced one-hour query caching for master lists, counts, selectors, question navigation, and common admin datasets, with automatic mutation invalidation and a manual admin clear control.
+- Common cache-first database reader for every shared-table read, with prepared arguments, query-aware keys, and explicit fresh mode for correctness-sensitive operations.
 - Versioned external admin CSS and JavaScript assets.
 - AJAX filters and pagination for every master table, with related domain, status, skill-type, and skill filters.
 - Domain-aware skill selectors in filters, question/tag/skill editors, prompt generation, and JSON import, with server-side ownership validation.
@@ -67,9 +68,9 @@ The **Tags** tab supports `*` for any sequence and `?` for one character. Exampl
 
 ## Query Cache
 
-Frequently read master and selector data is stored for one hour in the `psm_ai_queries` WordPress object-cache group. Keys include the site ID, configured `psm_*` table prefix, dataset name, and normalized filters or pagination context. Successful question, tag, skill, master, batch, import, seed, restore, activation, and upgrade operations advance the cache generation so stale entries are no longer read.
+Frequently read master and selector data is stored for one hour in the `psm_ai_queries` WordPress object-cache group. Every shared-table read passes through the common `PSM_Cache` reader, which checks the cache before querying and prepares supplied arguments. Cache keys include the site ID, configured `psm_*` table prefix, read method, query, arguments, output format, and normalized context. Successful empty and null results are cached; failed database reads are not. Successful question, tag, skill, master, batch, import, seed, restore, activation, and upgrade operations advance the cache generation so stale entries are no longer read.
 
-Use **Settings → Clear Plugin Cache** for a manual reset. Duplicate checks, write validation, exports, and schema inspection deliberately bypass the cache. If another plugin writes directly to the shared `psm_*` tables without invoking this plugin, those external changes can remain unseen until the one-hour cache expires or the cache is cleared.
+Use **Settings → Clear Plugin Cache** for a manual reset. Duplicate checks, write validation, import and seed transactions, backup exports, restore validation, and schema inspection deliberately bypass caching. Reads from `wp_options` are always fresh, and provider credentials are never handled by the shared table reader. If another plugin writes directly to the shared `psm_*` tables without invoking this plugin, those external changes can remain unseen until the one-hour cache expires or the cache is cleared.
 
 ## JSON Import Workflow
 
@@ -102,6 +103,12 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.7.5
+
+- Centralized all shared-table reads behind cache-first `PSM_Cache::get_row()`, `get_results()`, `get_var()`, and `get_col()` wrappers with prepared arguments and query-aware keys.
+- Preserved fresh reads for duplicate checks, write validation, transactional imports and seeding, backup exports, restore validation, and schema inspection; options-table reads are never cached.
+- Prevented failed database reads from being cached and retained generation-wide invalidation after successful mutations.
 
 ### 1.7.4
 
@@ -187,5 +194,7 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Added missing-tag attachment for duplicate JSON questions.
 
 ## Upgrade Notes
+
+Version 1.7.5 centralizes shared-table reads without changing the schema or data. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved; no seed, restore, or settings migration is required.
 
 Version 1.7.4 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. Run Seed Defaults once to fill missing or generated descriptions; curated descriptions remain unchanged.

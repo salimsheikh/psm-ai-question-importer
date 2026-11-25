@@ -34,24 +34,28 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 				'question_id' => $question_id,
 			),
 			static function () use ( $wpdb, $question_id ) {
-				$question = $wpdb->get_row(
+				$question = PSM_Cache::get_row(
 					$wpdb->prepare(
 						'SELECT q.*, s.name AS skill_name, s.domain_id, d.name AS difficulty_name FROM ' . PSM_AI_TABLE_PREFIX . 'questions q'
 						. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = q.skill_id'
 						. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'difficulties d ON d.id = q.difficulty WHERE q.id = %d',
 						$question_id
-					)
+					),
+					array(),
+					false
 				);
 				if ( ! $question ) {
 					return false;
 				}
-				$tag_rows = $wpdb->get_col(
+				$tag_rows = PSM_Cache::get_col(
 					$wpdb->prepare(
 						'SELECT t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
 						. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
 						. ' WHERE qt.question_id = %d ORDER BY t.sort_order ASC, t.name ASC',
 						$question_id
-					)
+					),
+					array(),
+					false
 				);
 				return array(
 					'question' => $question,
@@ -100,19 +104,23 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 				'args'        => $args,
 			),
 			static function () use ( $wpdb, $table, $where, $args, $question ) {
-				$previous = $wpdb->get_var(
+				$previous = PSM_Cache::get_var(
 					$wpdb->prepare(
 						'SELECT q.id FROM ' . $table . ' q ' . $where
 						. ' AND (q.updated_at > %s OR (q.updated_at = %s AND q.id > %d)) ORDER BY q.updated_at DESC, q.id DESC LIMIT 1',
 						array_merge( $args, array( $question->updated_at, $question->updated_at, $question->id ) )
-					)
+					),
+					array(),
+					false
 				);
-				$next     = $wpdb->get_var(
+				$next     = PSM_Cache::get_var(
 					$wpdb->prepare(
 						'SELECT q.id FROM ' . $table . ' q ' . $where
 						. ' AND (q.updated_at < %s OR (q.updated_at = %s AND q.id < %d)) ORDER BY q.updated_at ASC, q.id ASC LIMIT 1',
 						array_merge( $args, array( $question->updated_at, $question->updated_at, $question->id ) )
-					)
+					),
+					array(),
+					false
 				);
 				return array(
 					'previous' => $previous,
@@ -151,7 +159,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'psm_master_list_total_count',
 			$total_context,
 			static function () use ( $wpdb, $table ) {
-				return $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
+				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . $table, array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);
@@ -159,7 +167,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'psm_master_list_filtered_count',
 			$list_context,
 			static function () use ( $wpdb, $count_sql, $args ) {
-				return empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) );
+				return empty( $args ) ? PSM_Cache::get_var( $count_sql, array(), false ) : PSM_Cache::get_var( $wpdb->prepare( $count_sql, $args ), array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);
@@ -171,7 +179,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'psm_master_question_order',
 			$list_context,
 			static function () use ( $wpdb, $order_sql, $args ) {
-				return empty( $args ) ? $wpdb->get_col( $order_sql ) : $wpdb->get_col( $wpdb->prepare( $order_sql, $args ) );
+				return empty( $args ) ? PSM_Cache::get_col( $order_sql, array(), false ) : PSM_Cache::get_col( $wpdb->prepare( $order_sql, $args ), array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);
@@ -192,7 +200,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'psm_master_list_rows',
 			$page_context,
 			static function () use ( $wpdb, $query, $args, $offset, $data ) {
-				return $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+				return PSM_Cache::get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ), array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);
@@ -219,13 +227,15 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 					return array();
 				}
 				$placeholders = implode( ',', array_fill( 0, count( $question_ids ), '%d' ) );
-				return $wpdb->get_results(
+				return PSM_Cache::get_results(
 					$wpdb->prepare(
 						'SELECT qt.question_id, t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
 						. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
 						. ' WHERE qt.question_id IN (' . $placeholders . ') ORDER BY t.sort_order ASC, t.name ASC',
 						$question_ids
-					)
+					),
+					array(),
+					false
 				);
 			},
 			PSM_Cache::EXPIRATION

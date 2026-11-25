@@ -27,7 +27,7 @@ class PSM_Backup_Restore {
 		foreach ( $this->get_table_order() as $suffix ) {
 			$table = PSM_AI_TABLE_PREFIX . $suffix;
 			if ( $this->table_exists( $table ) ) {
-				$table_counts[ $suffix ] = (int) $GLOBALS['wpdb']->get_var( 'SELECT COUNT(*) FROM `' . $table . '`' );
+				$table_counts[ $suffix ] = (int) PSM_Cache::get_var( 'SELECT COUNT(*) FROM `' . $table . '`', array() );
 			}
 		}
 		?>
@@ -123,10 +123,13 @@ class PSM_Backup_Restore {
 			if ( ! $this->table_exists( $table ) ) {
 				continue;
 			}
-			$create                       = $wpdb->get_row( 'SHOW CREATE TABLE `' . $table . '`', ARRAY_A );
+			$create                       = PSM_Cache::get_row( 'SHOW CREATE TABLE `' . $table . '`', array(), false, array(), ARRAY_A );
 			$payload['tables'][ $suffix ] = array(
 				'schema' => isset( $create['Create Table'] ) ? $create['Create Table'] : '',
-				'rows'   => $wpdb->get_results( 'SELECT * FROM `' . $table . '`', ARRAY_A ),
+				'rows'   => array_map(
+					'get_object_vars',
+					PSM_Cache::get_results( 'SELECT * FROM `' . $table . '`', array(), false )
+				),
 			);
 		}
 
@@ -214,7 +217,7 @@ class PSM_Backup_Restore {
 			if ( ! $this->table_exists( $table ) ) {
 				$this->redirect_with_notice( 'A required plugin table is missing: ' . $table, true );
 			}
-			$columns = $wpdb->get_col( 'SHOW COLUMNS FROM `' . $table . '`' );
+			$columns = PSM_Cache::get_col( 'SHOW COLUMNS FROM `' . $table . '`', array(), false );
 			foreach ( $table_data['rows'] as $row ) {
 				if ( ! is_array( $row ) ) {
 					$this->redirect_with_notice( 'The backup contains an invalid row in ' . $table . '.', true );
@@ -316,7 +319,7 @@ class PSM_Backup_Restore {
 
 	private function table_exists( $table ) {
 		global $wpdb;
-		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ) );
+		return (bool) PSM_Cache::get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ), array(), false );
 	}
 
 	private function authorize( $action ) {

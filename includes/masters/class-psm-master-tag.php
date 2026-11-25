@@ -59,7 +59,7 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 			'psm_master_list_total_count',
 			$total_context,
 			static function () use ( $wpdb, $table ) {
-				return $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table );
+				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . $table, array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);
@@ -67,7 +67,7 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 			'psm_master_list_filtered_count',
 			$list_context,
 			static function () use ( $wpdb, $count_sql, $args ) {
-				return empty( $args ) ? $wpdb->get_var( $count_sql ) : $wpdb->get_var( $wpdb->prepare( $count_sql, $args ) );
+				return empty( $args ) ? PSM_Cache::get_var( $count_sql, array(), false ) : PSM_Cache::get_var( $wpdb->prepare( $count_sql, $args ), array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);
@@ -86,7 +86,7 @@ class PSM_Master_Tag extends PSM_Master_Abstract {
 			'psm_master_list_rows',
 			$page_context,
 			static function () use ( $wpdb, $query, $args, $offset, $data ) {
-				return $wpdb->get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ) );
+				return PSM_Cache::get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ), array(), false );
 			},
 			PSM_Cache::EXPIRATION
 		);

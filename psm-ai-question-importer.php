@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PSM AI Question Generator & Importer
  * Description: Generates structured MCQ/coding questions via AI APIs using Domain/Skill/Tag/Question/QuestionType/Difficulty masters, AJAX modal CRUD, 3 independent AI provider cards, batch tracking, preview-before-import, and label export.
- * Version: 1.7.4
+ * Version: 1.7.5
  * Author: PSM
  * Text Domain: psm-ai-question-importer
  * License: GPL-2.0-or-later
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 global $wpdb;
 
-define( 'PSM_AI_VERSION', '1.7.4' );
+define( 'PSM_AI_VERSION', '1.7.5' );
 define( 'PSM_AI_DB_VERSION', '1.3.0' );
 define( 'PSM_AI_TABLE_PREFIX', $wpdb->prefix . 'psm_' );
 define( 'PSM_AI_DEFAULT_PER_PAGE', 25 );

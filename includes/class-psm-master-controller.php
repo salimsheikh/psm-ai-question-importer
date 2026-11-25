@@ -50,7 +50,7 @@ class PSM_Master_Controller {
 			static function () use ( $wpdb, $tables ) {
 				$counts = array();
 				foreach ( $tables as $entity => $suffix ) {
-					$counts[ $entity ] = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . $suffix );
+					$counts[ $entity ] = (int) PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . $suffix, array(), false );
 				}
 				return $counts;
 			},

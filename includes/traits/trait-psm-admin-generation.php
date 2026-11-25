@@ -59,7 +59,7 @@ trait PSM_Admin_Generation_Trait {
 			'generation_skill',
 			array( 'skill_id' => $skill_id ),
 			static function () use ( $wpdb, $skill_id ) {
-				return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
+				return PSM_Cache::get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ), array(), false );
 			}
 		);
 		if ( ! $skill ) {
@@ -80,8 +80,8 @@ trait PSM_Admin_Generation_Trait {
 				),
 				static function () use ( $wpdb, $difficulty_raw, $difficulty_id ) {
 					return is_numeric( $difficulty_raw )
-						? $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties WHERE id = %d', $difficulty_id ) )
-						: $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties WHERE slug = %s', $difficulty_raw ) );
+						? PSM_Cache::get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties WHERE id = %d', $difficulty_id ), array(), false )
+						: PSM_Cache::get_row( $wpdb->prepare( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'difficulties WHERE slug = %s', $difficulty_raw ), array(), false );
 				}
 			);
 			if ( $diff_row && ! is_numeric( $difficulty_raw ) ) {
@@ -94,8 +94,10 @@ trait PSM_Admin_Generation_Trait {
 			'generation_active_tags',
 			array( 'skill_id' => $skill_id ),
 			static function () use ( $wpdb, $skill_id ) {
-				return $wpdb->get_results(
-					$wpdb->prepare( 'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id )
+				return PSM_Cache::get_results(
+					$wpdb->prepare( 'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id ),
+					array(),
+					false
 				);
 			}
 		);
@@ -289,7 +291,7 @@ trait PSM_Admin_Generation_Trait {
 			'generation_skill_summary',
 			array( 'skill_id' => $skill_id ),
 			static function () use ( $wpdb, $skill_id ) {
-				return $wpdb->get_row( $wpdb->prepare( 'SELECT id, name, slug, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ) );
+				return PSM_Cache::get_row( $wpdb->prepare( 'SELECT id, name, slug, domain_id FROM ' . PSM_AI_TABLE_PREFIX . 'skills WHERE id = %d', $skill_id ), array(), false );
 			}
 		);
 		if ( ! $skill ) {
@@ -303,7 +305,7 @@ trait PSM_Admin_Generation_Trait {
 			'generation_active_tags',
 			array( 'skill_id' => $skill_id ),
 			static function () use ( $wpdb, $skill_id ) {
-				return $wpdb->get_results( $wpdb->prepare( 'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id ) );
+				return PSM_Cache::get_results( $wpdb->prepare( 'SELECT id, name, slug FROM ' . PSM_AI_TABLE_PREFIX . "tags WHERE skill_id = %d AND status = 'active'", $skill_id ), array(), false );
 			}
 		);
 		$tags_all    = array();

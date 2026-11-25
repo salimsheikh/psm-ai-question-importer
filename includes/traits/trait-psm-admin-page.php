@@ -26,7 +26,7 @@ trait PSM_Admin_Page_Trait {
 			'admin_domains',
 			array(),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC' );
+				return PSM_Cache::get_results( 'SELECT * FROM ' . PSM_AI_TABLE_PREFIX . 'domains ORDER BY sort_order ASC, name ASC', array(), false );
 			}
 		);
 		$skill_types    = PSM_Seeder::get_skill_types();
@@ -38,13 +38,15 @@ trait PSM_Admin_Page_Trait {
 			'admin_skills',
 			array(),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results(
+				return PSM_Cache::get_results(
 					'SELECT s.*, d.name AS domain_name, st.name AS master_type_name, p.name AS parent_skill_name
 					 FROM ' . PSM_AI_TABLE_PREFIX . 'skills s
 					 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'domains d ON s.domain_id = d.id
 					 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skill_types st ON s.skill_type_id = st.id
 					 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills p ON s.parent_id = p.id
-					 ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC'
+					 ORDER BY d.sort_order ASC, s.sort_order ASC, s.name ASC',
+					array(),
+					false
 				);
 			}
 		);
@@ -53,7 +55,7 @@ trait PSM_Admin_Page_Trait {
 			'admin_tags',
 			array(),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results(
+				return PSM_Cache::get_results(
 					'SELECT
 						t.*,
 						s.name AS skill_name,
@@ -62,7 +64,9 @@ trait PSM_Admin_Page_Trait {
 					LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON s.id = t.skill_id
 					LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'question_tags qt ON qt.tag_id = t.id
 					GROUP BY t.id
-					ORDER BY t.sort_order ASC, t.name ASC'
+					ORDER BY t.sort_order ASC, t.name ASC',
+					array(),
+					false
 				);
 			}
 		);
@@ -71,12 +75,14 @@ trait PSM_Admin_Page_Trait {
 			'admin_batches',
 			array( 'limit' => 100 ),
 			static function () use ( $wpdb ) {
-				return $wpdb->get_results(
+				return PSM_Cache::get_results(
 					'SELECT b.*, s.name AS skill_name,
 					        (SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
 					 FROM ' . PSM_AI_TABLE_PREFIX . 'batches b
 					 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON b.skill_id = s.id
-					 ORDER BY b.id DESC LIMIT 100'
+					 ORDER BY b.id DESC LIMIT 100',
+					array(),
+					false
 				);
 			}
 		);
@@ -541,7 +547,7 @@ endif;
 							'preview_tag_status',
 							array(),
 							static function () use ( $wpdb ) {
-								return $wpdb->get_results( 'SELECT slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags' );
+								return PSM_Cache::get_results( 'SELECT slug, skill_id, status FROM ' . PSM_AI_TABLE_PREFIX . 'tags', array(), false );
 							}
 						);
 						foreach ( (array) $preview_tag_rows as $preview_tag_row ) {
