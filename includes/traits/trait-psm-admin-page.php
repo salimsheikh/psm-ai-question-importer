@@ -197,7 +197,7 @@ trait PSM_Admin_Page_Trait {
 			<?php
 			$tabs = array(
 				'generate' => array(
-					'label' => '1. Prompt, Preview & Import',
+					'label' => 'Prompt & Import',
 					'url'   => add_query_arg(
 						array(
 							'page' => 'psm-ai-importer',
@@ -207,7 +207,7 @@ trait PSM_Admin_Page_Trait {
 					),
 				),
 				'masters'  => array(
-					'label' => '2. Master Tables',
+					'label' => 'Masters',
 					'url'   => add_query_arg(
 						array(
 							'page'   => 'psm-ai-importer',
@@ -218,7 +218,7 @@ trait PSM_Admin_Page_Trait {
 					),
 				),
 				'batches'  => array(
-					'label' => '3. Batches & Label Download',
+					'label' => 'Batches',
 					'url'   => add_query_arg(
 						array(
 							'page' => 'psm-ai-importer',
@@ -228,7 +228,7 @@ trait PSM_Admin_Page_Trait {
 					),
 				),
 				'settings' => array(
-					'label' => '4. AI Providers',
+					'label' => 'AI Providers',
 					'url'   => add_query_arg(
 						array(
 							'page' => 'psm-ai-importer',
@@ -238,7 +238,7 @@ trait PSM_Admin_Page_Trait {
 					),
 				),
 				'backup'   => array(
-					'label' => '5. Backup & Restore',
+					'label' => 'Backup',
 					'url'   => add_query_arg(
 						array(
 							'page' => 'psm-ai-importer',
@@ -248,7 +248,7 @@ trait PSM_Admin_Page_Trait {
 					),
 				),
 				'seed'     => array(
-					'label' => '6. Seed Defaults',
+					'label' => 'Seed',
 					'url'   => add_query_arg(
 						array(
 							'page' => 'psm-ai-importer',
@@ -336,7 +336,20 @@ trait PSM_Admin_Page_Trait {
 											<input type="checkbox" name="set_as_default" value="1" <?php checked( $is_def ); ?>> Set as Default AI Provider
 										</label>
 									</p>
-									<button type="submit" class="button button-primary" style="width:100%;">Save <?php echo esc_html( $plabel ); ?> Settings (AJAX)</button>
+									<?php
+									$save_provider_button_html = $this->psm_button_html(
+										'Save ' . $plabel . ' Settings (AJAX)',
+										'button button-primary',
+										array(
+											'type'  => 'submit',
+											'style' => 'width:100%;',
+										),
+										'',
+										''
+									);
+									// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+									echo $save_provider_button_html;
+									?>
 									<div class="psm-save-status" id="psm_save_status_<?php echo esc_attr( $pkey ); ?>" aria-live="polite"></div>
 								</form>
 							</div>
@@ -393,17 +406,37 @@ trait PSM_Admin_Page_Trait {
 										<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=psm_download_labels&batch_id=' . $b->id ), 'psm_download_labels_nonce' ) ); ?>" class="psm-icon-btn" style="background:#dcfce7;color:#15803d;" title="Download Label File">
 											<span class="dashicons dashicons-download"></span>
 										</a>
-										<button type="button" class="psm-icon-btn psm-btn-edit psm-open-modal" title="Edit Batch Label"
-											data-entity="batch"
-											data-record='<?php echo esc_attr( wp_json_encode( $b ) ); ?>'>
-											<span class="dashicons dashicons-edit"></span>
-										</button>
-										<button type="button" class="psm-icon-btn psm-btn-delete psm-ajax-delete" title="Delete Batch"
-											data-entity="batch"
-											data-id="<?php echo esc_attr( $b->id ); ?>"
-											data-name="<?php echo esc_attr( $b->batch_code ); ?>">
-											<span class="dashicons dashicons-trash"></span>
-										</button>
+										<?php
+										$edit_batch_button_html = $this->psm_button_html(
+											'',
+											'psm-icon-btn psm-btn-edit psm-open-modal',
+											array(
+												'title'       => 'Edit Batch Label',
+												'data-entity' => 'batch',
+												'data-record' => (string) wp_json_encode( $b ),
+											),
+											'dashicons-edit',
+											''
+										);
+										// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+										echo $edit_batch_button_html;
+										?>
+										<?php
+										$delete_batch_button_html = $this->psm_button_html(
+											'',
+											'psm-icon-btn psm-btn-delete psm-ajax-delete',
+											array(
+												'title'       => 'Delete Batch',
+												'data-entity' => 'batch',
+												'data-id'     => $b->id,
+												'data-name'   => $b->batch_code,
+											),
+											'dashicons-trash',
+											''
+										);
+										// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+										echo $delete_batch_button_html;
+										?>
 									</td>
 								</tr>
 															<?php
@@ -418,14 +451,24 @@ endif;
 				<div class="psm-table-card psm-seed-card">
 					<h2>Seed Default Masters</h2>
 					<p>Add missing default domains, skill types, question types, difficulties, skills, and topic tags, including C, C++, and C#.</p>
-					<p>Existing records are preserved. Repeated runs add only missing records and do not delete or replace existing names, ownership, statuses, or descriptions. Blank descriptions may be filled, and existing questions and tag relationships are not changed.</p>
+					<p>Existing records are preserved. Repeated runs add only missing records and keep existing names, ownership, statuses, questions, and tag relationships. Blank descriptions are filled, and deterministic generated tag descriptions are replaced with topic-based text; curated descriptions remain unchanged.</p>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="psm_seeder_form"
 						data-confirm-title="Run idempotent seed?"
-						data-confirm-message="This adds missing default domains, skills, and tags. Existing records are preserved."
+						data-confirm-message="This adds missing defaults and fills blank or deterministic generated descriptions while preserving curated descriptions and existing question data."
 						data-confirm-label="Run Seed">
 						<?php wp_nonce_field( 'psm_seeder_nonce' ); ?>
 						<input type="hidden" name="action" value="psm_run_seeder">
-						<button type="submit" class="psm-btn psm-btn-primary" data-tooltip="Add missing defaults without changing existing records">Run Idempotent Seed</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Run Idempotent Seed',
+							'psm-btn-primary',
+							array(
+								'type'        => 'submit',
+								'data-tooltip' => 'Add missing defaults and fill descriptions while preserving curated data',
+							)
+						);
+						?>
 					</form>
 				</div>
 
@@ -447,10 +490,22 @@ endif;
 						?>
 						<a href="?page=psm-ai-importer&tab=masters&entity=<?php echo esc_attr( $ek ); ?>" class="<?php echo esc_attr( $cls ); ?>"><?php echo esc_html( $elabel ); ?></a>
 					<?php endforeach; ?>
-					<button type="button" class="psm-btn-add psm-add-only psm-master-add psm-open-modal" data-entity="<?php echo esc_attr( $entity ); ?>" data-record=""
-						aria-label="Add New <?php echo esc_attr( $entity_label ); ?>" data-tooltip="Add New <?php echo esc_attr( $entity_label ); ?>">
-						<span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
-					</button>
+					<?php
+					$add_master_button_html = $this->psm_button_html(
+						'',
+						'psm-btn-add psm-add-only psm-master-add psm-open-modal',
+						array(
+							'data-entity'  => $entity,
+							'data-record'  => '',
+							'aria-label'   => 'Add New ' . $entity_label,
+							'data-tooltip' => 'Add New ' . $entity_label,
+						),
+						'dashicons-plus-alt2',
+						''
+					);
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+					echo $add_master_button_html;
+					?>
 				</div>
 
 				<div class="psm-table-card">
@@ -612,7 +667,21 @@ endif;
 							</table>
 
 							<?php submit_button( 'Confirm & Import Checked Rows to Custom Database', 'primary', 'confirm_import', false ); ?>
-							<button type="submit" name="cancel_preview" value="1" class="button button-secondary" style="margin-left:8px;">Discard Preview</button>
+							<?php
+							// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+							echo $this->psm_button_html(
+								'Discard Preview',
+								'button button-secondary',
+								array(
+									'type'  => 'submit',
+									'name'  => 'cancel_preview',
+									'value' => '1',
+									'style' => 'margin-left:8px;',
+								),
+								'',
+								''
+							);
+							?>
 						</form>
 					</div>
 				<?php else : ?>
@@ -721,7 +790,16 @@ endif;
 											<div class="psm-break-item">
 												<div class="psm-qtype-header">
 													<strong>Question Type (Slug)</strong>
-													<button type="button" class="button button-small" id="psm_select_all_qtypes">Select All</button>
+													<?php
+													// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+													echo $this->psm_button_html(
+														'Select All',
+														'button button-small',
+														array( 'id' => 'psm_select_all_qtypes' ),
+														'',
+														''
+													);
+													?>
 												</div>
 												<div class="psm-qtype-checks" id="psm_qtype_checks">
 													<?php foreach ( $generation_qtypes as $qt_slug => $qt_label ) : ?>
@@ -788,10 +866,28 @@ endif;
 
 							<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
 								<?php submit_button( 'Fetch & Show Data for Check Before Import', 'primary', 'submit', false ); ?>
-								<button type="button" class="button button-secondary" id="psm_create_prompt_btn">Create Prompt (Copy / Download)</button>
-								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_jump" data-tooltip="Paste JSON or preview a saved JSON file">
-								<span class="dashicons dashicons-upload" aria-hidden="true"></span> Import JSON
-							</button>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'Create Prompt (Copy / Download)',
+									'button button-secondary',
+									array( 'id' => 'psm_create_prompt_btn' ),
+									'',
+									''
+								);
+								?>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'Import JSON',
+									'psm-btn-secondary',
+									array(
+										'id'          => 'psm_import_json_jump',
+										'data-tooltip' => 'Paste JSON or preview a saved JSON file',
+									),
+									'dashicons-upload'
+								);
+								?>
 								<div id="psm_ai_loader" style="display:none;align-items:center;gap:8px;padding:6px 12px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;color:#1e3a8a;font-weight:600;">
 									<span class="spinner is-active" style="float:none;margin:0;"></span>
 									<span>Generating questions via AI...</span>
@@ -808,7 +904,19 @@ endif;
 				<div class="psm-modal psm-json-import-modal">
 					<div class="psm-modal-header">
 						<h3 id="psm_import_json_title">Import JSON</h3>
-						<button type="button" class="psm-modal-close" id="psm_import_json_close" aria-label="Close JSON import">&times;</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'×',
+							'psm-modal-close',
+							array(
+								'id'         => 'psm_import_json_close',
+								'aria-label' => 'Close JSON import',
+							),
+							'',
+							''
+						);
+						?>
 					</div>
 					<div class="psm-modal-body">
 						<p class="description" style="margin-top:0;">
@@ -887,11 +995,42 @@ endif;
 							</tr>
 							</table>
 							<div class="psm-modal-footer">
-								<button type="button" class="psm-btn psm-btn-secondary" id="psm_import_json_cancel">Cancel</button>
-								<button type="submit" class="psm-btn psm-btn-secondary" name="import_source" value="file" id="psm_json_preview"
-									data-tooltip="Validate the selected JSON file and open the preview">Preview</button>
-								<button type="submit" class="psm-btn psm-btn-primary" name="import_source" value="paste" id="psm_import_pasted_json"
-									data-tooltip="Validate the pasted JSON and open the preview">Import Pasted JSON</button>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'Cancel',
+									'psm-btn-secondary',
+									array( 'id' => 'psm_import_json_cancel' )
+								);
+								?>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'Preview',
+									'psm-btn-secondary',
+									array(
+										'type'        => 'submit',
+										'name'        => 'import_source',
+										'value'       => 'file',
+										'id'          => 'psm_json_preview',
+										'data-tooltip' => 'Validate the selected JSON file and open the preview',
+									)
+								);
+								?>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'Import Pasted JSON',
+									'psm-btn-primary',
+									array(
+										'type'        => 'submit',
+										'name'        => 'import_source',
+										'value'       => 'paste',
+										'id'          => 'psm_import_pasted_json',
+										'data-tooltip' => 'Validate the pasted JSON and open the preview',
+									)
+								);
+								?>
 							</div>
 						</form>
 					</div>
@@ -904,7 +1043,19 @@ endif;
 				<div class="psm-modal" style="max-width: 900px;">
 					<div class="psm-modal-header">
 						<h3>AI Prompt (Copy or Download)</h3>
-						<button type="button" class="psm-modal-close" id="psm_prompt_close" aria-label="Close">&times;</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'×',
+							'psm-modal-close',
+							array(
+								'id'         => 'psm_prompt_close',
+								'aria-label' => 'Close',
+							),
+							'',
+							''
+						);
+						?>
 					</div>
 					<div class="psm-modal-body">
 						<p class="description" style="margin-top:0;">
@@ -915,9 +1066,42 @@ endif;
 						<textarea id="psm_prompt_textarea" rows="18" readonly style="width:100%;font-family:Consolas,Monaco,monospace;font-size:12px;white-space:pre;overflow:auto;"></textarea>
 					</div>
 					<div class="psm-modal-footer">
-						<button type="button" class="button button-secondary" id="psm_prompt_close_footer">Close</button>
-						<button type="button" class="button" id="psm_prompt_download" style="margin-left:8px;">Download .txt</button>
-						<button type="button" class="button button-primary" id="psm_prompt_copy" style="margin-left:8px;">Copy Prompt</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Close',
+							'button button-secondary',
+							array( 'id' => 'psm_prompt_close_footer' ),
+							'',
+							''
+						);
+						?>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Download .txt',
+							'button',
+							array(
+								'id'    => 'psm_prompt_download',
+								'style' => 'margin-left:8px;',
+							),
+							'',
+							''
+						);
+						?>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Copy Prompt',
+							'button button-primary',
+							array(
+								'id'    => 'psm_prompt_copy',
+								'style' => 'margin-left:8px;',
+							),
+							'',
+							''
+						);
+						?>
 					</div>
 				</div>
 			</div>
@@ -926,12 +1110,38 @@ endif;
 				<div class="psm-modal psm-confirm-modal">
 					<div class="psm-modal-header">
 						<h3 id="psm_confirm_title">Please confirm</h3>
-						<button type="button" class="psm-modal-close" id="psm_confirm_close" aria-label="Close confirmation">&times;</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'×',
+							'psm-modal-close',
+							array(
+								'id'         => 'psm_confirm_close',
+								'aria-label' => 'Close confirmation',
+							),
+							'',
+							''
+						);
+						?>
 					</div>
 					<div class="psm-modal-body"><p id="psm_confirm_message"></p></div>
 					<div class="psm-modal-footer">
-						<button type="button" class="psm-btn psm-btn-secondary" id="psm_confirm_cancel">Cancel</button>
-						<button type="button" class="psm-btn psm-confirm-danger" id="psm_confirm_accept">Confirm</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Cancel',
+							'psm-btn-secondary',
+							array( 'id' => 'psm_confirm_cancel' )
+						);
+						?>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Confirm',
+							'psm-confirm-danger',
+							array( 'id' => 'psm_confirm_accept' )
+						);
+						?>
 					</div>
 				</div>
 			</div>
@@ -943,16 +1153,50 @@ endif;
 						<div class="psm-modal-title-wrap">
 							<h3 id="psm_modal_title">Add / Edit Record</h3>
 							<div class="psm-question-edit-nav" id="psm_question_edit_nav" style="display:none;">
-								<button type="button" id="psm_question_previous" class="psm-nav-arrow" aria-label="Edit previous question" data-tooltip="Previous question">
-									<span class="dashicons dashicons-arrow-left-alt" aria-hidden="true"></span>
-								</button>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'',
+									'psm-nav-arrow',
+									array(
+										'id'          => 'psm_question_previous',
+										'aria-label'  => 'Edit previous question',
+										'data-tooltip' => 'Previous question',
+									),
+									'dashicons-arrow-left-alt',
+									''
+								);
+								?>
 								<span id="psm_question_position">Question</span>
-								<button type="button" id="psm_question_next" class="psm-nav-arrow" aria-label="Edit next question" data-tooltip="Next question">
-									<span class="dashicons dashicons-arrow-right-alt" aria-hidden="true"></span>
-								</button>
+								<?php
+								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+								echo $this->psm_button_html(
+									'',
+									'psm-nav-arrow',
+									array(
+										'id'          => 'psm_question_next',
+										'aria-label'  => 'Edit next question',
+										'data-tooltip' => 'Next question',
+									),
+									'dashicons-arrow-right-alt',
+									''
+								);
+								?>
 							</div>
 						</div>
-						<button type="button" class="psm-modal-close" id="psm_modal_close" aria-label="Close">&times;</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'×',
+							'psm-modal-close',
+							array(
+								'id'         => 'psm_modal_close',
+								'aria-label' => 'Close',
+							),
+							'',
+							''
+						);
+						?>
 					</div>
 					<form id="psm_modal_form">
 						<div class="psm-modal-body">
@@ -1076,7 +1320,17 @@ endif;
 										<div class="psm-tag-picker">
 											<input type="text" id="psm_m_question_tag_input" list="psm_question_tag_suggestions" autocomplete="off" placeholder="Select an existing tag or type a new tag"
 												data-tooltip="Choose a skill tag or enter a new tag name">
-											<button type="button" id="psm_m_question_tag_add" class="psm-btn psm-btn-secondary" data-tooltip="Add the typed tag">Add tag</button>
+											<?php
+											// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+											echo $this->psm_button_html(
+												'Add tag',
+												'psm-btn-secondary',
+												array(
+													'id'          => 'psm_m_question_tag_add',
+													'data-tooltip' => 'Add the typed tag',
+												)
+											);
+											?>
 										</div>
 										<datalist id="psm_question_tag_suggestions"></datalist>
 										<div class="psm-selected-tags" id="psm_m_selected_question_tags" aria-live="polite"></div>
@@ -1157,8 +1411,29 @@ endif;
 							</div>
 						</div>
 						<div class="psm-modal-footer">
-							<button type="button" class="button button-secondary" id="psm_modal_cancel">Cancel	</button>
-							<button type="submit" class="psm-btn-add" style="margin-left:8px;">Save Record</button>
+							<?php
+							// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+							echo $this->psm_button_html(
+								'Cancel',
+								'button button-secondary',
+								array( 'id' => 'psm_modal_cancel' ),
+								'',
+								''
+							);
+							?>
+							<?php
+							// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+							echo $this->psm_button_html(
+								'Save Record',
+								'psm-btn-add',
+								array(
+									'type'  => 'submit',
+									'style' => 'margin-left:8px;',
+								),
+								'',
+								''
+							);
+							?>
 						</div>
 					</form>
 				</div>

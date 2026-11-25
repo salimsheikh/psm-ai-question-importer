@@ -77,7 +77,7 @@ trait PSM_Master_List_Trait {
 				'selected' => (int) $per_page_value === $this->psm_get_per_page(),
 			);
 		}
-		$select = $this->psm_select_html(
+		$select      = $this->psm_select_html(
 			array(
 				'name'    => 'per_page',
 				'id'      => 'psm_per_page',
@@ -97,12 +97,12 @@ trait PSM_Master_List_Trait {
 	}
 
 	public function render_filters_html( $data ) {
-		$filters = $data['filters'];
-		$compact = in_array( $this->entity, array( 'question', 'tag' ), true );
-		$html    = '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="psm-filter-bar' . ( $compact ? ' psm-filter-compact' : '' ) . '" id="psm_master_filters" data-entity="' . esc_attr( $this->entity ) . '">';
-		$html   .= '<input type="hidden" name="page" value="psm-ai-importer"><input type="hidden" name="tab" value="masters"><input type="hidden" name="entity" value="' . esc_attr( $this->entity ) . '">';
-		$html   .= '<label class="psm-filter-field psm-filter-search"><span>' . esc_html( 'tag' === $this->entity ? 'Tag name or slug' : 'Search' ) . '</span>';
-		$html   .= $this->psm_text_input_html(
+		$filters        = $data['filters'];
+		$compact        = in_array( $this->entity, array( 'question', 'tag' ), true );
+		$html           = '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" class="psm-filter-bar' . ( $compact ? ' psm-filter-compact' : '' ) . '" id="psm_master_filters" data-entity="' . esc_attr( $this->entity ) . '">';
+		$html          .= '<input type="hidden" name="page" value="psm-ai-importer"><input type="hidden" name="tab" value="masters"><input type="hidden" name="entity" value="' . esc_attr( $this->entity ) . '">';
+		$html          .= '<label class="psm-filter-field psm-filter-search"><span>' . esc_html( 'tag' === $this->entity ? 'Tag name or slug' : 'Search' ) . '</span>';
+		$html          .= $this->psm_text_input_html(
 			array(
 				'name'        => $this->entity . '_search',
 				'value'       => $filters['search'],
@@ -115,7 +115,7 @@ trait PSM_Master_List_Trait {
 			'Filter',
 			'psm-btn-primary',
 			array(
-				'type'        => 'submit',
+				'type'         => 'submit',
 				'data-tooltip' => 'Apply filters',
 			),
 			'dashicons-filter'

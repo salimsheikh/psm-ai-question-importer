@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.3
+Stable tag: 1.7.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,13 +21,13 @@ PSM AI Question Generator & Importer provides a six-tab workflow:
 5. Backup & Restore: export and restore the configured `psm_*` tables as validated JSON without including WordPress options or provider credentials.
 6. Seed Defaults: add missing default domains, skills, and tags, including C, C++, and C#, with an explained idempotent seed action.
 
-Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons, and the administrator-configurable rows-per-page setting appears below each master table in a filter-styled footer and is validated between 5 and 100. The centered plus-only Add button sits at the right of the master entity tabs. Master tables fit the available width without page-level horizontal scrolling.
+Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons; range information stays on the left and controls on the right, with the grouped rows-per-page dropdown and Save button below. The page-size setting is validated between 5 and 100. The centered plus-only Add button sits at the right of the master entity tabs. Master tables fit the available width without page-level horizontal scrolling.
 
-The seed defaults are non-destructive and idempotent. They add missing records by slug, preserve existing names, ownership, statuses, and descriptions, may fill blank descriptions, and never change existing questions or question-tag relationships. C and C++ use the canonical slugs `c` and `cplusplus`; C# uses `csharp`.
+The seed defaults are non-destructive. They add missing records by slug, preserve existing names, ownership, statuses, and curated descriptions, fill blank master/tag descriptions, and replace only deterministic generated tag descriptions with topic-based text. Existing questions and question-tag relationships are never changed. Parent-skill relationships use the existing shared schema, which has no separate relationship-description field. C++ variants, including `C++`, `C ++`, `C Plus Plus`, `CPP`, and `cplush`, normalize to `cplusplus`; C and C# use `c` and `csharp`.
 
 Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
 
-Master modules, controller dispatch, list rendering, and reusable UI components are separated into focused classes and traits. Admin CRUD, generation, import, batches, settings, and page rendering are extracted into focused traits. Frequently read master and selector queries use a namespaced one-hour WordPress object cache with filter-aware keys; successful mutations invalidate the plugin cache generation immediately.
+Master modules, controller dispatch, list rendering, reusable UI components, and a shared button component are separated into focused classes and traits. Admin CRUD, generation, import, batches, settings, and page rendering are extracted into focused traits. Frequently read master and selector queries use a namespaced one-hour WordPress object cache with filter-aware keys; successful mutations invalidate the plugin cache generation immediately.
 
 == Installation ==
 
@@ -78,6 +78,12 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.7.4 =
+* Routed custom admin buttons through the shared button component and restored the master Edit pencil with the valid Dashicons class.
+* Placed pagination range information left and controls right, with the grouped Rows Per Page dropdown and Save button below.
+* Added topic-based descriptions for all seed tags, filled blank master descriptions, and replaced deterministic generated tag descriptions without overwriting curated text or changing shared junction schemas.
+* Expanded C++ slug normalization so spaced, hyphenated, underscored, CPP, CPlusPlus, and legacy cplush variants always produce cplusplus.
 
 = 1.7.3 =
 * Centered the plus icon in a compact Add button and moved the button to the far right of the master entity tabs.
@@ -148,6 +154,9 @@ Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or bat
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.7.4 =
+Centralizes custom admin buttons, restores master Edit pencils, refines the bottom pagination layout, completes seed descriptions, and guarantees the C++ slug. No database schema change is required; run Seed Defaults once to fill missing or generated descriptions while preserving curated text.
 
 = 1.7.3 =
 Moves the plus-only Add button into the right side of the master tabs, places filter-styled pagination settings below each table, and removes horizontal page overflow without changing data. No database schema change, seed, or restore is required.

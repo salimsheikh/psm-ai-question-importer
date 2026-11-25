@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.7.3  
+**Version:** 1.7.4  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -9,12 +9,12 @@ Generate structured AI questions, review them before import, and manage question
 ## Features
 
 - Six admin tabs: Prompt/Preview/Import, Master Tables, Batches/Label Download, AI Providers, Backup & Restore, and Seed Defaults.
-- Modular master classes, controller dispatch, shared list rendering, reusable UI component traits, and focused admin workflow traits.
+- Modular master classes, controller dispatch, shared list rendering, reusable UI component traits, a shared button component, and focused admin workflow traits.
 - Namespaced one-hour query caching for master lists, counts, selectors, question navigation, and common admin datasets, with automatic mutation invalidation and a manual admin clear control.
 - Versioned external admin CSS and JavaScript assets.
 - AJAX filters and pagination for every master table, with related domain, status, skill-type, and skill filters.
 - Domain-aware skill selectors in filters, question/tag/skill editors, prompt generation, and JSON import, with server-side ownership validation.
-- Fixed-square pagination controls with centered numbers/icons and an administrator-configurable page size (5–100) in a filter-styled footer below each master table.
+- Fixed-square pagination controls with range information on the left and controls on the right; the grouped page-size controls sit below them in a filter-styled footer.
 - Centered plus-icon Add control at the far right of the master entity tabs.
 - Width-constrained master tables and responsive layouts without page-level horizontal scrolling.
 - Single-line desktop master filters with responsive stacking on smaller screens.
@@ -61,7 +61,7 @@ All master tables include AJAX search and pagination. Skill Types can be filtere
 
 The default page size is 25. Below each **Master Tables** list, administrators can select 5, 10, 15, 25, 50, 75, or 100 rows per page; the control matches the filter dropdown styling, remains available after AJAX pagination, and the server clamps invalid saved values to the supported range.
 
-Use **Seed Defaults** to add missing default masters and C/C++/C# topic tags. The seed is idempotent: it adds missing records by slug, preserves existing records, may fill blank descriptions, and never deletes records or changes question-tag relationships.
+Use **Seed Defaults** to add missing default masters and C/C++/C# topic tags. The seed fills blank master/tag descriptions and replaces only deterministic generated tag descriptions with topic-based text; curated descriptions, names, ownership, statuses, questions, and question-tag relationships are preserved. Parent-skill relationships use the existing shared schema, which has no separate relationship-description field.
 
 The **Tags** tab supports `*` for any sequence and `?` for one character. Examples include `csharp-*` and `*oop`.
 
@@ -102,6 +102,13 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.7.4
+
+- Routed custom admin buttons through the shared button component and restored the master Edit pencil with the valid Dashicons class.
+- Placed pagination range information left and controls right, with the grouped Rows Per Page dropdown and Save button below.
+- Added topic-based descriptions for all seed tags, filled blank master descriptions, and replaced deterministic generated tag descriptions without overwriting curated text or changing shared junction schemas.
+- Expanded C++ slug normalization so spaced, hyphenated, underscored, CPP, CPlusPlus, and legacy `cplush` variants always produce `cplusplus`.
 
 ### 1.7.3
 
@@ -181,4 +188,4 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 
 ## Upgrade Notes
 
-Version 1.7.3 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. No seed or restore action is required for this layout update.
+Version 1.7.4 does not require a database schema change. Existing questions, tags, batches, settings, provider credentials, and shared tables are preserved. Run Seed Defaults once to fill missing or generated descriptions; curated descriptions remain unchanged.

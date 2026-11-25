@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class PSM_Backup_Restore {
 
+	use PSM_UI_Components_Trait;
+
 	const FORMAT_VERSION = 1;
 	const MAX_FILE_SIZE  = 25194240;
 
@@ -43,7 +45,14 @@ class PSM_Backup_Restore {
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'psm_export_backup' ); ?>
 						<input type="hidden" name="action" value="psm_export_backup">
-						<button type="submit" class="psm-btn psm-btn-primary">Download Backup</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Download Backup',
+							'psm-btn-primary',
+							array( 'type' => 'submit' )
+						);
+						?>
 					</form>
 				</section>
 
@@ -68,7 +77,14 @@ class PSM_Backup_Restore {
 							<label for="psm_restore_file"><strong>Backup file</strong></label><br>
 							<input type="file" name="backup_file" id="psm_restore_file" accept=".json,application/json" required>
 						</p>
-						<button type="submit" class="psm-btn psm-btn-primary">Restore Backup</button>
+						<?php
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
+						echo $this->psm_button_html(
+							'Restore Backup',
+							'psm-btn-primary',
+							array( 'type' => 'submit' )
+						);
+						?>
 					</form>
 				</section>
 			</div>

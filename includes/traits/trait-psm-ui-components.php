@@ -41,9 +41,16 @@ trait PSM_UI_Components_Trait {
 		return $html;
 	}
 
-	public function psm_button_html( $label, $classes = '', $attributes = array(), $icon = '' ) {
-		$attrs = $this->psm_attributes_html( $attributes );
-		$html  = '<button type="button" class="' . esc_attr( trim( 'psm-btn ' . $classes ) ) . '"' . $attrs . '>';
+	public function psm_button_html( $label, $classes = '', $attributes = array(), $icon = '', $base_class = 'psm-btn' ) {
+		$attributes = array_merge(
+			array(
+				'type'  => 'button',
+				'class' => trim( $base_class . ' ' . $classes ),
+			),
+			$attributes
+		);
+		$attrs = $this->psm_attributes_html( $attributes, true );
+		$html  = '<button' . $attrs . '>';
 		if ( '' !== $icon ) {
 			$html .= '<span class="dashicons ' . esc_attr( $icon ) . '" aria-hidden="true"></span>';
 		}
@@ -159,10 +166,10 @@ trait PSM_UI_Components_Trait {
 		return '<button type="button" class="' . esc_attr( $classes ) . '" aria-label="' . esc_attr( $tooltip ) . '"' . $attrs . '>' . $content . '</button>';
 	}
 
-	private function psm_attributes_html( $attributes ) {
+	private function psm_attributes_html( $attributes, $allow_empty = false ) {
 		$html = '';
 		foreach ( $attributes as $name => $value ) {
-			if ( false === $value || null === $value || '' === $value ) {
+			if ( false === $value || null === $value || ( '' === $value && ! $allow_empty ) ) {
 				continue;
 			}
 			$html .= ' ' . esc_attr( $name ) . '="' . esc_attr( $value ) . '"';

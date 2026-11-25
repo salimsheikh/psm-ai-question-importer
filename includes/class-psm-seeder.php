@@ -572,7 +572,7 @@ class PSM_Seeder {
 
 					$tag_name     = '' !== $custom_name ? $custom_name : self::humanize_tag_slug( $tag_slug, $skill_slug );
 					$tag_desc     = '' !== $custom_desc ? $custom_desc : self::get_seed_tag_description( $tag_name, $skill_data['name'] );
-					$existing_tag = $wpdb->get_row( $wpdb->prepare( "SELECT id, name, description FROM $tags_table WHERE slug = %s", $tag_slug ) );
+					$existing_tag = $wpdb->get_row( $wpdb->prepare( "SELECT id, description FROM $tags_table WHERE slug = %s", $tag_slug ) );
 
 					if ( ! $existing_tag ) {
 						$wpdb->insert(
@@ -591,8 +591,8 @@ class PSM_Seeder {
 						);
 						++$summary['tags'];
 					} else {
-						$generated_description = 'Topic tag "' . $existing_tag->name . '" (' . $tag_slug . ') under ' . $skill_data['name'] . '.';
-						if ( '' === trim( (string) $existing_tag->description ) || $generated_description === trim( (string) $existing_tag->description ) ) {
+						$current_description = trim( (string) $existing_tag->description );
+						if ( '' === $current_description || 0 === strpos( $current_description, 'Topic tag "' ) ) {
 							$wpdb->update(
 								$tags_table,
 								array(
@@ -648,9 +648,58 @@ class PSM_Seeder {
 			}
 		}
 
-		self::backfill_empty_descriptions();
+		self::backfill_seed_descriptions();
 		PSM_Cache::delete_all();
 		return $summary;
+	}
+
+	private static function get_seed_tag_description( $tag_name, $skill_name ) {
+		return $tag_name . ' topics, examples, and practice questions for ' . $skill_name . '.';
+	}
+
+	private static function backfill_seed_descriptions() {
+		global $wpdb;
+		$now          = current_time( 'mysql' );
+		$skills_table = PSM_AI_TABLE_PREFIX . 'skills';
+		$skill_names  = array();
+		foreach ( $wpdb->get_results( "SELECT id, name FROM $skills_table" ) as $skill ) {
+			$skill_names[ (int) $skill->id ] = $skill->name;
+		}
+
+		$suffixes = array(
+			'domains'        => 'knowledge area and its related skills.',
+			'skill_types'    => 'category of related skills.',
+			'question_types' => 'question format and answer rules.',
+			'difficulties'   => 'difficulty level for question selection.',
+		);
+		$tables   = array( 'domains', 'skill_types', 'question_types', 'difficulties', 'skills', 'tags' );
+		foreach ( $tables as $table ) {
+			$table_name = PSM_AI_TABLE_PREFIX . $table;
+			foreach ( $wpdb->get_results( "SELECT * FROM $table_name" ) as $row ) {
+				$current_description = trim( (string) $row->description );
+				if ( '' !== $current_description && ! ( 'tags' === $table && 0 === strpos( $current_description, 'Topic tag "' ) ) ) {
+					continue;
+				}
+				if ( 'tags' === $table ) {
+					$skill_name  = isset( $skill_names[ (int) $row->skill_id ] ) ? $skill_names[ (int) $row->skill_id ] : 'the related subject';
+					$description = self::get_seed_tag_description( $row->name, $skill_name );
+				} elseif ( 'skills' === $table ) {
+					$description = 'Core concepts, best practices, and interview topics for ' . $row->name . '.';
+				} else {
+					$description = $row->name . ' ' . $suffixes[ $table ];
+				}
+				$wpdb->update(
+					$table_name,
+					array(
+						'description' => $description,
+						'updated_at'  => $now,
+					),
+					array( 'id' => (int) $row->id ),
+					array( '%s', '%s' ),
+					array( '%d' )
+				);
+			}
+		}
 	}
 
 	private static function humanize_tag_slug( $tag_slug, $skill_slug ) {
