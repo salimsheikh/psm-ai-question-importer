@@ -42,7 +42,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			if ( ! $record_id || empty( $label_name ) ) {
 				wp_send_json_error( array( 'message' => 'Batch ID and Label Name are required.' ) );
 			}
-			$updated = $wpdb->update(
+			$updated = PSM_Database::update(
 				PSM_AI_TABLE_PREFIX . 'batches',
 				array(
 					'label_name' => $label_name,
@@ -165,7 +165,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( $record_id > 0 ) {
-			$saved = $wpdb->update( $table, $data, array( 'id' => $record_id ) );
+			$saved = PSM_Database::update( $table, $data, array( 'id' => $record_id ) );
 			if ( false === $saved || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not update the record.' ) );
 			}
@@ -173,7 +173,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			wp_send_json_success( array( 'message' => ucfirst( str_replace( '_', ' ', $entity ) ) . ' updated successfully.' ) );
 		} else {
 			$data['created_at'] = $now;
-			$saved             = $wpdb->insert( $table, $data );
+			$saved             = PSM_Database::insert( $table, $data );
 			if ( false === $saved || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not add the record.' ) );
 			}
@@ -297,7 +297,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			'updated_at'    => $now,
 		);
 
-		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+		if ( false === PSM_Database::start_transaction() ) {
 			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not start the question transaction.' ) );
 		}
 
@@ -310,29 +310,29 @@ trait PSM_Admin_Master_CRUD_Trait {
 			}
 		}
 		if ( ! empty( $rejected_tags ) ) {
-			$wpdb->query( 'ROLLBACK' );
+			PSM_Database::rollback();
 			wp_send_json_error( array( 'message' => 'These tags are inactive or owned by another skill: ' . implode( ', ', $rejected_tags ) ) );
 		}
 
 		if ( $existing ) {
-			$saved = $wpdb->update( $questions_table, $stored, array( 'id' => $record_id ) );
+			$saved = PSM_Database::update( $questions_table, $stored, array( 'id' => $record_id ) );
 		} else {
 			$stored['created_by'] = get_current_user_id();
 			$stored['created_at'] = $now;
-			$saved                = $wpdb->insert( $questions_table, $stored );
+			$saved                = PSM_Database::insert( $questions_table, $stored );
 		}
 		if ( false === $saved ) {
-			$wpdb->query( 'ROLLBACK' );
+			PSM_Database::rollback();
 			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not save the question.' ) );
 		}
 
 		$question_id = $existing ? $record_id : (int) $wpdb->insert_id;
-		if ( false === $wpdb->delete( $question_tags_table, array( 'question_id' => $question_id ), array( '%d' ) ) ) {
-			$wpdb->query( 'ROLLBACK' );
+		if ( false === PSM_Database::delete( $question_tags_table, array( 'question_id' => $question_id ), array( '%d' ) ) ) {
+			PSM_Database::rollback();
 			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not update question tags.' ) );
 		}
 		foreach ( array_values( array_unique( $tag_ids ) ) as $tag_id ) {
-			if ( ! $wpdb->insert(
+			if ( ! PSM_Database::insert(
 				$question_tags_table,
 				array(
 					'question_id' => $question_id,
@@ -340,13 +340,13 @@ trait PSM_Admin_Master_CRUD_Trait {
 				),
 				array( '%d', '%d' )
 			) ) {
-				$wpdb->query( 'ROLLBACK' );
+				PSM_Database::rollback();
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not link question tags.' ) );
 			}
 		}
 
-		if ( false === $wpdb->query( 'COMMIT' ) ) {
-			$wpdb->query( 'ROLLBACK' );
+		if ( false === PSM_Database::commit() ) {
+			PSM_Database::rollback();
 			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not commit the question.' ) );
 		}
 
@@ -413,23 +413,39 @@ trait PSM_Admin_Master_CRUD_Trait {
 			wp_send_json_error( array( 'message' => 'Invalid record ID.' ) );
 		}
 
-		if ( 'question' === $entity ) {
-			$questions_table = PSM_AI_TABLE_PREFIX . 'questions';
-			$exists          = PSM_Cache::get_var( $wpdb->prepare( "SELECT id FROM $questions_table WHERE id = %d", $record_id ), array(), false );
-			if ( ! $exists ) {
-				wp_send_json_error( array( 'message' => 'Question not found.' ) );
-			}
+		$tables = array(
+			'question'      => 'questions',
+			'question_type' => 'question_types',
+			'tag'           => 'tags',
+			'skill'         => 'skills',
+			'skill_type'    => 'skill_types',
+			'domain'        => 'domains',
+			'difficulty'    => 'difficulties',
+			'batch'         => 'batches',
+		);
+		if ( ! isset( $tables[ $entity ] ) ) {
+			wp_send_json_error( array( 'message' => 'Unsupported entity.' ) );
+		}
+		$table  = PSM_AI_TABLE_PREFIX . $tables[ $entity ];
+		$exists = PSM_Cache::get_var( $wpdb->prepare( "SELECT id FROM $table WHERE id = %d", $record_id ), array(), false );
+		if ( ! $exists ) {
+			wp_send_json_error( array( 'message' => ucfirst( str_replace( '_', ' ', $entity ) ) . ' not found.' ) );
+		}
 
-			$wpdb->query( 'START TRANSACTION' );
-			$unlinked_tags    = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'question_tags', array( 'question_id' => $record_id ), array( '%d' ) );
-			$unlinked_batches = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'batch_questions', array( 'question_id' => $record_id ), array( '%d' ) );
-			$deleted          = $wpdb->delete( $questions_table, array( 'id' => $record_id ), array( '%d' ) );
+		if ( 'question' === $entity ) {
+			$questions_table = $table;
+			if ( false === PSM_Database::start_transaction() ) {
+				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not start the question deletion.' ) );
+			}
+			$unlinked_tags    = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'question_tags', array( 'question_id' => $record_id ), array( '%d' ) );
+			$unlinked_batches = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'batch_questions', array( 'question_id' => $record_id ), array( '%d' ) );
+			$deleted          = PSM_Database::delete( $questions_table, array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $unlinked_tags || false === $unlinked_batches || false === $deleted || $wpdb->last_error ) {
-				$wpdb->query( 'ROLLBACK' );
+				PSM_Database::rollback();
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the question.' ) );
 			}
-			if ( false === $wpdb->query( 'COMMIT' ) ) {
-				$wpdb->query( 'ROLLBACK' );
+			if ( false === PSM_Database::commit() ) {
+				PSM_Database::rollback();
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not commit the deletion.' ) );
 			}
 			PSM_Cache::delete_all();
@@ -456,8 +472,13 @@ trait PSM_Admin_Master_CRUD_Trait {
 				array(),
 				false
 			);
+			$batch_count = (int) PSM_Cache::get_var(
+				$wpdb->prepare( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batches WHERE skill_id = %d', $record_id ),
+				array(),
+				false
+			);
 
-			if ( $q_count > 0 || $t_count > 0 || $child_count > 0 ) {
+			if ( $q_count > 0 || $t_count > 0 || $child_count > 0 || $batch_count > 0 ) {
 				$reasons = array();
 				if ( $q_count > 0 ) {
 					$reasons[] = "{$q_count} question(s)";
@@ -468,6 +489,9 @@ trait PSM_Admin_Master_CRUD_Trait {
 				if ( $child_count > 0 ) {
 					$reasons[] = "{$child_count} child skill(s)";
 				}
+				if ( $batch_count > 0 ) {
+					$reasons[] = "{$batch_count} batch(es)";
+				}
 				wp_send_json_error(
 					array(
 						'message' => 'Cannot delete Skill because it is linked to ' . implode( ', ', $reasons ) . '. Remove or reassign them first.',
@@ -475,7 +499,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 				);
 			}
 
-			$deleted = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'skills', array( 'id' => $record_id ), array( '%d' ) );
+			$deleted = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'skills', array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $deleted || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the skill.' ) );
 			}
@@ -497,7 +521,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 				);
 			}
 
-			$deleted = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'tags', array( 'id' => $record_id ), array( '%d' ) );
+			$deleted = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'tags', array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $deleted || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the tag.' ) );
 			}
@@ -510,7 +534,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			if ( $s_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Domain because {$s_count} skill(s) belong to it." ) );
 			}
-			$deleted = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'domains', array( 'id' => $record_id ), array( '%d' ) );
+			$deleted = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'domains', array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $deleted || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the domain.' ) );
 			}
@@ -523,7 +547,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			if ( $s_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Skill Type because {$s_count} skill(s) use it." ) );
 			}
-			$deleted = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'skill_types', array( 'id' => $record_id ), array( '%d' ) );
+			$deleted = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'skill_types', array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $deleted || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the skill type.' ) );
 			}
@@ -537,7 +561,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			if ( $q_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Question Type because {$q_count} question(s) use slug '{$slug}'." ) );
 			}
-			$deleted = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'question_types', array( 'id' => $record_id ), array( '%d' ) );
+			$deleted = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'question_types', array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $deleted || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the question type.' ) );
 			}
@@ -550,7 +574,7 @@ trait PSM_Admin_Master_CRUD_Trait {
 			if ( $q_count > 0 ) {
 				wp_send_json_error( array( 'message' => "Cannot delete Difficulty because {$q_count} question(s) reference ID {$record_id}." ) );
 			}
-			$deleted = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'difficulties', array( 'id' => $record_id ), array( '%d' ) );
+			$deleted = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'difficulties', array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $deleted || $wpdb->last_error ) {
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the difficulty.' ) );
 			}
@@ -559,10 +583,18 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		if ( 'batch' === $entity ) {
-			$unlinked = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'batch_questions', array( 'batch_id' => $record_id ), array( '%d' ) );
-			$deleted  = $wpdb->delete( PSM_AI_TABLE_PREFIX . 'batches', array( 'id' => $record_id ), array( '%d' ) );
+			if ( false === PSM_Database::start_transaction() ) {
+				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not start the batch deletion.' ) );
+			}
+			$unlinked = PSM_Database::delete( PSM_AI_TABLE_PREFIX . 'batch_questions', array( 'batch_id' => $record_id ), array( '%d' ) );
+			$deleted  = PSM_Database::delete( $table, array( 'id' => $record_id ), array( '%d' ) );
 			if ( false === $unlinked || false === $deleted || $wpdb->last_error ) {
+				PSM_Database::rollback();
 				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not delete the batch.' ) );
+			}
+			if ( false === PSM_Database::commit() ) {
+				PSM_Database::rollback();
+				wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not commit the batch deletion.' ) );
 			}
 			PSM_Cache::delete_all();
 			wp_send_json_success( array( 'message' => 'Batch and its question links deleted.' ) );

@@ -11,7 +11,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-global $wpdb;
+require_once __DIR__ . '/includes/class-psm-database.php';
 
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall removes plugin-owned preview and notice rows; shared master tables are preserved.
 
@@ -25,11 +25,5 @@ if ( function_exists( 'wp_cache_flush_group' ) ) {
 }
 
 foreach ( array( 'psm_preview_data_', 'psm_admin_notice_' ) as $prefix ) {
-	$like = '%' . $wpdb->esc_like( $prefix ) . '%';
-	$wpdb->query(
-		$wpdb->prepare(
-			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
-			$like
-		)
-	);
+	PSM_Database::delete_options_like( $prefix );
 }

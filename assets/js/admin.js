@@ -242,7 +242,7 @@
 					return;
 				}
 				const perPageButton = e.target.closest('#psm_save_per_page');
-				if (perPageButton && masterState) {
+				if (perPageButton) {
 					e.preventDefault();
 					perPageButton.disabled = true;
 					const fd = new FormData();
@@ -254,8 +254,10 @@
 						const result = await response.json();
 						if (!result.success) throw new Error(result.data?.message || 'Could not save pagination.');
 						showToast(result.data.message, true);
-					masterState.page = 1;
-						await loadMasterList();
+						if (masterState) {
+							masterState.page = 1;
+							await loadMasterList();
+						}
 					} catch (error) {
 						showToast(error.message || 'Network error while saving pagination.', false);
 					} finally {
@@ -306,6 +308,7 @@
 						if (!result.success) throw new Error(result.data?.message || 'Delete blocked.');
 						showToast(result.data.message, true);
 						if (masterState && masterState.entity === entity) await refreshMasterList();
+						else if (entity === 'batch') window.location.reload();
 						else document.getElementById('psm-row-' + entity + '-' + id)?.remove();
 					} catch (error) {
 						showToast(error.message || 'Network error while deleting.', false);

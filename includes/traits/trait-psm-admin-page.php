@@ -14,7 +14,7 @@ trait PSM_Admin_Page_Trait {
 		global $wpdb;
 		$user_id = get_current_user_id();
 		$tab     = sanitize_key( $_GET['tab'] ?? 'generate' );
-		$entity  = sanitize_key( $_GET['entity'] ?? 'domain' );
+		$entity  = sanitize_key( $_GET['entity'] ?? 'question' );
 		$is_prev = isset( $_GET['preview'] ) && '1' === $_GET['preview'];
 
 		$notice = get_transient( 'psm_admin_notice_' . $user_id );
@@ -71,20 +71,40 @@ trait PSM_Admin_Page_Trait {
 			}
 		);
 
-		$batches = PSM_Cache::get_or_create(
+		$per_page          = $this->psm_get_per_page();
+		$batch_total       = (int) PSM_Cache::get_or_create(
+			'admin_batches_count',
+			array( 'table' => PSM_AI_TABLE_PREFIX . 'batches' ),
+			static function () {
+				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batches', array(), false );
+			},
+			PSM_Cache::EXPIRATION
+		);
+		$batch_total_pages = max( 1, (int) ceil( $batch_total / $per_page ) );
+		$batch_page        = min( $batch_total_pages, max( 1, absint( $_GET['batch_page'] ?? 1 ) ) );
+		$batch_offset      = ( $batch_page - 1 ) * $per_page;
+		$batches           = PSM_Cache::get_or_create(
 			'admin_batches',
-			array( 'limit' => 100 ),
-			static function () use ( $wpdb ) {
+			array(
+				'page'     => $batch_page,
+				'per_page' => $per_page,
+			),
+			static function () use ( $wpdb, $batch_offset, $per_page ) {
 				return PSM_Cache::get_results(
-					'SELECT b.*, s.name AS skill_name,
-					        (SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
-					 FROM ' . PSM_AI_TABLE_PREFIX . 'batches b
-					 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON b.skill_id = s.id
-					 ORDER BY b.id DESC LIMIT 100',
+					$wpdb->prepare(
+						'SELECT b.*, s.name AS skill_name,
+						        (SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
+						 FROM ' . PSM_AI_TABLE_PREFIX . 'batches b
+						 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON b.skill_id = s.id
+						 ORDER BY b.id DESC LIMIT %d OFFSET %d',
+						$per_page,
+						$batch_offset
+					),
 					array(),
 					false
 				);
-			}
+			},
+			PSM_Cache::EXPIRATION
 		);
 
 		$settings        = get_option( 'psm_ai_api_settings', array() );
@@ -233,8 +253,18 @@ trait PSM_Admin_Page_Trait {
 						admin_url( 'admin.php' )
 					),
 				),
-				'settings' => array(
+				'providers' => array(
 					'label' => 'AI Providers',
+					'url'   => add_query_arg(
+						array(
+							'page' => 'psm-ai-importer',
+							'tab'  => 'providers',
+						),
+						admin_url( 'admin.php' )
+					),
+				),
+				'settings'  => array(
+					'label' => 'Settings',
 					'url'   => add_query_arg(
 						array(
 							'page' => 'psm-ai-importer',
@@ -243,7 +273,7 @@ trait PSM_Admin_Page_Trait {
 						admin_url( 'admin.php' )
 					),
 				),
-				'backup'   => array(
+				'backup'    => array(
 					'label' => 'Backup',
 					'url'   => add_query_arg(
 						array(
@@ -279,8 +309,8 @@ trait PSM_Admin_Page_Trait {
 
 			<?php if ( 'backup' === $tab ) : ?>
 				<?php $this->backup_restore->render(); ?>
-			<?php elseif ( 'settings' === $tab ) : ?>
-				<!-- TAB 4: THREE SEPARATE AJAX FORMS FOR GEMINI, OPENAI, AND CUSTOM -->
+			<?php elseif ( 'providers' === $tab ) : ?>
+				<!-- AI PROVIDERS: THREE SEPARATE AJAX FORMS FOR GEMINI, OPENAI, AND CUSTOM -->
 				<div class="psm-ai-grid">
 					<?php
 					$provider_links = array(
@@ -363,6 +393,15 @@ trait PSM_Admin_Page_Trait {
 					<?php endforeach; ?>
 				</div>
 
+			<?php elseif ( 'settings' === $tab ) : ?>
+				<div class="psm-table-card psm-settings-card">
+					<h2><?php esc_html_e( 'Pagination', 'psm-ai-question-importer' ); ?></h2>
+					<p class="description"><?php esc_html_e( 'Set the number of rows shown on every master table and the Batches page.', 'psm-ai-question-importer' ); ?></p>
+					<?php
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- render_per_page_setting_html() escapes all dynamic output.
+					echo $this->render_per_page_setting_html();
+					?>
+				</div>
 				<?php
 				$cache_card_html = $this->render_cache_card_html();
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- render_cache_card_html() escapes all dynamic output.
@@ -451,12 +490,31 @@ endif;
 							?>
 						</tbody>
 					</table>
+					<?php
+					$batch_pagination = $this->psm_pagination_html(
+						$batch_page,
+						$batch_total_pages,
+						$batch_total,
+						$per_page,
+						'batch_page',
+						'batches',
+						add_query_arg(
+							array(
+								'page' => 'psm-ai-importer',
+								'tab'  => 'batches',
+							),
+							admin_url( 'admin.php' )
+						)
+					);
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_pagination_html() escapes all dynamic output.
+					echo $batch_pagination;
+					?>
 				</div>
 
 			<?php elseif ( 'seed' === $tab ) : ?>
 				<div class="psm-table-card psm-seed-card">
 					<h2>Seed Default Masters</h2>
-					<p>Add missing default domains, skill types, question types, difficulties, skills, and topic tags, including C, C++, and C#.</p>
+					<p>Add missing default domains, skill types, question types, difficulties, skills, and topic tags, including C, C++, C#, and Microsoft Azure with certification and learning-topic tags.</p>
 					<p>Existing records are preserved. Repeated runs add only missing records and keep existing names, ownership, statuses, questions, and tag relationships. Blank descriptions are filled, and deterministic generated tag descriptions are replaced with topic-based text; curated descriptions remain unchanged.</p>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="psm_seeder_form"
 						data-confirm-title="Run idempotent seed?"
@@ -483,13 +541,13 @@ endif;
 				<div class="psm-pill-nav psm-master-entity-nav">
 					<?php
 					$sub_entities = array(
-						'domain'        => 'Domains (' . $master_counts['domain'] . ')',
-						'skill_type'    => 'Skill Types (' . $master_counts['skill_type'] . ')',
-						'question_type' => 'Question Types (' . $master_counts['question_type'] . ')',
-						'difficulty'    => 'Difficulties (' . $master_counts['difficulty'] . ')',
-						'skill'         => 'Skills (' . $master_counts['skill'] . ')',
-						'tag'           => 'Tags (' . $master_counts['tag'] . ')',
 						'question'      => 'Questions (' . $master_counts['question'] . ')',
+						'question_type' => 'Question Types (' . $master_counts['question_type'] . ')',
+						'tag'           => 'Tags (' . $master_counts['tag'] . ')',
+						'skill'         => 'Skills (' . $master_counts['skill'] . ')',
+						'skill_type'    => 'Skill Types (' . $master_counts['skill_type'] . ')',
+						'domain'        => 'Domains (' . $master_counts['domain'] . ')',
+						'difficulty'    => 'Difficulties (' . $master_counts['difficulty'] . ')',
 					);
 					foreach ( $sub_entities as $ek => $elabel ) :
 						$cls = ( $entity === $ek ) ? 'psm-pill active' : 'psm-pill';
@@ -1005,7 +1063,7 @@ endif;
 								// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
 								echo $this->psm_button_html(
 									'Cancel',
-									'psm-btn-secondary',
+									'psm-btn-cancel',
 									array( 'id' => 'psm_import_json_cancel' )
 								);
 								?>
@@ -1136,7 +1194,7 @@ endif;
 						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
 						echo $this->psm_button_html(
 							'Cancel',
-							'psm-btn-secondary',
+							'psm-btn-cancel',
 							array( 'id' => 'psm_confirm_cancel' )
 						);
 						?>
@@ -1421,7 +1479,7 @@ endif;
 							// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
 							echo $this->psm_button_html(
 								'Cancel',
-								'button button-secondary',
+								'psm-btn-cancel',
 								array( 'id' => 'psm_modal_cancel' ),
 								'',
 								''

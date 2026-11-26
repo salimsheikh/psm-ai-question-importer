@@ -4,7 +4,7 @@ Tags: questions, ai, quiz, importer, json
 Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.5
+Stable tag: 1.7.7
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,22 +12,29 @@ Generate, preview, import, and manage AI questions with domain, skill, tag, batc
 
 == Description ==
 
-PSM AI Question Generator & Importer provides a six-tab workflow:
+PSM AI Question Generator & Importer provides a seven-tab workflow:
 
 1. Prompt, Preview & Import: build a strict JSON prompt, copy or download it, upload saved JSON in a popup, validate it, and preview every row before import.
-2. Master Tables: manage domains, skill types, question types, difficulties, skills, tags, and questions with AJAX filters and pagination.
-3. Batches & Label Download: review imported batches and download question labels or CSV exports.
+2. Masters: manage Questions first by default, followed by Question Types, Tags, Skills, Skill Types, Domains, and Difficulties, with AJAX filters and pagination.
+3. Batches: review imported batches with server-side pagination and download question labels or CSV exports.
 4. AI Providers: configure independent provider cards and monitor usage without displaying saved API keys.
-5. Backup & Restore: export and restore the configured `psm_*` tables as validated JSON without including WordPress options or provider credentials.
-6. Seed Defaults: add missing default domains, skills, and tags, including C, C++, and C#, with an explained idempotent seed action.
+5. Settings: configure the global rows-per-page value for all master tables and Batches, review cache details, and clear cached query results.
+6. Backup & Restore: export and restore the configured `psm_*` tables as validated JSON without including WordPress options or provider credentials.
+7. Seed Defaults: add missing default domains, skills, and tags, including C, C++, C#, and Microsoft Azure, with an explained idempotent seed action.
 
-Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons; range information stays on the left and controls on the right, with the grouped rows-per-page dropdown and Save button below. The page-size setting is validated between 5 and 100. The centered plus-only Add button sits at the right of the master entity tabs. Master tables fit the available width without page-level horizontal scrolling.
+Question management includes skill-specific active tags, inline creation of new tags, automatic `<skill-slug>-<tag-name>` normalization, exact filtered previous/next editing, text/skill/tag/status filters, and pagination. Domain-aware selectors limit skills to the selected domain in question, tag, and skill editors, prompt generation, and JSON import. Pagination controls are fixed squares with centered labels and icons; range information stays on the left and controls on the right. The shared page-size setting is configured once under Settings and is validated between 5 and 100. The centered plus-only Add button sits at the right of the master entity tabs. Master tables fit the available width without page-level horizontal scrolling.
+
+Difficulty appears in the Questions list as a compact, rounded, multicolor number badge: gray 1 (Beginner), orange 2 (Intermediate), and red 3 (Advanced), with the difficulty name available on hover. Delete confirmations show the record ID once and use a red Delete button and a consistently styled dark-gray Cancel button. Deletion checks record existence and blocks dependent records such as skills used by questions, tags, child skills, or batches. Batch and question relation cleanup uses transactions. Clickable links and enabled buttons display a pointer cursor.
 
 The seed defaults are non-destructive. They add missing records by slug, preserve existing names, ownership, statuses, and curated descriptions, fill blank master/tag descriptions, and replace only deterministic generated tag descriptions with topic-based text. Existing questions and question-tag relationships are never changed. Parent-skill relationships use the existing shared schema, which has no separate relationship-description field. C++ variants, including `C++`, `C ++`, `C Plus Plus`, `CPP`, and `cplush`, normalize to `cplusplus`; C and C# use `c` and `csharp`.
 
-Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead.
+Microsoft Azure is seeded under Cloud Computing with the `microsoft-azure` skill slug, six certification tags (AZ-900, AZ-104, AZ-204, AZ-305, AZ-400, and AI-200), and nineteen learning-topic tags, including Azure Fundamentals, Azure Storage, Blob Storage, and Azure AI. Selecting AZ-900, AZ-104, AZ-305, AZ-400, or AI-200 adds the corresponding certification name and objective-area guidance to generated prompts. Topic and certification tags remain available in the Questions tag filter.
+
+Imports validate structure, counts, difficulties, question types, tag focus, file size, and file extension before writing. The Import JSON popup accepts pasted JSON or an optional `.json` file, with target skill, optional tag focus, and Draft/Published status. Batch labels are created automatically when omitted. Duplicate questions are not inserted again; missing tags are attached to the existing question instead. Beginner prompts require very basic, simple English, straightforward foundational questions, and a short, concrete example in every explanation; the downloadable prompt applies the same rule to beginner items in mixed-level generation.
 
 Master modules, controller dispatch, list rendering, reusable UI components, and a shared button component are separated into focused classes and traits. Admin CRUD, generation, import, batches, settings, and page rendering are extracted into focused traits. All shared-table reads pass through a common cache-first database reader. Frequently read master and selector queries use a namespaced one-hour WordPress object cache with filter-aware keys; successful mutations invalidate the plugin cache generation immediately. Duplicate checks, write validation, transactional imports and seeding, exports, restore validation, and schema inspection always use fresh reads.
+
+Shared-table writes pass through a common non-caching `PSM_Database` boundary with a fixed table allowlist, validated backup column identifiers, prepared values, and existing transaction and cache-invalidation behavior. Direct server-side AI provider adapters remain intentional for WordPress 5.8 compatibility; provider credentials never reach the browser.
 
 == Installation ==
 
@@ -63,11 +70,15 @@ It includes the configured prefix's domain, skill type, question type, difficult
 
 = How is pagination configured? =
 
-The default is 25 rows per page. Below each master table, administrators can choose 5, 10, 15, 25, 50, 75, or 100 in a dropdown matching the filter controls. Server-side validation clamps invalid values to the supported range.
+Open **Settings** and choose 5, 10, 15, 25, 50, 75, or 100 rows per page. The default is 25. One global setting applies to every master table and the Batches page. Server-side validation clamps invalid values to the supported range.
 
 = How does query caching work? =
 
-Master lists, counts, selectors, question navigation, and common admin datasets are cached for one hour in the `psm_ai_queries` object-cache group. Every shared-table read uses the common `PSM_Cache` reader, which checks the cache before querying and prepares supplied arguments. Keys include the query, arguments, output format, site ID, configured `psm_*` table prefix, and normalized context. Successful empty and null results are cached; failed queries are not. Question, tag, skill, master, batch, import, seed, restore, activation, and upgrade writes invalidate the plugin cache immediately. Use **Clear Plugin Cache** under **Settings** for a manual reset. Duplicate checks, write validation, import and seed transactions, backup exports, restore validation, and schema inspection deliberately bypass caching. Reads from `wp_options` are always fresh, and provider credentials are never handled by the shared table reader. Direct writes made by another plugin to the shared `psm_*` tables are not observed until the one-hour cache expires or the cache is cleared manually.
+Master lists, counts, selectors, question navigation, batches, and common admin datasets are cached for one hour in the `psm_ai_queries` object-cache group. Every shared-table read uses the common `PSM_Cache` reader, which checks the cache before querying and prepares supplied arguments. Keys include the query, arguments, output format, site ID, configured `psm_*` table prefix, and normalized context. Successful empty and null results are cached; failed queries are not. Question, tag, skill, master, batch, import, seed, restore, activation, and upgrade writes invalidate the plugin cache immediately. Use **Clear Cache** under **Settings** for a manual reset. Duplicate checks, write validation, import and seed transactions, backup exports, restore validation, and schema inspection deliberately bypass caching. Reads from `wp_options` are always fresh, and provider credentials are never handled by the shared table reader. Direct writes made by another plugin to the shared `psm_*` tables are not observed until the one-hour cache expires or the cache is cleared manually.
+
+= How is Microsoft Azure seeded? =
+
+Run **Seed Defaults → Run Idempotent Seed**. It adds the Cloud Computing domain, Microsoft Azure skill, six certification tags, and nineteen learning-topic tags only when their canonical slugs are missing. Existing data is preserved. The five named certification preparations add prompt guidance, while all Azure topic and certification tags can be used in the Questions filter.
 
 = Does uninstalling delete shared question data? =
 
@@ -78,6 +89,21 @@ No. Uninstall removes plugin-owned settings, usage counters, and cached previews
 Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or batch rows are written until the confirmed import step.
 
 == Changelog ==
+
+= 1.7.7 =
+* Added server-side pagination to Batches and moved the shared rows-per-page setting into a dedicated Settings tab with a Clear Cache action.
+* Made Questions the first and default master, reordered the remaining masters, standardized pointer cursors, and unified Cancel, Filter, Reset, and Delete button styling.
+* Prevented duplicate IDs in delete confirmations, added fresh record-existence checks, expanded skill dependency checks to batches, and made batch relation deletion transactional.
+* Replaced the Questions difficulty text with compact gray/orange/red numbered badges and hover tooltips.
+* Seeded Cloud Computing, Microsoft Azure, six certification tags, and nineteen learning-topic tags without overwriting existing data.
+* Added named Azure certification guidance to generation prompts and required simple English plus concrete examples for beginner questions, including downloadable prompts.
+* Updated the release documentation without changing the database schema.
+
+= 1.7.6 =
+* Centralized plugin writes, deletes, transaction controls, restore upserts, migration updates, and uninstall option cleanup behind the non-caching `PSM_Database` boundary.
+* Added fixed shared-table allowlisting and backup column-identifier validation while preserving prepared values, transactions, return semantics, and generation-wide cache invalidation.
+* Documented intentional direct AI provider adapters required by WordPress 5.8 support; credentials remain server-side and are never displayed or backed up.
+* Verified real `wpdb` writes and rollback on PHP 7.4 and 8.3 with unchanged shared-table counts, and cleared the reported Plugin Check database and provider findings.
 
 = 1.7.5 =
 * Centralized all shared-table reads behind cache-first `PSM_Cache::get_row()`, `get_results()`, `get_var()`, and `get_col()` wrappers with prepared arguments and query-aware keys.
@@ -159,6 +185,9 @@ Yes. JSON uploads and pasted JSON show a preview first. No question, tag, or bat
 * Added missing-tag attachment for duplicate JSON questions.
 
 == Upgrade Notice ==
+
+= 1.7.7 =
+Adds Batches pagination, global pagination and cache controls under Settings, safer deletion, difficulty badges, Microsoft Azure seed data, and beginner/Azure prompt guidance. No database schema or settings migration is required. Existing data and provider credentials are preserved; run Seed Defaults once to add missing Azure taxonomy records.
 
 = 1.7.5 =
 Routes shared-table reads through the common cache-first reader while keeping correctness-sensitive checks fresh. No database schema change, seed, restore, or settings migration is required.

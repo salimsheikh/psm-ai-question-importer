@@ -116,6 +116,29 @@ class PSM_API_Client {
 		return $out;
 	}
 
+	private static function get_azure_certification_focus( $tag_slugs ) {
+		$certifications = array(
+			'az-900' => 'Azure Fundamentals',
+			'az-104' => 'Azure Administrator',
+			'az-305' => 'Azure Solutions Architect',
+			'az-400' => 'DevOps Engineer',
+			'ai-200' => 'Azure AI Cloud Developer',
+		);
+		$selected       = array();
+		foreach ( (array) $tag_slugs as $tag_slug ) {
+			$tag_slug = sanitize_title( (string) $tag_slug );
+			$prefix   = 'microsoft-azure-';
+			if ( 0 !== strpos( $tag_slug, $prefix ) ) {
+				continue;
+			}
+			$code = substr( $tag_slug, strlen( $prefix ) );
+			if ( isset( $certifications[ $code ] ) ) {
+				$selected[] = $code . ' (' . $certifications[ $code ] . ')';
+			}
+		}
+		return array_values( array_unique( $selected ) );
+	}
+
 	public static function build_prompt_text( $params ) {
 		$skill_name     = trim( (string) ( $params['skill_name'] ?? 'Git' ) );
 		$skill_slug     = trim( (string) ( $params['skill_slug'] ?? 'git' ) );
@@ -155,7 +178,7 @@ class PSM_API_Client {
 			$d_str = 'advanced';
 		}
 		if ( 'beginner' === $d_str ) {
-			$lines[] = '- Difficulty: beginner (fundamental concepts, basic syntax and common beginner mistakes). Every question must have "difficulty": "beginner".';
+			$lines[] = '- Difficulty: beginner (fundamental concepts, basic syntax and common beginner mistakes). Use very basic, simple English suitable for someone new to the subject, ask straightforward foundational questions, and include a short, concrete example in every explanation. Every question must have "difficulty": "beginner".';
 		} elseif ( 'intermediate' === $d_str ) {
 			$lines[] = '- Difficulty: intermediate (practical application, edge cases, idiomatic patterns and debugging). Every question must have "difficulty": "intermediate".';
 		} elseif ( 'advanced' === $d_str ) {
@@ -185,6 +208,12 @@ class PSM_API_Client {
 				$lines[] = '- Every question\'s "tags" array MUST include "' . $selected_tags[0] . '".';
 			} else {
 				$lines[] = '- Every question must focus on one of the selected topics and include that topic\'s selected tag slug in "tags".';
+			}
+		}
+		if ( 'microsoft-azure' === $skill_slug ) {
+			$azure_certifications = self::get_azure_certification_focus( $selected_tags );
+			if ( ! empty( $azure_certifications ) ) {
+				$lines[] = '- Azure Certification Preparation: ' . implode( '; ', $azure_certifications ) . '. Focus each question on the relevant certification objective area using accurate, exam-style scenarios; do not claim to reproduce live exam questions.';
 			}
 		}
 		if ( ! empty( $allowed_tags ) ) {
@@ -233,7 +262,7 @@ class PSM_API_Client {
 		$lines[] = '1. "question_type" must be one of: single_choice, multiple_choice, two_option, true_false, and each question must follow the option and answer rules listed above.';
 		$lines[] = '2. "options" is a list of objects with "key" and "text". "correct_answers" is a list of option keys, and every key must exist in "options".';
 		$lines[] = '3. "difficulty" must be exactly one of: beginner, intermediate, advanced (lowercase).';
-		$lines[] = '4. Every question needs a clear "explanation" (1 to 5 sentences) that says why the correct answer is right and, where useful, why the others are wrong. Bulleted points and an example are welcome.';
+		$lines[] = '4. Every question needs a clear "explanation" (1 to 5 sentences) that says why the correct answer is right and, where useful, why the others are wrong. Beginner questions must use very basic, simple English and include a short, concrete example. Bulleted points are welcome.';
 		$lines[] = '5. Write "question" and every option "text" as plain text. Do not use Markdown or HTML formatting. Angle brackets such as List<int> are fine as plain text.';
 		$lines[] = '6. To include code, put it in "code_snippet" as one string with line breaks written as \n, and set "code_language" to one of: php, csharp, java, python, javascript, typescript, sql, html, css, json, bash. Use null for "code_snippet" when there is no code.';
 		$lines[] = '7. Do not create duplicate or nearly identical questions. Cover different concepts, and vary the position of the correct answer.';
@@ -470,6 +499,12 @@ class PSM_API_Client {
 		} else {
 			$lines[] = '- Selected Tag Focus: (none selected - cover the skill broadly across valid topics)';
 		}
+		if ( 'microsoft-azure' === $skill_slug ) {
+			$azure_certifications = self::get_azure_certification_focus( $tags_selected );
+			if ( ! empty( $azure_certifications ) ) {
+				$lines[] = '- Azure Certification Preparation: ' . implode( '; ', $azure_certifications ) . '. Focus each question on the relevant certification objective area using accurate, exam-style scenarios; do not claim to reproduce live exam questions.';
+			}
+		}
 		$lines[] = '- Every tag in "tags" must be skill-prefixed using "' . $skill_slug . '-" without repeating the prefix (e.g., "' . ( $sample_tags[0] ?? $skill_slug . '-topic' ) . '", never "' . $skill_slug . '-' . $skill_slug . '-...").';
 		$lines[] = '- Never produce double-prefixed or unprefixed slugs.';
 		$lines[] = '- Allowed tag slugs (prefer values from this list): ' . $tag_list;
@@ -483,6 +518,9 @@ class PSM_API_Client {
 			$lines[] = '  - Because the setting is "all", vary each item\'s "difficulty" across "beginner", "intermediate", and "advanced".';
 		} else {
 			$lines[] = '  - Every item\'s "difficulty" MUST be exactly "' . $difficulty . '".';
+		}
+		if ( 'all' === $difficulty || 'beginner' === $difficulty ) {
+			$lines[] = '  - Every beginner item must use very basic, simple English, ask a straightforward foundational question, and include a short, concrete example in its "explanation".';
 		}
 		$lines[] = '- Question types allowed: ' . $qtypes_str . ' (from: "single_choice", "multiple_choice", "two_option", "true_false").';
 		if ( count( $types ) === 4 ) {
@@ -554,6 +592,7 @@ class PSM_API_Client {
 		if ( 'gemini' === $provider ) {
 			if ( empty( $endpoint ) ) {
 				$endpoint = sprintf(
+					// phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- WordPress 5.8 support requires the server-side provider adapter; credentials never reach the browser.
 					'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
 					rawurlencode( $model )
 				);
@@ -577,6 +616,7 @@ class PSM_API_Client {
 			}
 		} elseif ( 'openai' === $provider ) {
 			if ( empty( $endpoint ) ) {
+				// phpcs:ignore PluginCheck.CodeAnalysis.AIProvider.DirectIntegration -- WordPress 5.8 support requires the server-side provider adapter; credentials never reach the browser.
 				$endpoint = 'https://api.openai.com/v1/chat/completions';
 			}
 			$body    = array(

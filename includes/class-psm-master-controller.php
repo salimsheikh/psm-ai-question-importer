@@ -13,13 +13,13 @@ class PSM_Master_Controller {
 
 	public function __construct() {
 		$this->masters = array(
-			'domain'        => new PSM_Master_Domain(),
-			'skill_type'    => new PSM_Master_Skill_Type(),
-			'question_type' => new PSM_Master_Question_Type(),
-			'difficulty'    => new PSM_Master_Difficulty(),
-			'skill'         => new PSM_Master_Skill(),
-			'tag'           => new PSM_Master_Tag(),
 			'question'      => new PSM_Master_Question(),
+			'question_type' => new PSM_Master_Question_Type(),
+			'tag'           => new PSM_Master_Tag(),
+			'skill'         => new PSM_Master_Skill(),
+			'skill_type'    => new PSM_Master_Skill_Type(),
+			'domain'        => new PSM_Master_Domain(),
+			'difficulty'    => new PSM_Master_Difficulty(),
 		);
 		add_action( 'wp_ajax_psm_ajax_get_master_list', array( $this, 'ajax_get_master_list' ) );
 		add_action( 'wp_ajax_psm_ajax_save_per_page', array( $this, 'ajax_save_per_page' ) );

@@ -356,7 +356,10 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			array( 'label' => 'Question' ),
 			array( 'label' => 'Skill' ),
 			array( 'label' => 'Type' ),
-			array( 'label' => 'Difficulty' ),
+			array(
+				'label' => 'Difficulty',
+				'width' => '90px',
+			),
 			array( 'label' => 'Correct' ),
 			array( 'label' => 'Tags' ),
 			array(
@@ -404,8 +407,12 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'two_option'  => 'Two Options',
 			'true_false'  => 'True / False',
 		);
-		$badge       = 'published' === $row->status ? 'psm-badge-active' : 'psm-badge-draft';
-		$html        = '<tr id="psm-row-question-' . esc_attr( $row->id ) . '"><td><strong>#' . esc_html( $row->id ) . '</strong></td><td><strong>' . esc_html( $excerpt ) . '</strong></td><td><span class="psm-badge psm-badge-domain">' . esc_html( $row->skill_name ? $row->skill_name : '—' ) . '</span></td><td><span class="psm-badge psm-badge-type">' . esc_html( $type_labels[ $row->question_type ] ?? $row->question_type ) . '</span></td><td>' . esc_html( $row->difficulty_name ? $row->difficulty_name : $row->difficulty ) . '</td><td><code>' . esc_html( implode( ', ', $row->correct_keys ) ? implode( ', ', $row->correct_keys ) : '—' ) . '</code>';
+		$badge            = 'published' === $row->status ? 'psm-badge-active' : 'psm-badge-draft';
+		$difficulty_id    = (int) $row->difficulty;
+		$difficulty_name  = $row->difficulty_name ? $row->difficulty_name : 'Unknown difficulty';
+		$difficulty_class = in_array( $difficulty_id, array( 1, 2, 3 ), true ) ? 'psm-difficulty-' . $difficulty_id : 'psm-difficulty-unknown';
+		$difficulty_html  = '<span class="psm-difficulty-badge ' . esc_attr( $difficulty_class ) . '" data-tooltip="' . esc_attr( $difficulty_name ) . '" aria-label="Difficulty ' . esc_attr( $difficulty_id ) . ': ' . esc_attr( $difficulty_name ) . '">' . esc_html( $difficulty_id ) . '</span>';
+		$html             = '<tr id="psm-row-question-' . esc_attr( $row->id ) . '"><td><strong>#' . esc_html( $row->id ) . '</strong></td><td><strong>' . esc_html( $excerpt ) . '</strong></td><td><span class="psm-badge psm-badge-domain">' . esc_html( $row->skill_name ? $row->skill_name : '—' ) . '</span></td><td><span class="psm-badge psm-badge-type">' . esc_html( $type_labels[ $row->question_type ] ?? $row->question_type ) . '</span></td><td>' . $difficulty_html . '</td><td><code>' . esc_html( implode( ', ', $row->correct_keys ) ? implode( ', ', $row->correct_keys ) : '—' ) . '</code>';
 		if ( $row->is_multiple ) {
 			$html .= '<br><small>Multi choice</small>';
 		}

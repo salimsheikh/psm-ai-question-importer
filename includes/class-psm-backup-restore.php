@@ -236,14 +236,14 @@ class PSM_Backup_Restore {
 			$plan[ $suffix ] = $table_data['rows'];
 		}
 
-		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+		if ( false === PSM_Database::start_transaction() ) {
 			$this->redirect_with_notice( 'The restore transaction could not be started.', true );
 		}
 		try {
 			if ( 'replace' === $mode ) {
 				foreach ( array_reverse( $order ) as $suffix ) {
 					$table  = PSM_AI_TABLE_PREFIX . $suffix;
-					$result = $wpdb->query( 'DELETE FROM `' . $table . '`' );
+					$result = PSM_Database::clear_table( $table );
 					if ( false === $result ) {
 						throw new RuntimeException( 'Could not clear ' . $table . '.' );
 					}
@@ -257,60 +257,23 @@ class PSM_Backup_Restore {
 				}
 				$table = PSM_AI_TABLE_PREFIX . $suffix;
 				foreach ( $plan[ $suffix ] as $row ) {
-					$result = $this->upsert_row( $table, $row );
+					$result = PSM_Database::upsert_row( $table, $row );
 					if ( false === $result ) {
 						throw new RuntimeException( 'Could not restore ' . $table . '.' );
 					}
 					$affected += (int) $result;
 				}
 			}
-			if ( false === $wpdb->query( 'COMMIT' ) ) {
+			if ( false === PSM_Database::commit() ) {
 				throw new RuntimeException( 'Could not commit the restore.' );
 			}
 		} catch ( Throwable $error ) {
-			$wpdb->query( 'ROLLBACK' );
+			PSM_Database::rollback();
 			$this->redirect_with_notice( 'Restore failed and was rolled back. ' . $error->getMessage(), true );
 		}
 
 		PSM_Cache::delete_all();
 		$this->redirect_with_notice( sprintf( 'Backup restored successfully in %s mode. %d rows affected.', $mode, $affected ), false );
-	}
-
-	private function upsert_row( $table, $row ) {
-		global $wpdb;
-		if ( empty( $row ) ) {
-			return 0;
-		}
-
-		$columns      = array_keys( $row );
-		$placeholders = array();
-		$values       = array();
-		$updates      = array();
-		foreach ( $row as $column => $value ) {
-			$quoted_column = '`' . $column . '`';
-			if ( null === $value ) {
-				$placeholders[] = 'NULL';
-			} else {
-				$placeholders[] = '%s';
-				$values[]       = $value;
-			}
-			$updates[] = $quoted_column . '=VALUES(' . $quoted_column . ')';
-		}
-
-		$column_sql = implode(
-			', ',
-			array_map(
-				static function ( $column ) {
-					return '`' . $column . '`';
-				},
-				$columns
-			)
-		);
-		$sql        = 'INSERT INTO `' . $table . '` (' . $column_sql . ') VALUES (' . implode( ', ', $placeholders ) . ') ON DUPLICATE KEY UPDATE ' . implode( ', ', $updates );
-		if ( empty( $values ) ) {
-			return $wpdb->query( $sql );
-		}
-		return $wpdb->query( $wpdb->prepare( $sql, $values ) );
 	}
 
 	private function get_table_order() {

@@ -132,7 +132,8 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 
 	protected function render_table_row( $row ) {
 		$record = wp_json_encode( $row, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
-		$name   = $row->name . ' (#' . $row->id . ')';
+		$name   = $row->name;
+		$label  = $name . ' (#' . $row->id . ')';
 		$html   = '<tr><td><strong>#' . esc_html( $row->id ) . '</strong></td><td>' . esc_html( $row->name ) . '</td><td><code>' . esc_html( $row->slug ) . '</code></td><td>' . esc_html( $row->domain_name ) . '</td><td>' . esc_html( $row->master_type_name ) . '</td><td>' . esc_html( $row->parent_skill_name ) . '</td><td>' . esc_html( $row->description ) . '</td><td>' . esc_html( ucfirst( $row->status ) ) . '</td><td>';
 		$html  .= $this->psm_button_html(
 			'',
@@ -140,7 +141,7 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 			array(
 				'data-entity'  => 'skill',
 				'data-record'  => (string) $record,
-				'aria-label'   => 'Edit ' . $name,
+				'aria-label'   => 'Edit ' . $label,
 				'data-tooltip' => 'Edit record',
 			),
 			'dashicons-edit',
@@ -153,7 +154,7 @@ class PSM_Master_Skill extends PSM_Master_Abstract {
 				'data-entity'  => 'skill',
 				'data-id'      => $row->id,
 				'data-name'    => $name,
-				'aria-label'   => 'Delete ' . $name,
+				'aria-label'   => 'Delete ' . $label,
 				'data-tooltip' => 'Delete record',
 			),
 			'dashicons-trash',

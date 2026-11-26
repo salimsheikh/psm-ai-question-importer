@@ -81,7 +81,7 @@ class PSM_Seeder {
 				continue;
 			}
 
-			$wpdb->update(
+			PSM_Database::update(
 				$skills_table,
 				array( 'slug' => $target_slug ),
 				array( 'id' => (int) $by_name->id ),
@@ -100,7 +100,7 @@ class PSM_Seeder {
 		if ( $legacy_laravel ) {
 			$taken = PSM_Cache::get_var( "SELECT id FROM $skills_table WHERE slug = 'laravel' LIMIT 1", array(), false );
 			if ( ! $taken ) {
-				$wpdb->update(
+				PSM_Database::update(
 					$skills_table,
 					array( 'slug' => 'laravel' ),
 					array( 'id' => (int) $legacy_laravel->id ),
@@ -118,7 +118,7 @@ class PSM_Seeder {
 
 		if ( $good_tag && (int) $good_tag->id !== (int) $bad_tag->id ) {
 			// Both slugs exist. Deactivate the legacy one instead of deleting data.
-			$wpdb->update(
+			PSM_Database::update(
 				$tags_table,
 				array( 'status' => 'inactive' ),
 				array( 'id' => (int) $bad_tag->id ),
@@ -128,7 +128,7 @@ class PSM_Seeder {
 			return;
 		}
 
-		$wpdb->update(
+		PSM_Database::update(
 			$tags_table,
 			array( 'slug' => 'csharp-oop' ),
 			array( 'id' => (int) $bad_tag->id ),
@@ -210,7 +210,7 @@ class PSM_Seeder {
 		foreach ( $default_types as $dt ) {
 			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $types_table WHERE slug = %s", $dt['slug'] ), array(), false );
 			if ( ! $existing ) {
-				$wpdb->insert(
+				PSM_Database::insert(
 					$types_table,
 					array(
 						'name'        => $dt['name'],
@@ -224,7 +224,7 @@ class PSM_Seeder {
 					array( '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
 			} elseif ( '' === trim( (string) $existing->description ) ) {
-				$wpdb->update(
+				PSM_Database::update(
 					$types_table,
 					array(
 						'description' => $dt['desc'],
@@ -281,7 +281,7 @@ class PSM_Seeder {
 		foreach ( $default_qtypes as $qt ) {
 			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $qt_table WHERE slug = %s", $qt['slug'] ), array(), false );
 			if ( ! $existing ) {
-				$wpdb->insert(
+				PSM_Database::insert(
 					$qt_table,
 					array(
 						'name'        => $qt['name'],
@@ -295,7 +295,7 @@ class PSM_Seeder {
 					array( '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
 			} elseif ( '' === trim( (string) $existing->description ) ) {
-				$wpdb->update(
+				PSM_Database::update(
 					$qt_table,
 					array(
 						'description' => $qt['desc'],
@@ -336,7 +336,7 @@ class PSM_Seeder {
 		foreach ( $default_diffs as $df ) {
 			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $diff_table WHERE id = %d OR slug = %s", $df['id'], $df['slug'] ), array(), false );
 			if ( ! $existing ) {
-				$wpdb->insert(
+				PSM_Database::insert(
 					$diff_table,
 					array(
 						'id'          => $df['id'],
@@ -351,7 +351,7 @@ class PSM_Seeder {
 					array( '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%s' )
 				);
 			} elseif ( '' === trim( (string) $existing->description ) ) {
-				$wpdb->update(
+				PSM_Database::update(
 					$diff_table,
 					array(
 						'description' => $df['desc'],
@@ -369,13 +369,7 @@ class PSM_Seeder {
 		// Sync skill_type_id
 		$skills_table = PSM_AI_TABLE_PREFIX . 'skills';
 		foreach ( PSM_Cache::get_results( "SELECT id, name FROM $types_table", array(), false ) as $t ) {
-			$wpdb->query(
-				$wpdb->prepare(
-					"UPDATE $skills_table SET skill_type_id = %d WHERE skill_type_id = 0 AND LOWER(skill_type) = LOWER(%s)",
-					(int) $t->id,
-					$t->name
-				)
-			);
+			PSM_Database::assign_skill_type_ids( $skills_table, (int) $t->id, $t->name );
 		}
 	}
 
@@ -448,7 +442,7 @@ class PSM_Seeder {
 			$domain      = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $domains_table WHERE slug = %s", $domain_slug ), array(), false );
 
 			if ( ! $domain ) {
-				$wpdb->insert(
+				PSM_Database::insert(
 					$domains_table,
 					array(
 						'name'        => $domain_data['name'],
@@ -467,7 +461,7 @@ class PSM_Seeder {
 			} else {
 				$domain_id = (int) $domain->id;
 				if ( '' === trim( (string) $domain->description ) ) {
-					$wpdb->update(
+					PSM_Database::update(
 						$domains_table,
 						array(
 							'description' => $domain_data['description'],
@@ -502,7 +496,7 @@ class PSM_Seeder {
 				);
 
 				if ( ! $existing ) {
-					$wpdb->insert(
+					PSM_Database::insert(
 						$skills_table,
 						array(
 							'domain_id'       => $domain_id,
@@ -545,7 +539,7 @@ class PSM_Seeder {
 						foreach ( array_keys( $update ) as $field ) {
 							$formats[] = ( 'skill_type_id' === $field ) ? '%d' : '%s';
 						}
-						$wpdb->update( $skills_table, $update, array( 'id' => $skill_id ), $formats, array( '%d' ) );
+						PSM_Database::update( $skills_table, $update, array( 'id' => $skill_id ), $formats, array( '%d' ) );
 					}
 				}
 				$skill_order += 10;
@@ -581,7 +575,7 @@ class PSM_Seeder {
 					$existing_tag = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, description FROM $tags_table WHERE slug = %s", $tag_slug ), array(), false );
 
 					if ( ! $existing_tag ) {
-						$wpdb->insert(
+						PSM_Database::insert(
 							$tags_table,
 							array(
 								'skill_id'    => $skill_id,
@@ -599,7 +593,7 @@ class PSM_Seeder {
 					} else {
 						$current_description = trim( (string) $existing_tag->description );
 						if ( '' === $current_description || 0 === strpos( $current_description, 'Topic tag "' ) ) {
-							$wpdb->update(
+							PSM_Database::update(
 								$tags_table,
 								array(
 									'description' => $tag_desc,
@@ -640,7 +634,7 @@ class PSM_Seeder {
 			$current_mirror = null !== $current->parent_skill_id ? (int) $current->parent_skill_id : 0;
 
 			if ( $current_parent !== $parent_id || $current_mirror !== $parent_id ) {
-				$wpdb->update(
+				PSM_Database::update(
 					$skills_table,
 					array(
 						'parent_id'       => $parent_id,
@@ -694,7 +688,7 @@ class PSM_Seeder {
 				} else {
 					$description = $row->name . ' ' . $suffixes[ $table ];
 				}
-				$wpdb->update(
+				PSM_Database::update(
 					$table_name,
 					array(
 						'description' => $description,
@@ -1311,6 +1305,129 @@ class PSM_Seeder {
 							'css-grid',
 							'css-positioning-box-model',
 							'css-responsive-animations',
+						),
+					),
+				),
+			),
+			array(
+				'name'        => 'Cloud Computing',
+				'slug'        => 'cloud-computing',
+				'icon'        => 'dashicons-cloud',
+				'description' => 'Cloud platforms, infrastructure, services, security, governance, and certification preparation.',
+				'skills'      => array(
+					array(
+						'name'        => 'Microsoft Azure',
+						'slug'        => 'microsoft-azure',
+						'skill_type'  => 'Platform',
+						'parent_slug' => '',
+						'description' => 'Microsoft Azure is Microsoft\'s cloud computing platform offering over 200 products and services for building, deploying, and managing applications and infrastructure across a global network of data centers.',
+						'tags'        => array(
+							array(
+								'slug'        => 'microsoft-azure-az-900',
+								'name'        => 'AZ-900',
+								'description' => 'Microsoft Azure Fundamentals (AZ-900) certification preparation covering cloud concepts, core Azure services, security, privacy, compliance, and pricing.',
+							),
+							array(
+								'slug'        => 'microsoft-azure-az-104',
+								'name'        => 'AZ-104',
+								'description' => 'Azure Administrator (AZ-104) certification preparation covering identities, governance, storage, compute, networking, and monitoring.',
+							),
+							array(
+								'slug'        => 'microsoft-azure-az-204',
+								'name'        => 'AZ-204',
+								'description' => 'Developing Solutions for Microsoft Azure (AZ-204) certification preparation covering Azure compute, storage, security, integration, and application development.',
+							),
+							array(
+								'slug'        => 'microsoft-azure-az-305',
+								'name'        => 'AZ-305',
+								'description' => 'Azure Solutions Architect (AZ-305) certification preparation covering identity, governance, data, business continuity, infrastructure, and solution design.',
+							),
+							array(
+								'slug'        => 'microsoft-azure-az-400',
+								'name'        => 'AZ-400',
+								'description' => 'DevOps Engineer (AZ-400) certification preparation covering Azure DevOps, CI/CD, infrastructure as code, security, and monitoring.',
+							),
+							array(
+								'slug'        => 'microsoft-azure-ai-200',
+								'name'        => 'AI-200',
+								'description' => 'Azure AI Cloud Developer (AI-200) certification preparation covering Azure AI services, cognitive services, knowledge mining, and intelligent applications.',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-fundamentals',
+								'name' => 'Azure Fundamentals',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-architecture',
+								'name' => 'Azure Architecture',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-compute',
+								'name' => 'Azure Compute',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-storage',
+								'name' => 'Azure Storage',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-networking',
+								'name' => 'Azure Networking',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-security',
+								'name' => 'Azure Security',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-identity-and-security',
+								'name' => 'Azure Identity and Security',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-databases',
+								'name' => 'Azure Databases',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-monitoring-and-management',
+								'name' => 'Azure Monitoring and Management',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-developer-services',
+								'name' => 'Azure Developer Services',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-devops',
+								'name' => 'Azure DevOps',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-ai',
+								'name' => 'Azure AI',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-ai-services',
+								'name' => 'Azure AI Services',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-governance-and-cost-management',
+								'name' => 'Azure Governance and Cost Management',
+							),
+							array(
+								'slug' => 'microsoft-azure-blob-storage',
+								'name' => 'Blob Storage',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-functions',
+								'name' => 'Azure Functions',
+							),
+							array(
+								'slug' => 'microsoft-azure-virtual-machines',
+								'name' => 'Virtual Machines',
+							),
+							array(
+								'slug' => 'microsoft-azure-app-service',
+								'name' => 'App Service',
+							),
+							array(
+								'slug' => 'microsoft-azure-azure-sql',
+								'name' => 'Azure SQL',
+							),
 						),
 					),
 				),

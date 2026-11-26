@@ -549,7 +549,7 @@ class PSM_Importer {
 			? sanitize_text_field( $batch_meta['label_name'] )
 			: $skill->name . ' - ' . wp_date( 'Y-m-d H:i' );
 
-		$batch_ok = $wpdb->insert(
+		$batch_ok = PSM_Database::insert(
 			$batches_table,
 			array(
 				'batch_code'      => $batch_code,
@@ -640,7 +640,7 @@ class PSM_Importer {
 				++$result['skipped_duplicate'];
 				$question_id = $duplicate_question_id;
 			} else {
-				$inserted = $wpdb->insert(
+				$inserted = PSM_Database::insert(
 					$questions_table,
 					array(
 						'skill_id'      => $skill_id,
@@ -694,7 +694,7 @@ class PSM_Importer {
 			$resolved_tag_ids = array_values( array_unique( array_map( 'intval', $resolved_tag_ids ) ) );
 
 			foreach ( $resolved_tag_ids as $tid ) {
-				$wpdb->replace(
+				PSM_Database::replace(
 					$question_tags_table,
 					array(
 						'question_id' => $question_id,
@@ -709,7 +709,7 @@ class PSM_Importer {
 			}
 
 			if ( $batch_id > 0 ) {
-				$wpdb->replace(
+				PSM_Database::replace(
 					$batch_questions_table,
 					array(
 						'batch_id'      => $batch_id,
@@ -727,7 +727,7 @@ class PSM_Importer {
 
 		if ( $batch_id > 0 ) {
 			$total_skipped = $result['skipped_duplicate'] + $result['skipped_invalid'];
-			$wpdb->update(
+			PSM_Database::update(
 				$batches_table,
 				array(
 					'total_imported' => $result['inserted'],
@@ -783,7 +783,7 @@ class PSM_Importer {
 
 		$max_sort = (int) PSM_Cache::get_var( $wpdb->prepare( "SELECT MAX(sort_order) FROM $tags_table WHERE skill_id = %d", (int) $skill->id ), array(), false );
 
-		$ok = $wpdb->insert(
+		$ok = PSM_Database::insert(
 			$tags_table,
 			array(
 				'skill_id'    => (int) $skill->id,

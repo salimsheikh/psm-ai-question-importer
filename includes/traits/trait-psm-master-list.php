@@ -64,36 +64,8 @@ trait PSM_Master_List_Trait {
 	public function render_list_html( $data ) {
 		$pagination = $this->psm_pagination_html( $data['page'], $data['total_pages'], $data['filtered_count'], $data['per_page'], $this->entity . '_page', $this->get_item_label() );
 		$html       = $this->render_filters_html( $data ) . $this->render_table_html( $data );
-		$html      .= '<div class="psm-master-list-footer">' . $pagination . $this->render_per_page_setting_html() . '</div>';
+		$html      .= '<div class="psm-master-list-footer">' . $pagination . '</div>';
 		return '<div class="psm-master-list" id="psm_master_list" data-entity="' . esc_attr( $this->entity ) . '">' . $html . '</div>';
-	}
-
-	protected function render_per_page_setting_html() {
-		$per_page_options = array();
-		foreach ( array( 5, 10, 15, 25, 50, 75, 100 ) as $per_page_value ) {
-			$per_page_options[] = array(
-				'value'    => $per_page_value,
-				'label'    => $per_page_value,
-				'selected' => (int) $per_page_value === $this->psm_get_per_page(),
-			);
-		}
-		$select      = $this->psm_select_html(
-			array(
-				'name'    => 'per_page',
-				'id'      => 'psm_per_page',
-				'options' => $per_page_options,
-				'tooltip' => 'Choose how many rows each master table displays',
-			)
-		);
-		$save_button = $this->psm_button_html(
-			'Save Pagination',
-			'psm-btn-primary',
-			array( 'id' => 'psm_save_per_page' )
-		);
-		$html        = '<div class="psm-per-page-setting"><label class="psm-filter-field psm-per-page-field" for="psm_per_page"><span>Rows per page</span>';
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_select_html() and psm_button_html() escape their output.
-		$html .= $select . '</label>' . $save_button . '</div>';
-		return $html;
 	}
 
 	public function render_filters_html( $data ) {
@@ -122,7 +94,7 @@ trait PSM_Master_List_Trait {
 		);
 		$reset_button  = $this->psm_button_html(
 			'Reset',
-			'psm-btn-secondary',
+			'psm-btn-reset',
 			array(
 				'data-psm-reset-filters' => true,
 				'data-tooltip'           => 'Clear all filters',

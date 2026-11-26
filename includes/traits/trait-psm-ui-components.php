@@ -10,15 +10,15 @@ trait PSM_UI_Components_Trait {
 		return min( 100, max( 5, $per_page ) );
 	}
 
-	public function psm_pagination_html( $page, $total_pages, $total_items, $per_page, $page_param, $item_label ) {
+	public function psm_pagination_html( $page, $total_pages, $total_items, $per_page, $page_param, $item_label, $link_base = '' ) {
 		$total_pages = max( 1, (int) $total_pages );
 		$page        = max( 1, min( $total_pages, (int) $page ) );
 		$start       = $total_items > 0 ? ( ( $page - 1 ) * $per_page ) + 1 : 0;
 		$end         = min( $page * $per_page, $total_items );
 
 		$html  = '<div class="psm-pagination"><div class="psm-pagination-info">Showing <strong>' . number_format_i18n( $start ) . '&ndash;' . number_format_i18n( $end ) . '</strong> of <strong>' . number_format_i18n( $total_items ) . '</strong> ' . esc_html( $item_label ) . '</div><nav class="psm-pagination-links" aria-label="' . esc_attr( ucfirst( $item_label ) . ' pagination' ) . '">';
-		$html .= $this->psm_page_button_html( 1, '', 'dashicons-controls-skipback', 'First page', 1 === $page, false, $page_param );
-		$html .= $this->psm_page_button_html( $page - 1, '', 'dashicons-arrow-left-alt', 'Previous page', 1 === $page, false, $page_param );
+		$html .= $this->psm_page_button_html( 1, '', 'dashicons-controls-skipback', 'First page', 1 === $page, false, $page_param, $link_base );
+		$html .= $this->psm_page_button_html( $page - 1, '', 'dashicons-arrow-left-alt', 'Previous page', 1 === $page, false, $page_param, $link_base );
 
 		$page_numbers = array( 1, $total_pages );
 		for ( $number = max( 1, $page - 2 ); $number <= min( $total_pages, $page + 2 ); $number++ ) {
@@ -31,13 +31,41 @@ trait PSM_UI_Components_Trait {
 			if ( $last_number && $number - $last_number > 1 ) {
 				$html .= '<span class="psm-page-ellipsis">&hellip;</span>';
 			}
-			$html       .= $this->psm_page_button_html( $number, (string) $number, '', 'Page ' . $number, false, $number === $page, $page_param );
+			$html       .= $this->psm_page_button_html( $number, (string) $number, '', 'Page ' . $number, false, $number === $page, $page_param, $link_base );
 			$last_number = $number;
 		}
 
-		$html .= $this->psm_page_button_html( $page + 1, '', 'dashicons-arrow-right-alt', 'Next page', $page === $total_pages, false, $page_param );
-		$html .= $this->psm_page_button_html( $total_pages, '', 'dashicons-controls-skipforward', 'Last page', $page === $total_pages, false, $page_param );
+		$html .= $this->psm_page_button_html( $page + 1, '', 'dashicons-arrow-right-alt', 'Next page', $page === $total_pages, false, $page_param, $link_base );
+		$html .= $this->psm_page_button_html( $total_pages, '', 'dashicons-controls-skipforward', 'Last page', $page === $total_pages, false, $page_param, $link_base );
 		$html .= '</nav></div>';
+		return $html;
+	}
+
+	public function render_per_page_setting_html() {
+		$per_page_options = array();
+		foreach ( array( 5, 10, 15, 25, 50, 75, 100 ) as $per_page_value ) {
+			$per_page_options[] = array(
+				'value'    => $per_page_value,
+				'label'    => $per_page_value,
+				'selected' => (int) $per_page_value === $this->psm_get_per_page(),
+			);
+		}
+		$select = $this->psm_select_html(
+			array(
+				'name'    => 'per_page',
+				'id'      => 'psm_per_page',
+				'options' => $per_page_options,
+				'tooltip' => 'Choose how many rows each master table and batch page displays',
+			)
+		);
+		$save_button = $this->psm_button_html(
+			'Save Pagination',
+			'psm-btn-primary',
+			array( 'id' => 'psm_save_per_page' )
+		);
+		$html        = '<div class="psm-per-page-setting"><label class="psm-filter-field psm-per-page-field" for="psm_per_page"><span>Rows per page</span>';
+		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_select_html() and psm_button_html() escape their output.
+		$html .= $select . '</label>' . $save_button . '</div>';
 		return $html;
 	}
 
@@ -150,7 +178,7 @@ trait PSM_UI_Components_Trait {
 		return '<div class="notice notice-' . esc_attr( $type ) . ' is-dismissible"><p>' . esc_html( $notice['text'] ) . '</p></div>';
 	}
 
-	private function psm_page_button_html( $target, $label, $icon, $tooltip, $disabled, $current, $page_param ) {
+	private function psm_page_button_html( $target, $label, $icon, $tooltip, $disabled, $current, $page_param, $link_base = '' ) {
 		$classes = 'psm-page-btn' . ( $disabled ? ' is-disabled' : '' ) . ( $current ? ' is-current' : '' );
 		$content = '';
 		if ( '' !== $icon ) {
@@ -162,6 +190,10 @@ trait PSM_UI_Components_Trait {
 		$attrs = ' data-page="' . esc_attr( $target ) . '" data-page-param="' . esc_attr( $page_param ) . '" data-tooltip="' . esc_attr( $tooltip ) . '"';
 		if ( $disabled || $current ) {
 			return '<span class="' . esc_attr( $classes ) . '" aria-disabled="true"' . $attrs . '>' . $content . '</span>';
+		}
+		if ( '' !== $link_base ) {
+			$url = add_query_arg( $page_param, $target, $link_base );
+			return '<a href="' . esc_url( $url ) . '" class="' . esc_attr( $classes ) . '" aria-label="' . esc_attr( $tooltip ) . '"' . $attrs . '>' . $content . '</a>';
 		}
 		return '<button type="button" class="' . esc_attr( $classes ) . '" aria-label="' . esc_attr( $tooltip ) . '"' . $attrs . '>' . $content . '</button>';
 	}

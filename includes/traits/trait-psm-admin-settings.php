@@ -129,8 +129,8 @@ trait PSM_Admin_Settings_Trait {
 				<?php
 				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
 				echo $this->psm_button_html(
-					__( 'Clear Plugin Cache', 'psm-ai-question-importer' ),
-					'psm-btn-secondary',
+					__( 'Clear Cache', 'psm-ai-question-importer' ),
+					'psm-btn-primary',
 					array(
 						'type'        => 'submit',
 						'data-tooltip' => 'Delete all plugin query cache entries',
