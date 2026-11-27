@@ -133,7 +133,7 @@ class PSM_API_Client {
 			}
 			$code = substr( $tag_slug, strlen( $prefix ) );
 			if ( isset( $certifications[ $code ] ) ) {
-				$selected[] = $code . ' (' . $certifications[ $code ] . ')';
+				$selected[] = strtoupper( $code ) . ' (' . $certifications[ $code ] . ')';
 			}
 		}
 		return array_values( array_unique( $selected ) );

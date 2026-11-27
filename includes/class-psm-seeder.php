@@ -1307,14 +1307,6 @@ class PSM_Seeder {
 							'css-responsive-animations',
 						),
 					),
-				),
-			),
-			array(
-				'name'        => 'Cloud Computing',
-				'slug'        => 'cloud-computing',
-				'icon'        => 'dashicons-cloud',
-				'description' => 'Cloud platforms, infrastructure, services, security, governance, and certification preparation.',
-				'skills'      => array(
 					array(
 						'name'        => 'Microsoft Azure',
 						'slug'        => 'microsoft-azure',

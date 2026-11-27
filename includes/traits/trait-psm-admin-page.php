@@ -417,7 +417,7 @@ trait PSM_Admin_Page_Trait {
 							<span class="dashicons dashicons-download"></span> Download All Recent Labels (.csv)
 						</a>
 					</div>
-					<table class="widefat striped">
+					<table class="widefat striped psm-batch-table">
 						<thead>
 							<tr>
 								<th>ID</th>

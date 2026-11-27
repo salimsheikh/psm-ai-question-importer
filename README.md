@@ -30,7 +30,7 @@ Generate structured AI questions, review them before import, and manage question
 - Compact rounded difficulty badges in Questions: gray 1 (Beginner), orange 2 (Intermediate), and red 3 (Advanced), with name tooltips.
 - Dedicated Seed Defaults tab with an explained idempotent, non-destructive seed action.
 - C, C++, C#, and Microsoft Azure default skills with canonical `c`, `cplusplus`, `csharp`, and `microsoft-azure` slugs and skill-prefixed topic tags.
-- Microsoft Azure seed data under Cloud Computing, including six certification tags and nineteen learning-topic tags.
+- Microsoft Azure seed data under Programming, including six certification tags and nineteen learning-topic tags.
 - Named AZ-900, AZ-104, AZ-305, AZ-400, and AI-200 certification guidance in generation prompts.
 - Beginner prompts require very basic, simple English, straightforward foundational questions, and a short concrete example in every explanation, including downloadable mixed-level prompts.
 - Portable JSON Backup & Restore for the configured `psm_*` tables, with validated uploads, merge/replace modes, transactions, and no executable SQL.
@@ -74,7 +74,7 @@ All master tables include AJAX search and pagination. Skill Types can be filtere
 
 The default page size is 25. Open **Settings** to select 5, 10, 15, 25, 50, 75, or 100 rows per page. One global setting applies to every master list and the Batches page; the server clamps invalid saved values to the supported range. The Batches page includes range information and First/Previous/number/Next/Last controls.
 
-Use **Seed Defaults** to add missing default masters and C/C++/C# topic tags. It also adds Cloud Computing, the Microsoft Azure skill, AZ-900, AZ-104, AZ-204, AZ-305, AZ-400, and AI-200 certification tags, and nineteen learning topics, including Azure Fundamentals, Azure Storage, Blob Storage, and Azure AI. The seed fills blank master/tag descriptions and replaces only deterministic generated tag descriptions with topic-based text; curated descriptions, names, ownership, statuses, questions, and question-tag relationships are preserved. Parent-skill relationships use the existing shared schema, which has no separate relationship-description field.
+Use **Seed Defaults** to add missing default masters and C/C++/C# topic tags. It also adds the Microsoft Azure skill under Programming, AZ-900, AZ-104, AZ-204, AZ-305, AZ-400, and AI-200 certification tags, and nineteen learning topics, including Azure Fundamentals, Azure Storage, Blob Storage, and Azure AI. The seed fills blank master/tag descriptions and replaces only deterministic generated tag descriptions with topic-based text; curated descriptions, names, ownership, statuses, questions, and question-tag relationships are preserved. Parent-skill relationships use the existing shared schema, which has no separate relationship-description field.
 
 Beginner generation uses very basic, simple English, straightforward foundational questions, and a short concrete example in every explanation. Selecting a named Azure certification tag adds the corresponding certification title and objective-area guidance to the prompt; all Azure tags remain available for topic-focused generation and Questions filtering.
 
@@ -126,7 +126,7 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Made Questions the first and default master, reordered the remaining masters, standardized pointer cursors, and unified Cancel, Filter, Reset, and Delete button styling.
 - Prevented duplicate IDs in delete confirmations, added fresh record-existence checks, expanded skill dependency checks to batches, and made batch relation deletion transactional.
 - Replaced the Questions difficulty text with compact gray/orange/red numbered badges and hover tooltips.
-- Seeded Cloud Computing, Microsoft Azure, six certification tags, and nineteen learning-topic tags without overwriting existing data.
+- Seeded Microsoft Azure under Programming, six certification tags, and nineteen learning-topic tags without overwriting existing data.
 - Added named Azure certification guidance to generation prompts and required simple English plus concrete examples for beginner questions, including downloadable prompts.
 - Updated the release documentation without changing the database schema.
 

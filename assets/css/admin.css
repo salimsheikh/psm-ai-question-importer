@@ -20,12 +20,18 @@
 				background: #fff; border-radius: 10px; padding: 18px; border: 1px solid #e2e8f0;
 				box-shadow: 0 2px 10px rgba(15,23,42,0.05); min-width: 0; max-width: 100%; box-sizing: border-box;
 			}
-			.psm-table-card #psm_master_table { width: 100%; max-width: 100%; table-layout: auto; }
+			.psm-table-card #psm_master_table,
+			.psm-table-card .psm-batch-table { width: 100%; max-width: 100%; table-layout: auto; }
 			.psm-table-card #psm_master_table th,
-			.psm-table-card #psm_master_table td { overflow-wrap: anywhere; }
+			.psm-table-card #psm_master_table td,
+			.psm-table-card .psm-batch-table th,
+			.psm-table-card .psm-batch-table td { overflow-wrap: anywhere; }
 			.psm-table-card #psm_master_table th:last-child,
-			.psm-table-card #psm_master_table td:last-child { white-space: nowrap; }
-			.psm-table-card #psm_master_table .psm-badge { max-width: 100%; }
+			.psm-table-card #psm_master_table td:last-child,
+			.psm-table-card .psm-batch-table th:last-child,
+			.psm-table-card .psm-batch-table td:last-child { white-space: nowrap; }
+			.psm-table-card #psm_master_table .psm-badge,
+			.psm-table-card .psm-batch-table .psm-badge { max-width: 100%; }
 			.psm-table-card table.widefat thead th {
 				background: linear-gradient(90deg, #1e293b, #334155); color: #fff; font-weight: 600; border: none;
 			}
@@ -225,10 +231,12 @@
 				text-decoration: none; cursor: pointer; transition: transform .12s, box-shadow .15s, opacity .15s;
 			}
 			.psm-btn:hover { transform: translateY(-1px); text-decoration: none; }
-			.psm-btn-primary { background: linear-gradient(135deg, #4f46e5, #2563eb); color: #fff; box-shadow: 0 3px 9px rgba(37,99,235,0.22); }
-			.psm-btn-reset { background: linear-gradient(135deg, #ea580c, #f59e0b); color: #fff; border-color: #ea580c; box-shadow: 0 3px 9px rgba(234,88,12,0.22); }
-			.psm-btn-cancel { background: #374151; color: #fff; border-color: #374151; height: 38px; min-height: 38px; border-radius: 8px; box-shadow: 0 2px 5px rgba(15,23,42,0.16); }
-			.psm-btn-cancel:hover { background: #4b5563; color: #fff; border-color: #4b5563; }
+			.psm-wrap .psm-btn-primary { background: linear-gradient(135deg, #4f46e5, #2563eb); color: #fff; border-color: #4f46e5; box-shadow: 0 3px 9px rgba(37,99,235,0.22); }
+			.psm-wrap .psm-btn-primary:hover { background: linear-gradient(135deg, #4338ca, #1d4ed8); color: #fff; border-color: #4338ca; }
+			.psm-wrap .psm-btn-reset { background: linear-gradient(135deg, #ea580c, #f59e0b); color: #fff; border-color: #ea580c; box-shadow: 0 3px 9px rgba(234,88,12,0.22); }
+			.psm-wrap .psm-btn-reset:hover { background: linear-gradient(135deg, #c2410c, #d97706); color: #fff; border-color: #c2410c; }
+			.psm-wrap .psm-btn-cancel { background: #374151; color: #fff; border-color: #374151; height: 38px; min-height: 38px; border-radius: 8px; box-shadow: 0 2px 5px rgba(15,23,42,0.16); }
+			.psm-wrap .psm-btn-cancel:hover { background: #4b5563; color: #fff; border-color: #4b5563; }
 			.psm-btn-secondary { background: #fff; color: #475569; border-color: #cbd5e1; box-shadow: 0 2px 5px rgba(15,23,42,0.06); }
 			.psm-btn:disabled, .psm-btn.is-disabled { opacity: .5; cursor: not-allowed; transform: none; }
 			.psm-pagination { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
@@ -289,7 +297,8 @@
 			}
 			.psm-wrap .psm-modal.psm-confirm-modal { max-width: 460px; }
 			.psm-confirm-modal .psm-modal-body p { margin: 0; color: #475569; line-height: 1.6; }
-			.psm-confirm-danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+			.psm-wrap .psm-confirm-danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+			.psm-wrap .psm-confirm-danger:hover { background: #b91c1c; color: #fff; border-color: #b91c1c; }
 			.psm-json-import-modal textarea {
 				width: 100%; min-height: 220px; border: 1px solid #bfdbfe; border-radius: 8px;
 				background: #fbfdff; padding: 10px; box-sizing: border-box;
@@ -333,6 +342,11 @@
 			.psm-backup-card { background: #f8fafc; border: 1px solid #dbeafe; border-radius: 10px; padding: 18px; }
 			.psm-backup-card h3 { margin-top: 0; }
 			.psm-backup-card select { max-width: 100%; }
+			@media (max-width: 782px) {
+				.psm-table-card .psm-batch-table { table-layout: fixed; }
+				.psm-table-card .psm-batch-table td:last-child { white-space: normal; }
+				.psm-pagination { flex-wrap: wrap; }
+			}
 			@media (max-width: 640px) {
 				.psm-filter-bar { flex-direction: column; align-items: stretch; }
 				.psm-filter-field { width: 100%; flex: 0 0 auto; }
