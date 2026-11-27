@@ -54,7 +54,7 @@ class PSM_Master_Controller {
 				}
 				return $counts;
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 	}
 

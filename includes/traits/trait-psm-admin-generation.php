@@ -124,8 +124,8 @@ trait PSM_Admin_Generation_Trait {
 				return new WP_Error( 'invalid_json', 'Invalid JSON pasted: ' . json_last_error_msg() );
 			}
 
-			$questions = ( is_array( $decoded ) && isset( $decoded['questions'] ) ) ? $decoded['questions'] : $decoded;
-			if ( ! is_array( $questions ) || empty( $questions ) ) {
+			$questions = PSM_Importer::extract_questions_from_payload( $decoded );
+			if ( empty( $questions ) ) {
 				return new WP_Error( 'invalid_json', 'JSON payload must contain a non-empty "questions" array.' );
 			}
 

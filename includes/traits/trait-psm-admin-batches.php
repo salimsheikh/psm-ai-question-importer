@@ -10,6 +10,136 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 trait PSM_Admin_Batches_Trait {
 
+	public function get_batches_list_data( $requested_page = 1 ) {
+		global $wpdb;
+		$per_page    = $this->psm_get_per_page();
+		$batch_total = (int) PSM_Cache::get_or_create(
+			'admin_batches_count',
+			array( 'table' => PSM_AI_TABLE_PREFIX . 'batches' ),
+			static function () {
+				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batches', array(), false );
+			},
+			PSM_Cache::get_expiration()
+		);
+		$total_pages  = max( 1, (int) ceil( $batch_total / $per_page ) );
+		$page         = min( $total_pages, max( 1, absint( $requested_page ) ) );
+		$offset       = ( $page - 1 ) * $per_page;
+		$batches      = PSM_Cache::get_or_create(
+			'admin_batches',
+			array(
+				'page'     => $page,
+				'per_page' => $per_page,
+			),
+			static function () use ( $wpdb, $offset, $per_page ) {
+				return PSM_Cache::get_results(
+					$wpdb->prepare(
+						'SELECT b.*, s.name AS skill_name,
+						        (SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
+						 FROM ' . PSM_AI_TABLE_PREFIX . 'batches b
+						 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON b.skill_id = s.id
+						 ORDER BY b.id DESC LIMIT %d OFFSET %d',
+						$per_page,
+						$offset
+					),
+					array(),
+					false
+				);
+			},
+			PSM_Cache::get_expiration()
+		);
+
+		return array(
+			'batches'     => $batches,
+			'page'        => $page,
+			'per_page'    => $per_page,
+			'total'       => $batch_total,
+			'total_pages' => $total_pages,
+		);
+	}
+
+	public function render_batches_list_html( $data ) {
+		$batches = $data['batches'];
+		$html    = '<div class="psm-batches-list" id="psm_batches_list" data-page="' . esc_attr( $data['page'] ) . '">';
+		$html   .= '<table class="widefat striped psm-batch-table"><thead><tr><th>ID</th><th>Batch Code</th><th>Label Name</th><th>Skill</th><th>AI / Source</th><th>Imported / Linked</th><th>Skipped</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+		if ( empty( $batches ) ) {
+			$html .= '<tr><td colspan="9">No batches recorded yet.</td></tr>';
+		} else {
+			foreach ( $batches as $batch ) {
+				$html .= '<tr id="psm-row-batch-' . esc_attr( $batch->id ) . '">';
+				$html .= '<td>' . esc_html( $batch->id ) . '</td>';
+				$html .= '<td><code>' . esc_html( $batch->batch_code ) . '</code></td>';
+				$html .= '<td><strong>' . esc_html( $batch->label_name ) . '</strong></td>';
+				$html .= '<td><span class="psm-badge psm-badge-type">' . esc_html( $batch->skill_name ? $batch->skill_name : '—' ) . '</span></td>';
+				$html .= '<td>' . esc_html( $batch->provider . ( $batch->model ? ' (' . $batch->model . ')' : '' ) ) . '</td>';
+				$html .= '<td>' . esc_html( $batch->total_imported . ' / ' . $batch->linked_questions_count ) . '</td>';
+				$html .= '<td>' . esc_html( $batch->total_skipped ) . '</td>';
+				$html .= '<td>' . esc_html( $this->local_time( $batch->created_at ) ) . '</td><td>';
+				$html .= '<a href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=psm_download_labels&batch_id=' . $batch->id ), 'psm_download_labels_nonce' ) ) . '" class="psm-icon-btn" style="background:#dcfce7;color:#15803d;" data-tooltip="Download Label File" aria-label="Download Label File"><span class="dashicons dashicons-download" aria-hidden="true"></span></a>';
+				$html .= $this->psm_button_html(
+					'',
+					'psm-icon-btn psm-btn-edit psm-open-modal',
+					array(
+						'data-tooltip' => 'Edit Batch Label',
+						'aria-label'  => 'Edit Batch Label',
+						'data-entity'  => 'batch',
+						'data-record'  => (string) wp_json_encode( $batch, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ),
+					),
+					'dashicons-edit',
+					''
+				);
+				$html .= $this->psm_button_html(
+					'',
+					'psm-icon-btn psm-btn-delete psm-ajax-delete',
+					array(
+						'data-tooltip' => 'Delete Batch',
+						'aria-label'  => 'Delete Batch',
+						'data-entity'  => 'batch',
+						'data-id'      => $batch->id,
+						'data-name'    => $batch->batch_code,
+					),
+					'dashicons-trash',
+					''
+				);
+				$html .= '</td></tr>';
+			}
+		}
+		$html .= '</tbody></table>';
+		$html .= $this->psm_pagination_html(
+			$data['page'],
+			$data['total_pages'],
+			$data['total'],
+			$data['per_page'],
+			'batch_page',
+			'batches',
+			add_query_arg(
+				array(
+					'page' => 'psm-ai-importer',
+					'tab'  => 'batches',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		$html .= '</div>';
+		return $html;
+	}
+
+	public function ajax_get_batches() {
+		check_ajax_referer( 'psm_ajax_nonce', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Unauthorized' ) );
+		}
+
+		$data = $this->get_batches_list_data( absint( $_POST['batch_page'] ?? 1 ) );
+		wp_send_json_success(
+			array(
+				'html'        => $this->render_batches_list_html( $data ),
+				'page'        => $data['page'],
+				'total_pages' => $data['total_pages'],
+				'total'       => $data['total'],
+			)
+		);
+	}
+
 	public function handle_download_labels() {
 		check_admin_referer( 'psm_download_labels_nonce' );
 		if ( ! current_user_can( 'manage_options' ) ) {

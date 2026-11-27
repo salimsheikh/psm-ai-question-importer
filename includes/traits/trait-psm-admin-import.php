@@ -65,8 +65,25 @@ trait PSM_Admin_Import_Trait {
 		$source_mode = sanitize_key( $_POST['import_source'] ?? 'file' );
 		$raw         = '';
 		$source_name = 'Pasted JSON';
+		$pasted_json = isset( $_POST['manual_json_payload'] ) && is_string( $_POST['manual_json_payload'] )
+			? wp_unslash( $_POST['manual_json_payload'] )
+			: '';
+		$file        = isset( $_FILES['json_file'] ) && is_array( $_FILES['json_file'] ) ? $_FILES['json_file'] : array();
+		$error_code  = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
+		$has_upload  = UPLOAD_ERR_NO_FILE !== $error_code;
+
+		if ( 'paste' === $source_mode && '' !== trim( $pasted_json ) ) {
+			$raw = $pasted_json;
+		} elseif ( $has_upload ) {
+			$source_mode = 'file';
+		} elseif ( '' !== trim( $pasted_json ) ) {
+			$source_mode = 'paste';
+			$raw         = $pasted_json;
+		} else {
+			$source_mode = 'paste' === $source_mode ? 'paste' : 'file';
+		}
+
 		if ( 'paste' === $source_mode ) {
-			$raw = wp_unslash( $_POST['manual_json_payload'] ?? '' );
 			if ( '' === trim( $raw ) ) {
 				$this->redirect_with_notice( 'Paste JSON code before importing.' );
 			}
@@ -75,8 +92,6 @@ trait PSM_Admin_Import_Trait {
 				$this->redirect_with_notice( 'Pasted JSON must be 5 MB or smaller.' );
 			}
 		} else {
-			$file       = isset( $_FILES['json_file'] ) ? $_FILES['json_file'] : array();
-			$error_code = isset( $file['error'] ) ? (int) $file['error'] : UPLOAD_ERR_NO_FILE;
 			if ( UPLOAD_ERR_OK !== $error_code ) {
 				$this->redirect_with_notice( $this->upload_error_message( $error_code ) );
 			}
@@ -208,8 +223,8 @@ trait PSM_Admin_Import_Trait {
 			}
 		}
 
-		$questions = array_key_exists( 'questions', $decoded ) ? $decoded['questions'] : $decoded;
-		if ( ! is_array( $questions ) || empty( $questions ) ) {
+		$questions = PSM_Importer::extract_questions_from_payload( $decoded );
+		if ( empty( $questions ) ) {
 			return new WP_Error( 'missing_questions', 'The JSON file must contain a non-empty "questions" array.' );
 		}
 
@@ -234,9 +249,9 @@ trait PSM_Admin_Import_Trait {
 			}
 		}
 
-		$allowed_types = array( 'single_choice', 'multiple_choice', 'two_option', 'true_false' );
-		$external_ids  = array();
-		$parsed_ids    = array();
+		$allowed_types      = array( 'single', 'four_option', 'single_choice', 'multiple', 'multiple_select', 'multiple_choice', 'two-option', 'two_option', 'true-false', 'true_false' );
+		$default_difficulty = 'all' === $difficulty_mode ? 'beginner' : $difficulty_mode;
+		$external_ids       = array();
 
 		foreach ( $questions as $idx => $q ) {
 			$row = $idx + 1;
@@ -244,21 +259,37 @@ trait PSM_Admin_Import_Trait {
 				return new WP_Error( 'invalid_question', 'Question #' . $row . ' is not a JSON object.' );
 			}
 
-			$q_type = sanitize_key( (string) ( $q['question_type'] ?? '' ) );
-			if ( ! in_array( $q_type, $allowed_types, true ) ) {
+			$raw_type = sanitize_key( (string) ( $q['question_type'] ?? 'four_option' ) );
+			if ( ! in_array( $raw_type, $allowed_types, true ) ) {
 				return new WP_Error(
 					'invalid_question_type',
-					'Question #' . $row . ' has an invalid "question_type". Allowed values: ' . implode( ', ', $allowed_types ) . '.'
+					'Question #' . $row . ' has an invalid "question_type". Use single_choice, multiple_choice, two_option, true_false, or a supported legacy alias.'
 				);
 			}
 
-			$q_diff = strtolower( trim( (string) ( $q['difficulty'] ?? '' ) ) );
-			if ( ! in_array( $q_diff, array( 'beginner', 'intermediate', 'advanced' ), true ) ) {
+			$raw_diff = trim( (string) ( $q['difficulty'] ?? '' ) );
+			if ( '' === $raw_diff ) {
+				$raw_diff = $default_difficulty;
+			}
+			$diff_key = strtolower( $raw_diff );
+			$difficulty_map = array(
+				'beginner'     => 'beginner',
+				'easy'         => 'beginner',
+				'1'            => 'beginner',
+				'intermediate' => 'intermediate',
+				'medium'       => 'intermediate',
+				'2'            => 'intermediate',
+				'advanced'     => 'advanced',
+				'hard'         => 'advanced',
+				'3'            => 'advanced',
+			);
+			if ( ! isset( $difficulty_map[ $diff_key ] ) ) {
 				return new WP_Error(
 					'invalid_question_difficulty',
-					'Question #' . $row . ' must have "difficulty" set to beginner, intermediate, or advanced.'
+					'Question #' . $row . ' must use beginner, intermediate, or advanced difficulty.'
 				);
 			}
+			$q_diff = $difficulty_map[ $diff_key ];
 			if ( 'all' !== $difficulty_mode && $q_diff !== $difficulty_mode ) {
 				return new WP_Error(
 					'difficulty_mismatch',
@@ -266,33 +297,25 @@ trait PSM_Admin_Import_Trait {
 				);
 			}
 
-			$answer_mode   = strtolower( trim( (string) ( $q['answer_mode'] ?? '' ) ) );
-			$expected_mode = ( 'multiple_choice' === $q_type ) ? 'multiple' : 'single';
-			if ( $answer_mode !== $expected_mode ) {
-				return new WP_Error(
-					'answer_mode_mismatch',
-					'Question #' . $row . ' must use "answer_mode": "' . $expected_mode . '" for ' . $q_type . '.'
-				);
+			$answer_mode = strtolower( trim( (string) ( $q['answer_mode'] ?? '' ) ) );
+			if ( ! in_array( $answer_mode, array( '', 'single', 'multiple' ), true ) ) {
+				return new WP_Error( 'answer_mode_mismatch', 'Question #' . $row . ' must use "answer_mode": "single" or "multiple".' );
 			}
 
-			$options          = $q['options'] ?? array();
-			$opt_count        = is_array( $options ) ? count( $options ) : 0;
-			$expected_options = ( 'two_option' === $q_type || 'true_false' === $q_type ) ? 2 : 4;
-			if ( $opt_count !== $expected_options ) {
-				return new WP_Error(
-					'option_count_mismatch',
-					'Question #' . $row . ' must have exactly ' . $expected_options . ' options for ' . $q_type . ' (found ' . $opt_count . ').'
-				);
+			$inspected = PSM_Importer::inspect_question( $q, 'draft', PSM_Importer::normalize_difficulty_id( $q_diff ) );
+			if ( empty( $inspected['data'] ) ) {
+				return new WP_Error( 'invalid_question', 'Question #' . $row . ': ' . implode( ' ', $inspected['errors'] ) );
 			}
 
-			$correct_raw = $q['correct_answers'] ?? ( $q['correct_keys'] ?? array() );
-			if ( is_string( $correct_raw ) ) {
-				$correct_raw = preg_split( '/[,;|]/', $correct_raw, -1, PREG_SPLIT_NO_EMPTY );
+			$canonical_type = PSM_Importer::normalize_question_type_slug( $raw_type );
+			$declared_multiple = in_array( $raw_type, array( 'multiple', 'multiple_select', 'multiple_choice' ), true ) || 'multiple' === $answer_mode;
+			if ( 'four_option' === $canonical_type ) {
+				$q_type = $declared_multiple ? 'multiple_choice' : 'single_choice';
+			} else {
+				$q_type = $canonical_type;
 			}
-			$correct       = is_array( $correct_raw )
-				? array_values( array_filter( array_map( 'trim', array_map( 'strval', $correct_raw ) ), 'strlen' ) )
-				: array();
-			$correct_count = count( $correct );
+
+			$correct_count = count( $inspected['data']['correct_keys'] );
 			if ( 'multiple_choice' === $q_type ) {
 				if ( $correct_count < 2 ) {
 					return new WP_Error( 'too_few_correct', 'Question #' . $row . ' (multiple_choice) needs at least two correct answers.' );
@@ -301,40 +324,29 @@ trait PSM_Admin_Import_Trait {
 				return new WP_Error( 'invalid_correct_count', 'Question #' . $row . ' (' . $q_type . ') needs exactly one correct answer.' );
 			}
 
-			$eid = trim( (string) ( $q['external_id'] ?? '' ) );
-			if ( '' === $eid ) {
-				return new WP_Error( 'missing_external_id', 'Question #' . $row . ' is missing "external_id".' );
+			$expected_mode   = ( 'multiple_choice' === $q_type ) ? 'multiple' : 'single';
+			if ( '' !== $answer_mode && $answer_mode !== $expected_mode ) {
+				return new WP_Error(
+					'answer_mode_mismatch',
+					'Question #' . $row . ' must use "answer_mode": "' . $expected_mode . '" for ' . $q_type . '.'
+				);
 			}
-			if ( isset( $external_ids[ $eid ] ) ) {
+
+			$opt_count        = count( $inspected['data']['options'] );
+			$expected_options = ( 'two_option' === $q_type || 'true_false' === $q_type ) ? 2 : 4;
+			if ( $opt_count !== $expected_options ) {
+				return new WP_Error(
+					'option_count_mismatch',
+					'Question #' . $row . ' must have exactly ' . $expected_options . ' options for ' . $q_type . ' (found ' . $opt_count . ').'
+				);
+			}
+
+			$eid = trim( (string) ( $q['external_id'] ?? '' ) );
+			if ( '' !== $eid && isset( $external_ids[ $eid ] ) ) {
 				return new WP_Error( 'duplicate_external_id', 'Duplicate "external_id" found: "' . $eid . '". Every external_id must be unique.' );
 			}
-			$external_ids[ $eid ] = true;
-
-			if ( preg_match( '/^(.*)-(\d+)$/', $eid, $m ) ) {
-				$parsed_ids[ $eid ] = array( $m[1], (int) $m[2] );
-			}
-		}
-
-		if ( count( $parsed_ids ) === count( $questions ) ) {
-			$prefixes = array_unique(
-				array_map(
-					static function ( $pair ) {
-						return $pair[0];
-					},
-					$parsed_ids
-				)
-			);
-			if ( 1 === count( $prefixes ) ) {
-				$sequence = array_map(
-					static function ( $pair ) {
-						return $pair[1];
-					},
-					array_values( $parsed_ids )
-				);
-				sort( $sequence );
-				if ( range( 1, count( $questions ) ) !== $sequence ) {
-					return new WP_Error( 'external_id_sequence', 'external_id values must increment sequentially from 001 to ' . str_pad( (string) count( $questions ), 3, '0', STR_PAD_LEFT ) . ' within the same prefix.' );
-				}
+			if ( '' !== $eid ) {
+				$external_ids[ $eid ] = true;
 			}
 		}
 

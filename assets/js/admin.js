@@ -8,8 +8,11 @@
     let questionFilters = config.questionFilters || {};
     let questionOrder = config.questionOrder || [];
     let masterState = config.masterState || null;
+    let batchState = config.batchState || null;
     let masterRequestId = 0;
 			let masterAbort = null;
+			let batchRequestId = 0;
+			let batchAbort = null;
 			let questionNavLoading = false;
 			let questionNavRequestId = 0;
 
@@ -51,7 +54,7 @@
 					if (!tagsBySkill[skillId]) tagsBySkill[skillId] = [];
 					tagsBySkill[skillId].push({ id: Number(tag.id), name: tag.name, label: tag.name, slug: tag.slug });
 				});
-				(data.skills || []).forEach(function(skill) {
+				(data.skills || []).filter(skill => !skill.temporary).forEach(function(skill) {
 					skillMeta[String(skill.id)] = {
 						name: skill.name,
 						slug: skill.slug,
@@ -137,6 +140,95 @@
 				return masterState ? loadMasterList({ page: masterState.page }) : Promise.resolve();
 			}
 
+			async function loadBatches(nextState = {}, options = {}) {
+				if (!batchState) return;
+				const list = document.getElementById('psm_batches_list');
+				if (!list) return;
+				batchState = Object.assign({}, batchState, nextState);
+				const requestId = ++batchRequestId;
+				if (batchAbort) batchAbort.abort();
+				batchAbort = new AbortController();
+				const fd = new FormData();
+				fd.append('action', 'psm_ajax_get_batches');
+				fd.append('nonce', ajaxNonce);
+				fd.append('batch_page', String(batchState.page));
+				list.classList.add('is-loading');
+				list.setAttribute('aria-busy', 'true');
+				try {
+					const response = await fetch(ajaxUrl, { method: 'POST', body: fd, signal: batchAbort.signal });
+					const result = await response.json();
+					if (requestId !== batchRequestId) return;
+					if (!result.success) throw new Error(result.data?.message || 'Could not load batches.');
+					batchState.page = Number(result.data.page) || 1;
+					batchState.total_pages = Number(result.data.total_pages) || 1;
+					const current = document.getElementById('psm_batches_list');
+					if (current) current.outerHTML = result.data.html;
+					const url = new URL(window.location.href);
+					url.searchParams.set('page', 'psm-ai-importer');
+					url.searchParams.set('tab', 'batches');
+					if (batchState.page > 1) url.searchParams.set('batch_page', String(batchState.page));
+					else url.searchParams.delete('batch_page');
+					history.replaceState(null, '', url);
+					if (options.scroll) document.getElementById('psm_batches_list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				} catch (error) {
+					if (error.name !== 'AbortError') showToast(error.message || 'Network error while loading batches.', false);
+				} finally {
+					if (requestId === batchRequestId) {
+						batchAbort = null;
+						const current = document.getElementById('psm_batches_list');
+						current?.classList.remove('is-loading');
+						current?.removeAttribute('aria-busy');
+					}
+				}
+			}
+
+			async function saveCacheSettings(form) {
+				const button = form.querySelector('#psm_save_cache_settings');
+				if (!form.reportValidity()) {
+					showToast('Cache duration must be between 5 and 1440 minutes.', false);
+					return;
+				}
+				if (button?.disabled) return;
+				if (button) button.disabled = true;
+				const fd = new FormData(form);
+				fd.set('action', 'psm_ajax_save_cache_settings');
+				fd.set('nonce', ajaxNonce);
+				try {
+					const response = await fetch(ajaxUrl, { method: 'POST', body: fd });
+					const result = await response.json();
+					if (!result.success) throw new Error(result.data?.message || 'Could not save cache settings.');
+					showToast(result.data.message, true);
+					const duration = document.getElementById('psm_cache_duration_display');
+					const generation = document.getElementById('psm_cache_generation');
+					if (duration) duration.textContent = result.data.duration_label;
+					if (generation) generation.textContent = result.data.generation;
+				} catch (error) {
+					showToast(error.message || 'Network error while saving cache settings.', false);
+				} finally {
+					if (button) button.disabled = false;
+				}
+			}
+
+			async function clearQueryCache(button) {
+				if (button?.disabled) return;
+				if (button) button.disabled = true;
+				const fd = new FormData();
+				fd.append('action', 'psm_ajax_clear_cache');
+				fd.append('nonce', ajaxNonce);
+				try {
+					const response = await fetch(ajaxUrl, { method: 'POST', body: fd });
+					const result = await response.json();
+					if (!result.success) throw new Error(result.data?.message || 'Could not clear the query cache.');
+					showToast(result.data.message, true);
+					const generation = document.getElementById('psm_cache_generation');
+					if (generation) generation.textContent = result.data.generation;
+				} catch (error) {
+					showToast(error.message || 'Network error while clearing the query cache.', false);
+				} finally {
+					if (button) button.disabled = false;
+				}
+			}
+
 			function syncSkillOptions(domainSelect, skillSelect) {
 				if (!domainSelect || !skillSelect) return;
 				const domainId = parseInt(domainSelect.value || '0', 10);
@@ -170,6 +262,10 @@
 				const skillId = parseInt(skillFilter?.value || '0', 10);
 				Array.from(tagFilter.options).forEach(function(option) {
 					if (!option.value) return;
+					if (option.dataset.temporary === 'true') {
+						option.hidden = false;
+						return;
+					}
 					option.hidden = !!skillId && parseInt(option.dataset.skillId || '0', 10) !== skillId;
 				});
 				const selected = tagFilter.selectedOptions[0];
@@ -178,6 +274,25 @@
 
 			let filterTimer = null;
 			document.addEventListener('submit', function(e) {
+				const cacheSettingsForm = e.target.closest('#psm_cache_settings_form');
+				if (cacheSettingsForm) {
+					e.preventDefault();
+					saveCacheSettings(cacheSettingsForm);
+					return;
+				}
+				const clearCacheForm = e.target.closest('#psm_clear_cache_form');
+				if (clearCacheForm) {
+					e.preventDefault();
+					softConfirm({
+						title: clearCacheForm.dataset.confirmTitle,
+						message: clearCacheForm.dataset.confirmMessage,
+						confirmLabel: clearCacheForm.dataset.confirmLabel,
+						danger: true
+					}).then(confirmed => {
+						if (confirmed) clearQueryCache(clearCacheForm.querySelector('#psm_clear_cache'));
+					});
+					return;
+				}
 				const filterForm = e.target.closest('#psm_master_filters');
 				if (filterForm && masterState) {
 					e.preventDefault();
@@ -265,6 +380,12 @@
 					}
 					return;
 				}
+				const batchPageButton = e.target.closest('#psm_batches_list .psm-page-btn[data-page]');
+				if (batchPageButton && !batchPageButton.classList.contains('is-disabled') && !batchPageButton.classList.contains('is-current') && batchState) {
+					e.preventDefault();
+					loadBatches({ page: parseInt(batchPageButton.dataset.page, 10) || 1 }, { scroll: true });
+					return;
+				}
 				const pageButton = e.target.closest('.psm-page-btn[data-page]');
 				if (pageButton && !pageButton.classList.contains('is-disabled') && !pageButton.classList.contains('is-current') && masterState) {
 					e.preventDefault();
@@ -308,7 +429,7 @@
 						if (!result.success) throw new Error(result.data?.message || 'Delete blocked.');
 						showToast(result.data.message, true);
 						if (masterState && masterState.entity === entity) await refreshMasterList();
-						else if (entity === 'batch') window.location.reload();
+						else if (entity === 'batch') await loadBatches();
 						else document.getElementById('psm-row-' + entity + '-' + id)?.remove();
 					} catch (error) {
 						showToast(error.message || 'Network error while deleting.', false);
@@ -852,9 +973,8 @@
 
 			document.getElementById('psm_m_question_domain_id')?.addEventListener('change', function() {
 				syncSkillOptions(this, questionSkillSelect);
-				selectedQuestionTags = [];
+				setQuestionTags([]);
 				if (questionTagInput) questionTagInput.value = '';
-				renderQuestionTagPicker();
 			});
 			document.getElementById('psm_m_domain_id')?.addEventListener('change', function() {
 				syncSkillOptions(this, document.getElementById('psm_m_parent_skill_id'));
@@ -863,9 +983,8 @@
 				syncSkillOptions(this, document.getElementById('psm_m_skill_id'));
 			});
 			questionSkillSelect?.addEventListener('change', function() {
-				selectedQuestionTags = [];
+				setQuestionTags([]);
 				if (questionTagInput) questionTagInput.value = '';
-				renderQuestionTagPicker();
 			});
 			document.getElementById('psm_m_question_tag_add')?.addEventListener('click', function() {
 				addQuestionTag(questionTagInput?.value || '');
@@ -889,9 +1008,8 @@
 					questionNavLoading = false;
 
 					modalForm?.reset();
-					selectedQuestionTags = [];
+					setQuestionTags([]);
 					if (questionTagInput) questionTagInput.value = '';
-					renderQuestionTagPicker();
 					setQuestionEditNav(0);
 					document.getElementById('psm_m_entity').value    = entity;
 					document.getElementById('psm_m_record_id').value = rec ? rec.id : 0;
@@ -1040,6 +1158,7 @@
 							showToast(res.data.message, true);
 							closeModal();
 							if (masterState && masterState.entity === entity) refreshMasterList();
+							else if (entity === 'batch') loadBatches();
 							else location.reload();
 						} else {
 							alert(res.data?.message || 'Error saving record.');

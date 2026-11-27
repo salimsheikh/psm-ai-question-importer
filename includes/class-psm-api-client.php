@@ -154,6 +154,11 @@ class PSM_API_Client {
 		$allowed_tags   = is_array( $params['allowed_tag_slugs'] ?? null ) ? $params['allowed_tag_slugs'] : array();
 		$selected_tags  = is_array( $params['tag_slugs'] ?? null ) ? $params['tag_slugs'] : array();
 		$tag_labels     = is_array( $params['tag_labels'] ?? null ) ? $params['tag_labels'] : array();
+		$filename_slug  = PSM_Seeder::make_slug( $skill_slug, $skill_name );
+		if ( '' === $filename_slug ) {
+			$filename_slug = 'skill';
+		}
+		$json_filename  = 'psm-' . $filename_slug . '-' . wp_date( 'Y-m-d-H-i-s' ) . '.json';
 
 		$lines   = array();
 		$lines[] = sprintf(
@@ -262,7 +267,7 @@ class PSM_API_Client {
 		$lines[] = '1. "question_type" must be one of: single_choice, multiple_choice, two_option, true_false, and each question must follow the option and answer rules listed above.';
 		$lines[] = '2. "options" is a list of objects with "key" and "text". "correct_answers" is a list of option keys, and every key must exist in "options".';
 		$lines[] = '3. "difficulty" must be exactly one of: beginner, intermediate, advanced (lowercase).';
-		$lines[] = '4. Every question needs a clear "explanation" (1 to 5 sentences) that says why the correct answer is right and, where useful, why the others are wrong. Beginner questions must use very basic, simple English and include a short, concrete example. Bulleted points are welcome.';
+		$lines[] = '4. Every question needs a clear "explanation" (1 to 5 sentences) that says why the correct answer is right and, where useful, why the others are wrong. Every beginner question must be simple and easy to understand, use simple English suitable for someone learning the topic for the first time, avoid complicated vocabulary and unnecessarily long sentences, and include a short, concrete example. Questions must be clear and suitable for first-time learners. Bulleted points are welcome.';
 		$lines[] = '5. Write "question" and every option "text" as plain text. Do not use Markdown or HTML formatting. Angle brackets such as List<int> are fine as plain text.';
 		$lines[] = '6. To include code, put it in "code_snippet" as one string with line breaks written as \n, and set "code_language" to one of: php, csharp, java, python, javascript, typescript, sql, html, css, json, bash. Use null for "code_snippet" when there is no code.';
 		$lines[] = '7. Do not create duplicate or nearly identical questions. Cover different concepts, and vary the position of the correct answer.';
@@ -272,7 +277,7 @@ class PSM_API_Client {
 
 		$lines[] = '';
 		$lines[] = 'OUTPUT FILE';
-		$lines[] = 'Return your entire answer as one valid, raw JSON document that the user can download directly as a .json file (for example questions-export.json). Do not wrap it in Markdown fences and do not add any text before or after the JSON, so the saved file imports without edits.';
+		$lines[] = 'Return your entire answer as one valid, raw JSON document that the user can download directly as a .json file. Use the exact filename format psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json; for this request, save it as ' . $json_filename . '. Do not wrap it in Markdown fences and do not add any text before or after the JSON, so the saved file imports without edits.';
 
 		return implode( "\n", $lines );
 	}
@@ -348,6 +353,7 @@ class PSM_API_Client {
 
 		$language  = '' !== $code_language ? $code_language : 'plain text';
 		$framework = $skill_name;
+		$json_filename = 'psm-' . ( '' !== $skill_slug ? $skill_slug : 'skill' ) . '-' . wp_date( 'Y-m-d-H-i-s' ) . '.json';
 
 		$tag_labels = array();
 		foreach ( (array) ( $params['tag_labels'] ?? array() ) as $label_slug => $label_text ) {
@@ -464,7 +470,7 @@ class PSM_API_Client {
 		$lines[] = 'Generate structured assessment questions for the WordPress plugin "PSM AI Question Generator & Importer" (psm-ai-importer).';
 		$lines[] = '';
 		$lines[] = 'OUTPUT FORMAT (ONE DOWNLOADABLE JSON FILE):';
-		$lines[] = '- Your ENTIRE response must be one valid, raw JSON document that the user can download/save directly as a .json file named questions-export.json.';
+		$lines[] = '- Your ENTIRE response must be one valid, raw JSON document that the user can download/save directly as a .json file. Use the exact filename format psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json; for this request, save it as ' . $json_filename . '.';
 		$lines[] = '- Return only the JSON file content: no Markdown ```json fences, no "Here is the JSON" preamble, no explanations, no links, and nothing after the closing brace.';
 		$lines[] = '- The saved file must be importable as-is: valid JSON syntax, double quotes escaped with \", no comments, and no trailing commas.';
 		$lines[] = '- If the response is too long for one reply, continue only with the remaining JSON inside the same file - never start a new file or add prose.';
@@ -520,7 +526,7 @@ class PSM_API_Client {
 			$lines[] = '  - Every item\'s "difficulty" MUST be exactly "' . $difficulty . '".';
 		}
 		if ( 'all' === $difficulty || 'beginner' === $difficulty ) {
-			$lines[] = '  - Every beginner item must use very basic, simple English, ask a straightforward foundational question, and include a short, concrete example in its "explanation".';
+			$lines[] = '  - Every beginner item must be simple and easy to understand, use simple English suitable for someone learning the topic for the first time, ask a clear straightforward foundational question, avoid complicated vocabulary and unnecessarily long sentences, and include a short, concrete example in its "explanation".';
 		}
 		$lines[] = '- Question types allowed: ' . $qtypes_str . ' (from: "single_choice", "multiple_choice", "two_option", "true_false").';
 		if ( count( $types ) === 4 ) {
@@ -555,7 +561,7 @@ class PSM_API_Client {
 		$lines[] = 'JSON SCHEMA:';
 		$lines[] = $sample_json;
 		$lines[] = '';
-		$lines[] = 'Return exactly ' . $count . ' question objects in the "questions" array. The response must be one valid downloadable .json file (questions-export.json) - no Markdown fences, no commentary - that can be imported directly without edits.';
+		$lines[] = 'Return exactly ' . $count . ' question objects in the "questions" array. The response must be one valid downloadable .json file named ' . $json_filename . ' using the format psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json - no Markdown fences, no commentary - that can be imported directly without edits.';
 
 		return implode( "\n", $lines );
 	}
@@ -696,7 +702,7 @@ class PSM_API_Client {
 					"{$usage['provider_label']} returned HTTP 503 (Model temporarily overloaded after {$max_attempts} attempts). Try again shortly, reduce question count, or switch AI provider from the dropdown."
 				);
 			}
-			return new WP_Error( 'api_http_error', "{$usage['provider_label']} returned HTTP {$code}: " . substr( $raw_body, 0, 400 ) );
+			return new WP_Error( 'api_http_error', "{$usage['provider_label']} returned HTTP {$code}. Please check the provider settings and try again." );
 		}
 
 		$questions = self::extract_json_questions( $raw_body, $provider );
@@ -723,7 +729,7 @@ OUTPUT FORMAT (STRICT JSON):
 '
 			. 'Return a JSON object with a single root key "questions" containing an array of objects. Each object has: "question", "question_type", "difficulty", "options" (array of {"key":"A","text":"..."}), "correct_answers" (array of option keys), "explanation" (clear explanation with example when helpful), "code_snippet" (string with \n or null), "code_language" (php|csharp|java|python|javascript|typescript|sql|html|css|json|bash or empty/null), and "tags" (array of valid tag slugs for the skill).'
 			. '
-Return ONLY that raw JSON document so it can be downloaded directly as questions-export.json and imported without edits (no Markdown fences, no prose before or after).';
+Return ONLY that raw JSON document using the exact psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json filename format specified above, so it can be imported without edits (no Markdown fences, no prose before or after).';
 	}
 
 	private static function extract_json_questions( $raw_body, $provider ) {

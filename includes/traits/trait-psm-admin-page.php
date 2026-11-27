@@ -71,41 +71,10 @@ trait PSM_Admin_Page_Trait {
 			}
 		);
 
-		$per_page          = $this->psm_get_per_page();
-		$batch_total       = (int) PSM_Cache::get_or_create(
-			'admin_batches_count',
-			array( 'table' => PSM_AI_TABLE_PREFIX . 'batches' ),
-			static function () {
-				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batches', array(), false );
-			},
-			PSM_Cache::EXPIRATION
-		);
-		$batch_total_pages = max( 1, (int) ceil( $batch_total / $per_page ) );
-		$batch_page        = min( $batch_total_pages, max( 1, absint( $_GET['batch_page'] ?? 1 ) ) );
-		$batch_offset      = ( $batch_page - 1 ) * $per_page;
-		$batches           = PSM_Cache::get_or_create(
-			'admin_batches',
-			array(
-				'page'     => $batch_page,
-				'per_page' => $per_page,
-			),
-			static function () use ( $wpdb, $batch_offset, $per_page ) {
-				return PSM_Cache::get_results(
-					$wpdb->prepare(
-						'SELECT b.*, s.name AS skill_name,
-						        (SELECT COUNT(*) FROM ' . PSM_AI_TABLE_PREFIX . 'batch_questions bq WHERE bq.batch_id = b.id) AS linked_questions_count
-						 FROM ' . PSM_AI_TABLE_PREFIX . 'batches b
-						 LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'skills s ON b.skill_id = s.id
-						 ORDER BY b.id DESC LIMIT %d OFFSET %d',
-						$per_page,
-						$batch_offset
-					),
-					array(),
-					false
-				);
-			},
-			PSM_Cache::EXPIRATION
-		);
+		$batch_data = array();
+		if ( 'batches' === $tab ) {
+			$batch_data = $this->get_batches_list_data( absint( $_GET['batch_page'] ?? 1 ) );
+		}
 
 		$settings        = get_option( 'psm_ai_api_settings', array() );
 		$active_provider = ! empty( $settings['provider'] ) ? $settings['provider'] : 'gemini';
@@ -208,6 +177,10 @@ trait PSM_Admin_Page_Trait {
 				'masterState'     => 'masters' === $tab ? array(
 					'entity' => $entity,
 					'page'   => $master_list_data['page'],
+				) : null,
+				'batchState'      => 'batches' === $tab ? array(
+					'page'        => $batch_data['page'],
+					'total_pages' => $batch_data['total_pages'],
 				) : null,
 			)
 		);
@@ -417,97 +390,9 @@ trait PSM_Admin_Page_Trait {
 							<span class="dashicons dashicons-download"></span> Download All Recent Labels (.csv)
 						</a>
 					</div>
-					<table class="widefat striped psm-batch-table">
-						<thead>
-							<tr>
-								<th>ID</th>
-								<th>Batch Code</th>
-								<th>Label Name</th>
-								<th>Skill</th>
-								<th>AI / Source</th>
-								<th>Imported / Linked</th>
-								<th>Skipped</th>
-								<th>Created</th>
-								<th>Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php if ( empty( $batches ) ) : ?>
-								<tr><td colspan="9">No batches recorded yet.</td></tr>
-								<?php
-							else :
-								foreach ( $batches as $b ) :
-									?>
-								<tr id="psm-row-batch-<?php echo esc_attr( $b->id ); ?>">
-									<td><?php echo esc_html( $b->id ); ?></td>
-									<td><code><?php echo esc_html( $b->batch_code ); ?></code></td>
-									<td><strong><?php echo esc_html( $b->label_name ); ?></strong></td>
-									<td><span class="psm-badge psm-badge-type"><?php echo esc_html( $b->skill_name ? $b->skill_name : '—' ); ?></span></td>
-									<td><?php echo esc_html( $b->provider . ( $b->model ? ' (' . $b->model . ')' : '' ) ); ?></td>
-									<td><?php echo esc_html( $b->total_imported . ' / ' . $b->linked_questions_count ); ?></td>
-									<td><?php echo esc_html( $b->total_skipped ); ?></td>
-									<td><?php echo esc_html( $this->local_time( $b->created_at ) ); ?></td>
-									<td>
-										<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=psm_download_labels&batch_id=' . $b->id ), 'psm_download_labels_nonce' ) ); ?>" class="psm-icon-btn" style="background:#dcfce7;color:#15803d;" title="Download Label File">
-											<span class="dashicons dashicons-download"></span>
-										</a>
-										<?php
-										$edit_batch_button_html = $this->psm_button_html(
-											'',
-											'psm-icon-btn psm-btn-edit psm-open-modal',
-											array(
-												'title'       => 'Edit Batch Label',
-												'data-entity' => 'batch',
-												'data-record' => (string) wp_json_encode( $b ),
-											),
-											'dashicons-edit',
-											''
-										);
-										// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
-										echo $edit_batch_button_html;
-										?>
-										<?php
-										$delete_batch_button_html = $this->psm_button_html(
-											'',
-											'psm-icon-btn psm-btn-delete psm-ajax-delete',
-											array(
-												'title'       => 'Delete Batch',
-												'data-entity' => 'batch',
-												'data-id'     => $b->id,
-												'data-name'   => $b->batch_code,
-											),
-											'dashicons-trash',
-											''
-										);
-										// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_button_html() escapes its output.
-										echo $delete_batch_button_html;
-										?>
-									</td>
-								</tr>
-															<?php
-							endforeach;
-endif;
-							?>
-						</tbody>
-					</table>
 					<?php
-					$batch_pagination = $this->psm_pagination_html(
-						$batch_page,
-						$batch_total_pages,
-						$batch_total,
-						$per_page,
-						'batch_page',
-						'batches',
-						add_query_arg(
-							array(
-								'page' => 'psm-ai-importer',
-								'tab'  => 'batches',
-							),
-							admin_url( 'admin.php' )
-						)
-					);
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- psm_pagination_html() escapes all dynamic output.
-					echo $batch_pagination;
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- render_batches_list_html() escapes all dynamic output.
+					echo $this->render_batches_list_html( $batch_data );
 					?>
 				</div>
 
@@ -990,6 +875,7 @@ endif;
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" id="psm_json_import_form">
 							<?php wp_nonce_field( 'psm_import_json_file_nonce' ); ?>
 							<input type="hidden" name="action" value="psm_import_json_file">
+							<input type="hidden" name="import_source" value="file">
 							<table class="form-table">
 								<tr>
 									<th><label for="psm_json_domain">Target Domain *</label></th>

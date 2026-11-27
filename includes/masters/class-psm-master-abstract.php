@@ -52,7 +52,7 @@ abstract class PSM_Master_Abstract {
 			static function () use ( $wpdb, $table ) {
 				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . $table, array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$data['filtered_count'] = (int) PSM_Cache::get_or_create(
 			'psm_master_list_filtered_count',
@@ -60,7 +60,7 @@ abstract class PSM_Master_Abstract {
 			static function () use ( $wpdb, $count_sql, $args ) {
 				return empty( $args ) ? PSM_Cache::get_var( $count_sql, array(), false ) : PSM_Cache::get_var( $wpdb->prepare( $count_sql, $args ), array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$data['total_pages']    = max( 1, (int) ceil( $data['filtered_count'] / $per_page ) );
 		$data['page']           = min( $data['total_pages'], max( 1, absint( $source[ $this->entity . '_page' ] ?? 1 ) ) );
@@ -79,7 +79,7 @@ abstract class PSM_Master_Abstract {
 			static function () use ( $wpdb, $query, $args, $offset, $per_page ) {
 				return PSM_Cache::get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $per_page ) ) ), array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		return $data;
 	}

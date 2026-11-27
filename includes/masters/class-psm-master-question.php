@@ -32,6 +32,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 				'entity'      => $this->entity,
 				'table'       => $this->get_table_name(),
 				'question_id' => $question_id,
+				'tag_links'   => 2,
 			),
 			static function () use ( $wpdb, $question_id ) {
 				$question = PSM_Cache::get_row(
@@ -47,22 +48,32 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 				if ( ! $question ) {
 					return false;
 				}
-				$tag_rows = PSM_Cache::get_col(
+				$tag_rows = PSM_Cache::get_results(
 					$wpdb->prepare(
-						'SELECT t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
-						. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
-						. ' WHERE qt.question_id = %d ORDER BY t.sort_order ASC, t.name ASC',
+						'SELECT qt.tag_id, t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
+						. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
+						. ' WHERE qt.question_id = %d ORDER BY t.sort_order ASC, t.name ASC, qt.tag_id ASC',
 						$question_id
 					),
 					array(),
 					false
 				);
+				$tag_slugs      = array();
+				$missing_tag_ids = array();
+				foreach ( $tag_rows as $tag_row ) {
+					if ( null === $tag_row->slug ) {
+						$missing_tag_ids[] = (int) $tag_row->tag_id;
+					} else {
+						$tag_slugs[] = (string) $tag_row->slug;
+					}
+				}
 				return array(
-					'question' => $question,
-					'tag_rows' => $tag_rows,
+					'question'        => $question,
+					'tag_rows'        => $tag_slugs,
+					'missing_tag_ids' => $missing_tag_ids,
 				);
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		if ( ! $record ) {
 			return null;
@@ -86,6 +97,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			'status'        => $question->status,
 			'external_id'   => $question->external_id,
 			'tag_slugs'     => array_map( 'strval', $record['tag_rows'] ),
+			'missing_tag_ids' => array_map( 'intval', $record['missing_tag_ids'] ),
 		);
 	}
 
@@ -127,7 +139,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 					'next'     => $next,
 				);
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		return array(
 			'previous' => (int) $neighbor_ids['previous'],
@@ -161,7 +173,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			static function () use ( $wpdb, $table ) {
 				return PSM_Cache::get_var( 'SELECT COUNT(*) FROM ' . $table, array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$data['filtered_count'] = (int) PSM_Cache::get_or_create(
 			'psm_master_list_filtered_count',
@@ -169,7 +181,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			static function () use ( $wpdb, $count_sql, $args ) {
 				return empty( $args ) ? PSM_Cache::get_var( $count_sql, array(), false ) : PSM_Cache::get_var( $wpdb->prepare( $count_sql, $args ), array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$data['total_pages']    = max( 1, (int) ceil( $data['filtered_count'] / $data['per_page'] ) );
 		$data['page']           = min( $data['total_pages'], max( 1, absint( $source['question_page'] ?? 1 ) ) );
@@ -181,7 +193,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			static function () use ( $wpdb, $order_sql, $args ) {
 				return empty( $args ) ? PSM_Cache::get_col( $order_sql, array(), false ) : PSM_Cache::get_col( $wpdb->prepare( $order_sql, $args ), array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$data['question_order'] = array_map( 'intval', $question_order );
 		$positions              = array_flip( $data['question_order'] );
@@ -202,7 +214,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			static function () use ( $wpdb, $query, $args, $offset, $data ) {
 				return PSM_Cache::get_results( $wpdb->prepare( $query, array_merge( $args, array( $offset, $data['per_page'] ) ) ), array(), false );
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$data['rows']           = array_map(
 			static function ( $row ) {
@@ -217,7 +229,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 		}
 		$tags_context     = array_merge(
 			$page_context,
-			array( 'question_ids' => $question_ids )
+			array( 'question_ids' => $question_ids, 'tag_links' => 2 )
 		);
 		$tag_rows         = PSM_Cache::get_or_create(
 			'psm_master_question_page_tag_slugs',
@@ -229,20 +241,25 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 				$placeholders = implode( ',', array_fill( 0, count( $question_ids ), '%d' ) );
 				return PSM_Cache::get_results(
 					$wpdb->prepare(
-						'SELECT qt.question_id, t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
-						. ' INNER JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
-						. ' WHERE qt.question_id IN (' . $placeholders . ') ORDER BY t.sort_order ASC, t.name ASC',
+						'SELECT qt.question_id, qt.tag_id, t.slug FROM ' . PSM_AI_TABLE_PREFIX . 'question_tags qt'
+						. ' LEFT JOIN ' . PSM_AI_TABLE_PREFIX . 'tags t ON t.id = qt.tag_id'
+						. ' WHERE qt.question_id IN (' . $placeholders . ') ORDER BY t.sort_order ASC, t.name ASC, qt.tag_id ASC',
 						$question_ids
 					),
 					array(),
 					false
 				);
 			},
-			PSM_Cache::EXPIRATION
+			PSM_Cache::get_expiration()
 		);
 		$tags_by_question = array();
+		$missing_by_question = array();
 		foreach ( $tag_rows as $tag_row ) {
-			$tags_by_question[ (int) $tag_row->question_id ][] = $tag_row->slug;
+			if ( null === $tag_row->slug ) {
+				$missing_by_question[ (int) $tag_row->question_id ][] = (int) $tag_row->tag_id;
+			} else {
+				$tags_by_question[ (int) $tag_row->question_id ][] = $tag_row->slug;
+			}
 		}
 		foreach ( $data['rows'] as $row ) {
 			$options           = json_decode( $row->options, true );
@@ -250,6 +267,7 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			$row->options      = is_array( $options ) ? $options : array();
 			$row->correct_keys = is_array( $correct ) ? array_values( $correct ) : array();
 			$row->tag_slugs    = $tags_by_question[ (int) $row->id ] ?? array();
+			$row->missing_tag_ids = $missing_by_question[ (int) $row->id ] ?? array();
 			$position          = $positions[ (int) $row->id ] ?? 0;
 			$row->previous_id  = $position > 0 ? (int) $data['question_order'][ $position - 1 ] : 0;
 			$row->next_id      = isset( $data['question_order'][ $position + 1 ] ) ? (int) $data['question_order'][ $position + 1 ] : 0;
@@ -268,7 +286,10 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 			$skill_options[] = array(
 				'value' => $skill->id,
 				'label' => $skill->name,
-				'attrs' => array( 'data-domain-id' => $skill->domain_id ),
+				'attrs' => array(
+					'data-domain-id' => $skill->domain_id,
+					'data-temporary' => ! empty( $skill->temporary ) ? 'true' : 'false',
+				),
 			);
 		}
 		$tag_options = array(
@@ -280,8 +301,11 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 		foreach ( $data['tags'] as $tag ) {
 			$tag_options[] = array(
 				'value' => $tag->id,
-				'label' => $tag->name . ' [' . $tag->slug . ']',
-				'attrs' => array( 'data-skill-id' => $tag->skill_id ),
+				'label' => ! empty( $tag->temporary ) ? $tag->name : $tag->name . ' [' . $tag->slug . ']',
+				'attrs' => array(
+					'data-skill-id'  => $tag->skill_id,
+					'data-temporary' => ! empty( $tag->temporary ) ? 'true' : 'false',
+				),
 			);
 		}
 		$domain_options = array(
@@ -412,16 +436,21 @@ class PSM_Master_Question extends PSM_Master_Abstract {
 		$difficulty_name  = $row->difficulty_name ? $row->difficulty_name : 'Unknown difficulty';
 		$difficulty_class = in_array( $difficulty_id, array( 1, 2, 3 ), true ) ? 'psm-difficulty-' . $difficulty_id : 'psm-difficulty-unknown';
 		$difficulty_html  = '<span class="psm-difficulty-badge ' . esc_attr( $difficulty_class ) . '" data-tooltip="' . esc_attr( $difficulty_name ) . '" aria-label="Difficulty ' . esc_attr( $difficulty_id ) . ': ' . esc_attr( $difficulty_name ) . '">' . esc_html( $difficulty_id ) . '</span>';
-		$html             = '<tr id="psm-row-question-' . esc_attr( $row->id ) . '"><td><strong>#' . esc_html( $row->id ) . '</strong></td><td><strong>' . esc_html( $excerpt ) . '</strong></td><td><span class="psm-badge psm-badge-domain">' . esc_html( $row->skill_name ? $row->skill_name : '—' ) . '</span></td><td><span class="psm-badge psm-badge-type">' . esc_html( $type_labels[ $row->question_type ] ?? $row->question_type ) . '</span></td><td>' . $difficulty_html . '</td><td><code>' . esc_html( implode( ', ', $row->correct_keys ) ? implode( ', ', $row->correct_keys ) : '—' ) . '</code>';
+		$skill_display = $row->skill_name ? $row->skill_name : ( $row->skill_id ? 'Missing skill #' . $row->skill_id . ' (temporary)' : '—' );
+		$skill_tooltip = $row->skill_name ? '' : 'data-tooltip="The referenced skill is temporarily missing." aria-label="Missing skill #' . esc_attr( $row->skill_id ) . '"';
+		$html             = '<tr id="psm-row-question-' . esc_attr( $row->id ) . '"><td><strong>#' . esc_html( $row->id ) . '</strong></td><td><strong>' . esc_html( $excerpt ) . '</strong></td><td><span class="psm-badge psm-badge-domain" ' . $skill_tooltip . '>' . esc_html( $skill_display ) . '</span></td><td><span class="psm-badge psm-badge-type">' . esc_html( $type_labels[ $row->question_type ] ?? $row->question_type ) . '</span></td><td>' . $difficulty_html . '</td><td><code>' . esc_html( implode( ', ', $row->correct_keys ) ? implode( ', ', $row->correct_keys ) : '—' ) . '</code>';
 		if ( $row->is_multiple ) {
 			$html .= '<br><small>Multi choice</small>';
 		}
 		$html .= '</td><td>';
-		if ( empty( $row->tag_slugs ) ) {
+		if ( empty( $row->tag_slugs ) && empty( $row->missing_tag_ids ) ) {
 			$html .= '—';
 		} else {
 			foreach ( $row->tag_slugs as $slug ) {
 				$html .= '<span class="psm-badge psm-badge-type">' . esc_html( $slug ) . '</span> ';
+			}
+			foreach ( $row->missing_tag_ids as $missing_tag_id ) {
+				$html .= '<span class="psm-badge psm-badge-draft" data-tooltip="The referenced tag is temporarily missing." aria-label="Missing tag #' . esc_attr( $missing_tag_id ) . '">Missing tag #' . esc_html( $missing_tag_id ) . '</span> ';
 			}
 		}
 		$updated = strtotime( $row->updated_at . ' UTC' );

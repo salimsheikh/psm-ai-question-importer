@@ -327,6 +327,19 @@ trait PSM_Admin_Master_CRUD_Trait {
 		}
 
 		$question_id = $existing ? $record_id : (int) $wpdb->insert_id;
+		if ( $existing ) {
+			$missing_tag_ids = PSM_Cache::get_col(
+				$wpdb->prepare(
+					'SELECT qt.tag_id FROM ' . $question_tags_table . ' qt
+					 LEFT JOIN ' . $tags_table . ' t ON t.id = qt.tag_id
+					 WHERE qt.question_id = %d AND t.id IS NULL',
+					$question_id
+				),
+				array(),
+				false
+			);
+			$tag_ids         = array_merge( $tag_ids, array_map( 'absint', (array) $missing_tag_ids ) );
+		}
 		if ( false === PSM_Database::delete( $question_tags_table, array( 'question_id' => $question_id ), array( '%d' ) ) ) {
 			PSM_Database::rollback();
 			wp_send_json_error( array( 'message' => $wpdb->last_error ? $wpdb->last_error : 'Could not update question tags.' ) );

@@ -40,6 +40,9 @@ class PSM_Admin_UI {
 
 		// AJAX endpoint for saving individual AI provider forms (Gemini / OpenAI / Custom)
 		add_action( 'wp_ajax_psm_ajax_save_ai_provider', array( $this, 'ajax_save_ai_provider' ) );
+		add_action( 'wp_ajax_psm_ajax_save_cache_settings', array( $this, 'ajax_save_cache_settings' ) );
+		add_action( 'wp_ajax_psm_ajax_clear_cache', array( $this, 'ajax_clear_cache' ) );
+		add_action( 'wp_ajax_psm_ajax_get_batches', array( $this, 'ajax_get_batches' ) );
 		add_action( 'wp_ajax_psm_ajax_fetch_preview', array( $this, 'ajax_fetch_preview' ) );
 		add_action( 'wp_ajax_psm_ajax_build_prompt', array( $this, 'ajax_build_prompt' ) );
 	}

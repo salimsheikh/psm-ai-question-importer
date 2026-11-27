@@ -14,10 +14,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class PSM_Cache {
 
-	const GROUP             = 'psm_ai_queries';
-	const KEY_PREFIX        = 'psm_ai_query_';
-	const EXPIRATION        = HOUR_IN_SECONDS;
-	const GENERATION_OPTION = 'psm_ai_cache_generation';
+	const GROUP                   = 'psm_ai_queries';
+	const KEY_PREFIX              = 'psm_ai_query_';
+	const EXPIRATION              = HOUR_IN_SECONDS;
+	const DURATION_OPTION         = 'psm_ai_cache_duration';
+	const DEFAULT_DURATION_MINS   = 60;
+	const MIN_DURATION_MINS       = 5;
+	const MAX_DURATION_MINS       = 1440;
+	const GENERATION_OPTION       = 'psm_ai_cache_generation';
 
 	/**
 	 * Cache generation loaded for this request.
@@ -55,7 +59,7 @@ class PSM_Cache {
 	 * @param int    $expiration Lifetime in seconds.
 	 * @return bool
 	 */
-	public static function create_cache( $key, $data, $expiration = self::EXPIRATION ) {
+	public static function create_cache( $key, $data, $expiration = 0 ) {
 		return wp_cache_add( $key, $data, self::GROUP, self::normalize_expiration( $expiration ) );
 	}
 
@@ -77,7 +81,7 @@ class PSM_Cache {
 	 * @param int    $expiration Lifetime in seconds.
 	 * @return bool
 	 */
-	public static function set_cache( $key, $data, $expiration = self::EXPIRATION ) {
+	public static function set_cache( $key, $data, $expiration = 0 ) {
 		return wp_cache_set( $key, $data, self::GROUP, self::normalize_expiration( $expiration ) );
 	}
 
@@ -204,7 +208,7 @@ class PSM_Cache {
 	 * @param int      $expiration Lifetime in seconds.
 	 * @return mixed
 	 */
-	public static function get_or_create( $name, $context, $callback, $expiration = self::EXPIRATION ) {
+	public static function get_or_create( $name, $context, $callback, $expiration = 0 ) {
 		global $wpdb;
 
 		$key     = self::get_key( $name, $context );
@@ -268,6 +272,25 @@ class PSM_Cache {
 	}
 
 	/**
+	 * Get the configured query cache duration in minutes.
+	 *
+	 * @return int
+	 */
+	public static function get_duration_minutes() {
+		$minutes = absint( get_option( self::DURATION_OPTION, self::DEFAULT_DURATION_MINS ) );
+		return min( self::MAX_DURATION_MINS, max( self::MIN_DURATION_MINS, $minutes ) );
+	}
+
+	/**
+	 * Get the configured query cache duration in seconds.
+	 *
+	 * @return int
+	 */
+	public static function get_expiration() {
+		return self::get_duration_minutes() * MINUTE_IN_SECONDS;
+	}
+
+	/**
 	 * Execute one prepared wpdb read.
 	 *
 	 * @param string $method Supported wpdb read method.
@@ -306,6 +329,9 @@ class PSM_Cache {
 	 */
 	private static function normalize_expiration( $expiration ) {
 		$expiration = (int) $expiration;
+		if ( $expiration <= 0 ) {
+			$expiration = self::get_expiration();
+		}
 		return $expiration > 0 ? $expiration : self::EXPIRATION;
 	}
 

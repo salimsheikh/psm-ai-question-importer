@@ -15,7 +15,7 @@ require_once __DIR__ . '/includes/class-psm-database.php';
 
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall removes plugin-owned preview and notice rows; shared master tables are preserved.
 
-foreach ( array( 'psm_ai_api_settings', 'psm_ai_usage_stats', 'psm_ai_db_version', 'psm_ai_master_per_page', 'psm_ai_cache_generation' ) as $option ) {
+foreach ( array( 'psm_ai_api_settings', 'psm_ai_usage_stats', 'psm_ai_db_version', 'psm_ai_master_per_page', 'psm_ai_cache_duration', 'psm_ai_cache_generation' ) as $option ) {
 	delete_option( $option );
 	delete_site_option( $option );
 }

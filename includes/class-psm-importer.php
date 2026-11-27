@@ -30,6 +30,25 @@ class PSM_Importer {
 	}
 
 	/**
+	 * Extract a sequential question list from an envelope, list, map, or single question.
+	 *
+	 * @param mixed $decoded Decoded JSON payload.
+	 * @return array
+	 */
+	public static function extract_questions_from_payload( $decoded ) {
+		if ( ! is_array( $decoded ) ) {
+			return array();
+		}
+		if ( array_key_exists( 'questions', $decoded ) ) {
+			return is_array( $decoded['questions'] ) ? array_values( $decoded['questions'] ) : array();
+		}
+		if ( isset( $decoded['question'] ) || isset( $decoded['question_text'] ) || isset( $decoded['options'] ) || isset( $decoded['correct_answers'] ) || isset( $decoded['correct_keys'] ) ) {
+			return array( $decoded );
+		}
+		return array_values( $decoded );
+	}
+
+	/**
 	 * Map any AI/file type slug to the internal database slug.
 	 *
 	 * File-level single_choice / multiple_choice both become four_option; the
@@ -549,6 +568,10 @@ class PSM_Importer {
 			? sanitize_text_field( $batch_meta['label_name'] )
 			: $skill->name . ' - ' . wp_date( 'Y-m-d H:i' );
 
+		if ( false === PSM_Database::start_transaction() ) {
+			return new WP_Error( 'import_transaction_error', 'The import could not start a database transaction.' );
+		}
+
 		$batch_ok = PSM_Database::insert(
 			$batches_table,
 			array(
@@ -570,7 +593,12 @@ class PSM_Importer {
 			array( '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%d', '%s', '%s' )
 		);
 
-		$batch_id = $batch_ok ? (int) $wpdb->insert_id : 0;
+		if ( ! $batch_ok ) {
+			PSM_Database::rollback();
+			return new WP_Error( 'import_batch_error', 'The import batch could not be created. No questions were imported.' );
+		}
+
+		$batch_id = (int) $wpdb->insert_id;
 
 		$result = array(
 			'batch_id'          => $batch_id,
@@ -582,10 +610,6 @@ class PSM_Importer {
 			'rejected_tags'     => array(),
 			'messages'          => array(),
 		);
-
-		if ( ! $batch_ok ) {
-			$result['messages'][] = 'Batch record could not be created: ' . $wpdb->last_error;
-		}
 
 		$default_difficulty = self::normalize_difficulty_id( $batch_meta['default_difficulty'] ?? 1 );
 
@@ -665,9 +689,8 @@ class PSM_Importer {
 				);
 
 				if ( ! $inserted ) {
-					++$result['skipped_invalid'];
-					$result['messages'][] = $row_label . ': Database insert error: ' . $wpdb->last_error;
-					continue;
+					PSM_Database::rollback();
+					return new WP_Error( 'import_question_error', $row_label . ' could not be saved. The entire import was rolled back.' );
 				}
 
 				$question_id = (int) $wpdb->insert_id;
@@ -679,11 +702,16 @@ class PSM_Importer {
 				$tag_id = isset( $slug_to_tag_id[ $tag_slug ] ) ? (int) $slug_to_tag_id[ $tag_slug ] : 0;
 
 				if ( ! $tag_id ) {
-					$tag_id = self::resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, $result['created_tags'] );
+					$tag_error = null;
+					$tag_id    = self::resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, $result['created_tags'], $tag_error );
 					if ( $tag_id ) {
 						$slug_to_tag_id[ $tag_slug ] = $tag_id;
 					} else {
 						$result['rejected_tags'][] = $tag_slug;
+						if ( '' !== trim( (string) $tag_error ) ) {
+							PSM_Database::rollback();
+							return new WP_Error( 'import_tag_error', 'The imported tag "' . $tag_slug . '" could not be created. The entire import was rolled back.' );
+						}
 					}
 				}
 
@@ -694,7 +722,7 @@ class PSM_Importer {
 			$resolved_tag_ids = array_values( array_unique( array_map( 'intval', $resolved_tag_ids ) ) );
 
 			foreach ( $resolved_tag_ids as $tid ) {
-				PSM_Database::replace(
+				$linked = PSM_Database::replace(
 					$question_tags_table,
 					array(
 						'question_id' => $question_id,
@@ -702,42 +730,55 @@ class PSM_Importer {
 					),
 					array( '%d', '%d' )
 				);
+				if ( false === $linked ) {
+					PSM_Database::rollback();
+					return new WP_Error( 'import_tag_link_error', 'Question tags could not be synchronized. The entire import was rolled back.' );
+				}
 			}
 
 			if ( $duplicate_question_id ) {
 				continue;
 			}
 
-			if ( $batch_id > 0 ) {
-				PSM_Database::replace(
-					$batch_questions_table,
-					array(
-						'batch_id'      => $batch_id,
-						'question_id'   => $question_id,
-						'import_order'  => $order_num++,
-						'import_status' => 'imported',
-						'created_at'    => $now,
-					),
-					array( '%d', '%d', '%d', '%s', '%s' )
-				);
+			$linked = PSM_Database::replace(
+				$batch_questions_table,
+				array(
+					'batch_id'      => $batch_id,
+					'question_id'   => $question_id,
+					'import_order'  => $order_num++,
+					'import_status' => 'imported',
+					'created_at'    => $now,
+				),
+				array( '%d', '%d', '%d', '%s', '%s' )
+			);
+			if ( false === $linked ) {
+				PSM_Database::rollback();
+				return new WP_Error( 'import_batch_link_error', 'Batch question links could not be saved. The entire import was rolled back.' );
 			}
 
 			++$result['inserted'];
 		}
 
-		if ( $batch_id > 0 ) {
-			$total_skipped = $result['skipped_duplicate'] + $result['skipped_invalid'];
-			PSM_Database::update(
-				$batches_table,
-				array(
-					'total_imported' => $result['inserted'],
-					'total_skipped'  => $total_skipped,
-					'updated_at'     => $now,
-				),
-				array( 'id' => $batch_id ),
-				array( '%d', '%d', '%s' ),
-				array( '%d' )
-			);
+		$total_skipped = $result['skipped_duplicate'] + $result['skipped_invalid'];
+		$updated       = PSM_Database::update(
+			$batches_table,
+			array(
+				'total_imported' => $result['inserted'],
+				'total_skipped'  => $total_skipped,
+				'updated_at'     => $now,
+			),
+			array( 'id' => $batch_id ),
+			array( '%d', '%d', '%s' ),
+			array( '%d' )
+		);
+		if ( false === $updated ) {
+			PSM_Database::rollback();
+			return new WP_Error( 'import_batch_update_error', 'Batch totals could not be saved. The entire import was rolled back.' );
+		}
+
+		if ( false === PSM_Database::commit() ) {
+			PSM_Database::rollback();
+			return new WP_Error( 'import_commit_error', 'The import could not be committed. The entire import was rolled back.' );
 		}
 
 		$result['created_tags']  = array_values( array_unique( $result['created_tags'] ) );
@@ -757,11 +798,13 @@ class PSM_Importer {
 	 * @param string   $tags_table Tags table name.
 	 * @param string   $now      UTC timestamp.
 	 * @param string[] $created  Collector for newly created slugs.
+	 * @param string   $creation_error Receives a database creation failure, if any.
 	 */
-	public static function resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, &$created ) {
+	public static function resolve_or_create_tag( $tag_slug, $skill, $tags_table, $now, &$created, &$creation_error = null ) {
 		global $wpdb;
 
-		$tag_slug = sanitize_title( (string) $tag_slug );
+		$creation_error = null;
+		$tag_slug       = sanitize_title( (string) $tag_slug );
 		if ( '' === $tag_slug ) {
 			return 0;
 		}
@@ -801,7 +844,11 @@ class PSM_Importer {
 		if ( ! $ok ) {
 			// Unique slug race: another request may have just inserted it.
 			$existing = PSM_Cache::get_row( $wpdb->prepare( "SELECT id, skill_id, status FROM $tags_table WHERE slug = %s LIMIT 1", $tag_slug ), array(), false );
-			return ( $existing && (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) ? (int) $existing->id : 0;
+			if ( $existing && (int) $existing->skill_id === (int) $skill->id && 'active' === $existing->status ) {
+				return (int) $existing->id;
+			}
+			$creation_error = '' !== (string) $wpdb->last_error ? (string) $wpdb->last_error : 'Tag insert failed.';
+			return 0;
 		}
 
 		$created[] = $tag_slug;

@@ -1,6 +1,6 @@
 # PSM AI Question Generator & Importer
 
-**Version:** 1.7.7  
+**Version:** 1.7.8  
 **Requires:** WordPress 5.8+ and PHP 7.4+  
 **License:** GPL-2.0-or-later
 
@@ -10,10 +10,10 @@ Generate structured AI questions, review them before import, and manage question
 
 - Seven admin tabs: Prompt/Preview/Import, Masters, Batches, AI Providers, Settings, Backup & Restore, and Seed Defaults.
 - Questions is the first and default master, followed by Question Types, Tags, Skills, Skill Types, Domains, and Difficulties.
-- Server-side pagination for Batches and one global rows-per-page setting under Settings for all master lists and Batches.
-- Settings also provides cache details and a nonce- and capability-protected Clear Cache action.
+- AJAX pagination for Batches and one global rows-per-page setting under Settings for all master lists and Batches.
+- AJAX cache-duration and Clear Cache controls under Settings, with success and error notices at the top-right.
 - Modular master classes, controller dispatch, shared list rendering, reusable UI component traits, a shared button component, and focused admin workflow traits.
-- Namespaced one-hour query caching for master lists, counts, selectors, question navigation, batches, and common admin datasets, with automatic mutation invalidation and a manual admin clear control.
+- Namespaced configurable query caching for master lists, counts, selectors, question navigation, batches, and common admin datasets, with automatic mutation invalidation and an AJAX admin clear control.
 - Common cache-first database reader for every shared-table read, with prepared arguments, query-aware keys, and explicit fresh mode for correctness-sensitive operations.
 - Common non-caching write boundary with fixed shared-table allowlisting, validated restore columns, prepared values, and preserved transaction and cache-invalidation behavior.
 - Versioned external admin CSS and JavaScript assets.
@@ -32,7 +32,8 @@ Generate structured AI questions, review them before import, and manage question
 - C, C++, C#, and Microsoft Azure default skills with canonical `c`, `cplusplus`, `csharp`, and `microsoft-azure` slugs and skill-prefixed topic tags.
 - Microsoft Azure seed data under Programming, including six certification tags and nineteen learning-topic tags.
 - Named AZ-900, AZ-104, AZ-305, AZ-400, and AI-200 certification guidance in generation prompts.
-- Beginner prompts require very basic, simple English, straightforward foundational questions, and a short concrete example in every explanation, including downloadable mixed-level prompts.
+- JSON prompts require the downloadable filename `psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json` and raw JSON without Markdown fences.
+- Beginner prompts require simple, clear English for first-time learners, short sentences, no complicated vocabulary, foundational questions, and a short concrete example in every explanation, including downloadable mixed-level prompts.
 - Portable JSON Backup & Restore for the configured `psm_*` tables, with validated uploads, merge/replace modes, transactions, and no executable SQL.
 - Provider credentials and WordPress options are excluded from backups.
 - Strict JSON prompt builder with copy and download actions.
@@ -41,7 +42,7 @@ Generate structured AI questions, review them before import, and manage question
 - Skill-specific active-tag suggestions and inline new-tag creation.
 - Automatic tag slugs using `<skill-slug>-<tag-name>`, with existing-tag reuse.
 - Previous/next question editing that follows the exact filtered order, including non-contiguous IDs.
-- Question filters for text, skill, tag, and status.
+- Question filters for text, domain, skill, tag, and status, including temporary non-database options for missing skill/tag masters so orphaned references remain visible and filterable; unresolved tag links are preserved on edit.
 - Tag wildcard search by name or slug and a skill filter.
 - Centered soft confirmations for deletes and idempotent seeding.
 - Left-side range information and icon-based First/Previous/Next/Last pagination.
@@ -82,15 +83,15 @@ The **Tags** tab supports `*` for any sequence and `?` for one character. Exampl
 
 ## Query Cache
 
-Frequently read master and selector data is stored for one hour in the `psm_ai_queries` WordPress object-cache group. Every shared-table read passes through the common `PSM_Cache` reader, which checks the cache before querying and prepares supplied arguments. Cache keys include the site ID, configured `psm_*` table prefix, read method, query, arguments, output format, and normalized context. Successful empty and null results are cached; failed database reads are not. Successful question, tag, skill, master, batch, import, seed, restore, activation, and upgrade operations advance the cache generation so stale entries are no longer read.
+Frequently read master and selector data is stored in the `psm_ai_queries` WordPress object-cache group for an administrator-configured duration of 5 to 1440 minutes (60 minutes by default). Every shared-table read passes through the common `PSM_Cache` reader, which checks the cache before querying and prepares supplied arguments. Cache keys include the site ID, configured `psm_*` table prefix, read method, query, arguments, output format, and normalized context. Successful empty and null results are cached; failed database reads are not. Successful question, tag, skill, master, batch, import, seed, restore, activation, and upgrade operations advance the cache generation so stale entries are no longer read.
 
-Use **Settings → Clear Cache** for a manual reset. Duplicate checks, write validation, import and seed transactions, backup exports, restore validation, and schema inspection deliberately bypass caching. Reads from `wp_options` are always fresh, and provider credentials are never handled by the shared table reader. If another plugin writes directly to the shared `psm_*` tables without invoking this plugin, those external changes can remain unseen until the one-hour cache expires or the cache is cleared.
+Use **Settings → Clear Cache** for a manual AJAX reset. Saving a different cache duration also clears old entries. Both actions show success or error notices at the top-right without reloading. Duplicate checks, write validation, import and seed transactions, backup exports, restore validation, and schema inspection deliberately bypass caching. Reads from `wp_options` are always fresh, and provider credentials are never handled by the shared table reader. If another plugin writes directly to the shared `psm_*` tables without invoking this plugin, those external changes can remain unseen until the configured cache duration expires or the cache is cleared.
 
 ## JSON Import Workflow
 
 1. Select a domain, then select a skill and optional tag focus in **Prompt, Preview & Import**.
 2. Create the prompt and copy or download it.
-3. Save the AI output as a `.json` file, or copy the JSON code directly.
+3. Save the AI output as `psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json`, or copy the raw JSON code directly.
 4. Choose **Import JSON** to open the popup.
 5. Confirm the target skill, optional tag focus, and Draft/Published import status.
 6. Paste JSON and choose **Import Pasted JSON**, or select a `.json` file and choose **Preview**.
@@ -119,6 +120,15 @@ Open **Backup & Restore** to download a portable JSON snapshot of the configured
 - Uninstall removes only plugin-owned settings, counters, and cached previews. Shared `psm_*` tables remain intact.
 
 ## Changelog
+
+### 1.7.8
+
+- Fixed JSON file/paste source detection so valid uploads no longer produce a misleading "Paste JSON code before importing" error, while preserving legacy JSON formats and validation.
+- Converted Settings cache-duration save and Clear Cache to AJAX with fixed top-right success/error notices and a validated 5–1440 minute duration setting.
+- Converted Batches pagination to AJAX and refresh batch rows after edits or deletion without reloading the page.
+- Require the downloadable JSON filename `psm-[skill-slug]-[yyyy-mm-dd-HH-MM-SS].json` and clearer beginner questions for first-time learners, with short sentences and simple vocabulary.
+- Added temporary, non-database missing skill/tag options to Questions filters and preserve unresolved tag links when editing questions.
+- Updated the release documentation without changing the database schema.
 
 ### 1.7.7
 
